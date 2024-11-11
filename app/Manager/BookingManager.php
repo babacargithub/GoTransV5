@@ -17,9 +17,11 @@ use DB;
 use Exception;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
+use Log;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpKernel\Exception\UnprocessableEntityHttpException;
+use function Laravel\Prompts\error;
 
 class BookingManager
 {
@@ -116,9 +118,8 @@ $logger, string
     $payment_method): JsonResponse
     {
 
-
         try {
-            DB::transaction(function () use ($depart, $bookings, $payment_method, $logger) {
+           $result = DB::transaction(function () use ($depart, $bookings, $payment_method, $logger) {
                 $entities = [];
                 $number_of_seats_available = $depart->getBusForBooking() !== null ? $depart->getBusForBooking()->getAvailableSeats()->count() : 0;
                 $busForBookings = null;
@@ -186,7 +187,6 @@ $logger, string
                     return response()->json(['message' => 'Pas assez de places disponibles pour le départ ' . $depart->name
                         ()]);
                 }
-
                 $messages = [];
                 foreach ($entities as $entity) {
                     if ($entity instanceof Booking) {
@@ -200,20 +200,22 @@ $logger, string
                     }
                 }
                 $this->SMSSender->sendMultipleSms($messages);
-                return response()->json(['message' => 'Booking saved successfully']);
+
             });
-            return response()->json(['message' => 'Booking saved successfully']);
+            return response()->json(['message' => 'Finished: Booking saved successfully']);
 
         } catch (Exception $e) {
+            Log:error($e->getMessage());
             // rollback the transaction if something went wrong
             $stackTrace = __FUNCTION__ . "-- " . __CLASS__ . ' -- ' . __FILE__;
-            $logger->error('Saving multiple transactions failed ' . $stackTrace);
-            $logger->error($e->getMessage() . ' --' . $e->getTraceAsString());
+            Log::error('Saving multiple transactions failed ' . $stackTrace);
+            Log::error($e->getMessage() . ' --' . $e->getTraceAsString());
+
         }
         // send notifications to users after saving the bookings
 
 
 
-        return response()->json(['message' => 'Booking saved successfully']);
+        return response()->json(['message' => ' Booking saved successfully']);
     }
 }

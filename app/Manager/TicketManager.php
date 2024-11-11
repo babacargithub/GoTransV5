@@ -94,7 +94,7 @@ class  TicketManager
     {
         $ticket =
             new Ticket();
-            $ticket->number = now()->timestamp;
+            $ticket->number = Ticket::orderByDesc("id")->first()->id.now()->timestamp;
             $ticket->expiryDate = now()->addDays(30);
             $ticket->soldAt = now();
             $ticket->used = true;
