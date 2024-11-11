@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Utils\NotificationSender\SMSSender\SMSSender;
 use DB;
 use Exception;
+use Illuminate\Database\Eloquent\Model;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpKernel\Exception\UnprocessableEntityHttpException;
@@ -181,7 +182,9 @@ $logger, string
         DB::transaction(function () use ($entities, $logger) {
             try {
                 foreach ($entities as $entity) {
-                    $entity->save();
+                    if ($entity instanceof Model) {
+                        $entity->save();
+                    }
                 }
             } catch (Exception $e) {
                 // rollback the transaction if something went wrong

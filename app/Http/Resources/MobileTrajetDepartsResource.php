@@ -92,7 +92,7 @@ class MobileTrajetDepartsResource extends JsonResource
                 "attachements" => $bus->vehicule?->attachements,
                 "features" => $bus->vehicule->features ??  [],
                 "full" => $bus->isFull(),
-                "closed" => $bus->closed,
+                "closed" => $bus->isClosed(),
                 "nombre_place" => $bus->nombre_place,
                 "ticket_price" => $bus->ticket_price,
 
@@ -123,7 +123,8 @@ class MobileTrajetDepartsResource extends JsonResource
             "show_discount" => true,
             "discount_amount" => TicketManager::DISCOUNT_AMOUNT,
             "discounted_price" => $discountedPrice,
-            "discount_message"=>"Vous aurez une réduction de  ".($discountedPrice)." FCFA sur le prix du ticket",
+            "discount_message"=>"Si vous faites une réservation en groupe vous payez  ".
+                ($discountedPrice)." FCFA chacun au lieu de ". $depart->getBusForBooking()->ticket_price." FCFA",
             "start_point" => $depart->trajet->start_point,
             "end_point" => $depart->trajet->end_point,
         ];
@@ -131,13 +132,15 @@ class MobileTrajetDepartsResource extends JsonResource
             $promotion = PromotionalMessage::whereJsonContains("depart_ids", $depart->id)->firstOrFail();
             $data["promotional_message"] = $promotion->message;
             $data["show_promotional_message"] = !$promotion->paused;
-            $data["schedules"] =  $depart->heuresDeparts->map(function (HeureDepart $schedule) {
-                return [
-                    'name' => $schedule->pointDep->name,
-                    'schedule' => $schedule->heureDepart->format('H:i'),
-                    "arret_bus" => $schedule->arretBus,
-                ];
-            });
+            if ($item instanceof Depart){
+                $data["schedules"] =  $depart->heuresDeparts->map(function (HeureDepart $schedule) {
+                    return [
+                        'name' => $schedule->pointDep->name,
+                        'schedule' => $schedule->heureDepart->format('H:i'),
+                        "arret_bus" => $schedule->arretBus,
+                    ];
+                });
+            }
             return $data;
         } catch (ModelNotFoundException $e) {
 

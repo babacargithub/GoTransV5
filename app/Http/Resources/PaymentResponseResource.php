@@ -17,7 +17,7 @@ class PaymentResponseResource extends JsonResource
         $this->paymentMethod = $paymentMethod;
         $this->data = [
         'status' => $response->status(),
-        'message' => $response->json()['message']??null,
+        'message' => $response->json()['message'] ?? null,
         'paymentResponse' => $response->json(),
             ];
     }

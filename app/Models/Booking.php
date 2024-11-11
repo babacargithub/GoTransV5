@@ -128,4 +128,14 @@ class Booking extends Model
 
     }
 
+    public function belongsToAGroup(): bool
+    {
+        return $this->group_id !== null;
+    }
+    public function isPaid() : bool
+    {
+        return $this->hasTicket();
+    }
+
+
 }

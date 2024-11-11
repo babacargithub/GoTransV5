@@ -25,6 +25,7 @@ use GuzzleHttp\Exception\GuzzleException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -195,8 +196,9 @@ class MobileAppController extends Controller
             if ($wavePaiementResponse->isOK() ) {
                 $ticketPayment = new TicketPayment();
                 $ticketPayment->payement_method = "wave";
+                $ticketPayment->status = TicketPayment::STATUS_PENDING;
                 $ticketPayment->montant = $totalTicketPrice;
-                $ticketPayment->meta_data = json_encode($metadata);
+                $ticketPayment->meta_data = json_encode($metadata["client_reference"]);
                 $ticketPayment->group_id = $group_id;
                 $ticketPayment->is_for_multiple_booking = true;
                 $ticketPayment->save();
@@ -226,13 +228,14 @@ class MobileAppController extends Controller
                 $ticketPayment = new TicketPayment();
                 $ticketPayment->payement_method = "om";
                 $ticketPayment->montant = $totalTicketPrice;
+                $ticketPayment->status = TicketPayment::STATUS_PENDING;
                 $ticketPayment->phone_number = $request->input("om_number");
                 $ticketPayment->meta_data = json_encode($metadata);
                 $ticketPayment->group_id = $group_id;
                 $ticketPayment->is_for_multiple_booking = true;
                 $ticketPayment->save();
             }else{
-                \Illuminate\Log\log($paymentResponse->data);
+                Log::log("error", "Erreur lors de l'initialisation du paiement pour le groupe $group_id");
                 return response()->json(["message" => "Erreur lors de l'initialisation du paiement "], 422);
             }
 

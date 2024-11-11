@@ -11,6 +11,7 @@ use App\Http\Controllers\OrangeMoneyController;
 use App\Http\Controllers\PointDepController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\TrajetController;
+use App\Http\Controllers\WavePaiementController;
 use App\Models\MobileAppLog;
 use App\Models\Vehicule;
 use Illuminate\Http\Request;
@@ -140,5 +141,7 @@ Route::group(['prefix' => 'mobile'], function () {
         }
         return response()->json(["message" => "Log saved"]);
     });
+    Route::post("payment/om/success",[OrangeMoneyController::class,"orangeMoneyPaymentSuccessCallBack"]);
+    Route::post("payment/wave/success",[WavePaiementController::class,"wavePaymentSuccessCallBack"]);
 
 });
