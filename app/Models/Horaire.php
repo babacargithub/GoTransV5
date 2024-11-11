@@ -22,8 +22,11 @@ class Horaire extends Model
     protected $fillable = [
         "trajet_id",
         "name",
-        "departure_time",
+        "bus_leave_time",
         "constant_name",
+    ];
+    protected $casts = [
+        "bus_leave_time" => "datetime:H:i",
     ];
 
 }

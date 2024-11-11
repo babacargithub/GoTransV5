@@ -13,7 +13,6 @@ use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 class Depart extends Model
 {
     //
-    public $timestamps = false;
 
     protected $fillable = [
         "name",
@@ -30,6 +29,8 @@ class Depart extends Model
         "canceled_by",
         "created_by",
         "updated_by",
+        "created_at",
+        "updated_at",
         "allows_seat_selection",
         "should_show_seat_numbers",
 
@@ -46,6 +47,10 @@ class Depart extends Model
     public function trajet(): BelongsTo
     {
         return $this->belongsTo(Trajet::class);
+    }
+    public function horaire(): BelongsTo
+    {
+        return $this->belongsTo(Horaire::class);
     }
 
     protected $casts = [

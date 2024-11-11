@@ -22,6 +22,7 @@ return new class extends Migration
             $table->renameColumn('event','event_id');
             $table->renameColumn('clos_res', 'closed');
             $table->renameColumn('clos_paye', 'locked');
+            $table->timestamps();
 
 
             // Re-apply the foreign key constraint with the new column name

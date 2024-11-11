@@ -15,6 +15,7 @@ use App\Models\Horaire;
 use App\Models\PointDep;
 use App\Models\Seat;
 use App\Models\Trajet;
+use App\Models\User;
 use App\Models\Vehicule;
 use App\Models\WaitingCustomer;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -78,7 +79,11 @@ class DepartController extends Controller
                     'should_show_seat_numbers' => false,
 
                 ]);
+                /** @var  $depart Depart */
                 // create seats for bus
+                $date = $depart->date;
+                $depart->date = $date->setTime($depart->horaire->bus_leave_time->hour, $depart->horaire->bus_leave_time->minute);
+                $depart->created_by = User::requiredLoggedInUser()->username;
                 $depart->save();
                 $depart->buses()->save($defaultBus);
                 $busSeats = $this->generateBusSeats($defaultBus);

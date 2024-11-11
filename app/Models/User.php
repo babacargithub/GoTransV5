@@ -3,9 +3,11 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Exception;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use InvalidArgumentException;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use Laravel\Jetstream\HasProfilePhoto;
 use Laravel\Sanctum\HasApiTokens;
@@ -66,6 +68,14 @@ class User extends Authenticatable
     public static function requireMobileAppUser(): User
     {
         return User::where('username', 'appli_mobile')->firstOrFail();
+    }
+
+    /**
+     * @throws Exception
+     */
+    public static function requiredLoggedInUser(): User
+    {
+        return auth()->user() ?? throw new InvalidArgumentException("User not logged in");
     }
 
     /**
