@@ -230,7 +230,7 @@ class MobileAppController extends Controller
                 $ticketPayment->montant = $totalTicketPrice;
                 $ticketPayment->status = TicketPayment::STATUS_PENDING;
                 $ticketPayment->phone_number = $request->input("om_number");
-                $ticketPayment->meta_data = json_encode($metadata);
+                $ticketPayment->meta_data = json_encode($metadata["metadata"]);
                 $ticketPayment->group_id = $group_id;
                 $ticketPayment->is_for_multiple_booking = true;
                 $ticketPayment->save();
