@@ -16,6 +16,7 @@ use App\Utils\NotificationSender\SMSSender\SMSSender;
 use DB;
 use Exception;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Collection;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpKernel\Exception\UnprocessableEntityHttpException;
@@ -110,7 +111,7 @@ class BookingManager
     /**
      * @throws Exception
      */
-    public function saveTicketPaymentMultipleBooking(Depart $depart, ?Bus $bus, array $bookings, LoggerInterface
+    public function saveTicketPaymentMultipleBooking(Depart $depart, ?Bus $bus, Collection $bookings, LoggerInterface
 $logger, string
     $payment_method): JsonResponse
     {
@@ -132,7 +133,7 @@ $logger, string
             // not enough seats available
             // We notify user and a refund is made
             /** @var Booking $firsBooking */
-            $firsBooking = $bookings[0];
+            $firsBooking = $bookings->first();
             $message = "Le client ".$firsBooking?->customer->full_name
                 ." ".$firsBooking?->customer->phone_number." vient de faire un paiement pour une réservation groupée sur le départ sans assez de places disponibles " . $depart->name."\n Pas assez de places disponibles pour le départ " .
                 $depart->name;
@@ -142,8 +143,8 @@ $logger, string
         }
         if ($busForBookings instanceof Bus) {
             // we take seats the number of bookings
-            $seats = $busForBookings->getAvailableSeats()->slice(0, count($bookings));
-            if (count($seats) < count($bookings)) {
+            $seats = $busForBookings->getAvailableSeats()->slice(0, $bookings->count());
+            if (count($seats) < $bookings->count()) {
                 // Handle the case where there are not enough seats
                 $logger->error('Not enough available seats for the number of bookings.');
                 throw new UnprocessableEntityHttpException('Not enough available seats for the number of bookings.');
@@ -154,7 +155,7 @@ $logger, string
                 ($this->ticketManager->calculateTicketPriceForBooking($booking, $payment_method));
                 $ticket->soldBy = $soldBy;
                     $ticket->payment_method = $payment_method;
-                $booking->setTicket($ticket);
+                $booking->ticket()->associate($ticket);
                // take one available seat and assign it to booking, seats array is not 0 indexed
                 foreach ($seats as /** @var BusSeat $seat */&$seat) {
                     if ($seat instanceof BusSeat) {
@@ -200,9 +201,10 @@ $logger, string
         foreach ($entities as $entity) {
             if ($entity instanceof Booking) {
                 $messages[] = [
-                    'message' => "On a acheté un ticket pour vous sur Globe Transport pour le  départ " .
+                    'message' => "Quelqu'un a acheté un ticket pour vous sur Globe Transport pour le  départ " .
                         $entity->depart->name .
-                        " RV " . $entity->formatted_schedule . " \n Contactez l'agent du bus ".AppParams::first()->getBusAgentDefaultNumber(),
+                        " RV " . $entity->formatted_schedule . " A " . $entity->point_dep->arret_bus .". " .
+                        "\n Contactez l'agent du bus ".AppParams::first()->getBusAgentDefaultNumber(),
                     'phone_number' => $entity->customer->phone_number
                 ];
             }
