@@ -22,7 +22,9 @@ use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Psr\Log\LoggerInterface;
+use Ramsey\Collection\Collection;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -57,14 +59,13 @@ class OrangeMoneyController extends Controller
         if (isset($data['status']) && isset($data['customer'])) {
             if ($data['status'] == "SUCCESS") {
                 $customerPhoneNumber = $data["customer"]['id'];
-                $customer = Customer::find($customerPhoneNumber);
+                $customer = Customer::wherePhoneNumber($customerPhoneNumber)->first();
                 $ticketPayment = TicketPayment::wherePhoneNumber($customerPhoneNumber)
                     ->whereStatus(TicketPayment::STATUS_PENDING)
                     ->whereIsForMultipleBooking(true)
                     ->wherePayementMethod("om")
                     ->orderByDesc('created_at')
                     ->first();
-
                 if ($customer != null) {
                     $booking = $customer->getCurrentBooking();
                     if ($booking != null) {
@@ -72,21 +73,32 @@ class OrangeMoneyController extends Controller
                         if (! $booking->hasTicket()) {
                             if ($booking->belongsToAGroup()){
                                 if ($ticketPayment == null) {
-                                    throw new ModelNotFoundException('Om paiement failed : Ticket payment not found for phone number ' .
-                                        $customerPhoneNumber);
+                                    $ticketPayment = new TicketPayment();
+                                    $ticketPayment->phone_number = $customerPhoneNumber;
+                                    $ticketPayment->group_id = $booking->group_id;
+                                    $ticketPayment->status = TicketPayment::STATUS_SUCCESS;
+                                    $ticketPayment->refunded = false;
+                                    $ticketPayment->payement_method = "om";
+                                    $ticketPayment->is_for_multiple_booking = true;
+                                    $ticketPayment->save();
+//                                    throw new ModelNotFoundException('Om paiement failed : Ticket payment not found for phone number ' .
+//                                        $customerPhoneNumber);
                                 }
                                 $bookings = Booking::whereGroupId($booking->group_id)->get();
-                                $departForMultipleBooking = Depart::find($booking->depart_id);
+                                $departForMultipleBooking = $booking->depart;
                                 $this->savePayment($departForMultipleBooking, $bookings, $ticketPayment);
 
-                            }else
+                            }else{
                             $this->bookingManager->saveTicketPayementForOnlineUsers($booking, $this->logger, "om");
+                            }
                         }
-                    } else {
-                        $this->logger->alert("Booking is null for customer OM payment");
+                        return \response()->json("OM payment saved for booking !" . $booking->id . ", for customer " .
+                            $booking->customer->full_name . ", for depart " . $booking->depart->name);
                     }
+                    Log::alert("Booking is null for customer OM payment");
 
-                } else {
+
+                }
                     // handle case when customer is not found
                     // if payment is for multiple booking
 
@@ -96,9 +108,9 @@ class OrangeMoneyController extends Controller
                     }
                     $group_id = $ticketPayment->group_id;
                     $bookings = Booking::whereGroupId($group_id)->get();
-                    $depart_id = $bookings[0]?->depart_id;
+                    $depart_id = $bookings->first()?->depart_id;
 
-                    if (count($bookings) == 0) {
+                    if ($bookings->count()===0) {
                         throw new ModelNotFoundException('Om payment paiement failed : Booking group with group id '
                             . $group_id . ' not found during Wave payment');
                     }
@@ -107,11 +119,14 @@ class OrangeMoneyController extends Controller
                         throw new ModelNotFoundException('Om paiement failed : Depart with id ' . $depart_id . ' not found for wave');
                     }
                     $this->savePayment($departForMultipleBooking, $bookings, $ticketPayment);
-                }
+
             }else {
-                $this->logger->error("OM payment failed with status " . $data['status']. " request data is ".$request->getContent());
+                Log::error("OM payment failed with status " . $data['status']. " request data is ".$request->getContent());
 
             }
+        }else{
+            Log::error("OM payment failed, the data object does not contain all fields : Here is content of request"
+                .$request->getContent());
         }
 
         return new Response('OM url called');
@@ -174,7 +189,7 @@ class OrangeMoneyController extends Controller
                         'walletType' => 'PRINCIPAL',
                     ],
                     'reference' => 'globesoft.'.now()->timestamp,
-                    'metadata' => $metadata,
+                    'metadata' => json_encode($metadata),
                     'receiveNotification' => true
                 ];
             $headers = $this->omHeaders();
@@ -303,7 +318,7 @@ class OrangeMoneyController extends Controller
      * @return void
      * @throws Exception
      */
-    public function savePayment(Depart $departForMultipleBooking, array
+    public function savePayment(Depart $departForMultipleBooking, \Illuminate\Support\Collection
     $bookings, TicketPayment $ticketPayment): void
     {
         $this->bookingManager->saveTicketPaymentMultipleBooking(

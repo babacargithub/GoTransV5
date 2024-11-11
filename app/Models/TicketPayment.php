@@ -7,9 +7,9 @@ use Illuminate\Database\Eloquent\Model;
 class TicketPayment extends Model
 {
     //
-    const STATUS_PENDING = "STATUS_PENDING";
-    const STATUS_SUCCESS = "STATUS_SUCCESS";
-    const STATUS_FAILED = "STATUS_FAILED";
+    const STATUS_PENDING = "PENDING";
+    const STATUS_SUCCESS = "SUCCESS";
+    const STATUS_FAILED = "FAILED";
     protected $fillable=[
         "meta_data",
         "payement_method",
