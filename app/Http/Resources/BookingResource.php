@@ -118,7 +118,7 @@ class BookingResource extends JsonResource
 //            "groupMembersCount" => $this->getOtherBookingsOfSameGroup()->count(),
             'client' => [
                 "fullName" => $this->customer->fullName,
-                "phoneNumber" => $this->customer->phoneNumber,
+                "phoneNumber" => $this->customer->phone_number,
 
             ],
             'pointDep' => $this->point_dep->name,
