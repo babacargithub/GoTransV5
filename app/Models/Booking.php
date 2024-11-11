@@ -119,10 +119,13 @@ class Booking extends Model
     }
     public function freeSeat(): self
     {
-        $this->seat_id = null;
-        $this->save();
-        $this->seat?->free();
-        $this->seat?->save();
+        \DB::transaction(function () {
+            $this->seat?->free();
+            $this->seat?->save();
+            $this->seat_id = null;
+            $this->save();
+        });
+       
 
         return $this;
 
