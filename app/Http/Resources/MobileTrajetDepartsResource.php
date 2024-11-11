@@ -96,7 +96,7 @@ class MobileTrajetDepartsResource extends JsonResource
                 "nombre_place" => $bus->nombre_place,
                 "ticket_price" => $bus->ticket_price,
 
-            ], $this->dataCommonToDepartAndBus($bus))):[],
+            ], $this->dataCommonToDepartAndBus($bus))):null,
 
 
         ];
