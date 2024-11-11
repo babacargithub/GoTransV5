@@ -54,7 +54,7 @@ class BusSeat extends Model
     public function free(): self
     {
         $this->booked = false;
-        $this->booked_at = null;
+        $this->bookedAt = null;
         return $this;
 
     }
