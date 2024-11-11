@@ -37,9 +37,9 @@ class HeureDepart extends Model
     // add a global scope to order by point_dep.position
     protected static function booted()
     {
-        static::addGlobalScope('orderByPointDepartPosition', function ($builder) {
-            $builder->join('point_deps', 'point_deps.id', '=', 'heure_departs.point_dep_id')
-                ->orderBy('point_deps.position');
-        });
+//        static::addGlobalScope('orderByPointDepartPosition', function ($builder) {
+//            $builder->join('point_deps', 'point_deps.id', '=', 'heure_departs.point_dep_id')
+//                ->orderBy('point_deps.position');
+//        });
     }
 }

@@ -191,7 +191,7 @@ class DepartController extends Controller
             return [
                 "id" => $busStopSchedule->id,
                 'pointDep' => $busStopSchedule->pointDep->name,
-                'rendezVousPoint' => $busStopSchedule->pointDep->arret_bus,
+                'rendezVousPoint' => $busStopSchedule->arretBus,
                 'rendezVousSchedule' => $busStopSchedule->heureDepart->format('H:i'),
             ];
         }));
