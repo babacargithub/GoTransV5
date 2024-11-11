@@ -124,8 +124,8 @@ class MobileTrajetDepartsResource extends JsonResource
             "discount_amount" => TicketManager::DISCOUNT_AMOUNT,
             "discounted_price" => $discountedPrice,
             "discount_message"=>"Si vous faites une réservation en groupe vous payez <span class='text-bold text-primary'>  ".
-                ($discountedPrice)."</span> FCFA chacun au lieu de <span class='text-bold text-primary'> ".
-                $depart->getBusForBooking()->ticket_price." </span> FCFA",
+                number_format($discountedPrice,0,","," ")."</span> FCFA chacun au lieu de <span class='text-bold text-primary'> ".
+                number_format($depart->getBusForBooking()->ticket_price,0,","," ")." </span> FCFA",
             "start_point" => $depart->trajet->start_point,
             "end_point" => $depart->trajet->end_point,
         ];
