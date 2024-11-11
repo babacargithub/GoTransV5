@@ -72,9 +72,9 @@ class Bus extends Model
     }
     public function getOneAvailableSeat(): BusSeat
     {
-        $availableSeat = $this->getAvailableSeats()->first;
+        $availableSeat = $this->getAvailableSeats()->first();
         if ($availableSeat == null){
-            throw new ModelNotFoundException("Aucun siège trouvé dans ce bus ".$this->name);
+            throw new ModelNotFoundException("Aucun siège trouvé dans ce bus ".$this->full_name);
         }
         return $availableSeat;
 
