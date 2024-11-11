@@ -92,10 +92,10 @@ class BookingManager
             $soldBy = User::requireMobileAppUser()->username;
             $ticket->soldBy = $soldBy;
                 $ticket->payment_method = $paymentMethod;
-            $booking->ticket()->associate($ticket);
             DB::transaction(function () use ($booking, $seatBus, $ticket) {
                 $seatBus->save();
                 $ticket->save();
+                $booking->ticket()->associate($ticket);
                 $booking->save();
             });
             //<-- send notification to user -->
