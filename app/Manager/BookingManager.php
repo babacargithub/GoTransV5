@@ -115,101 +115,106 @@ class BookingManager
 $logger, string
     $payment_method): JsonResponse
     {
-        $entities = [];
-        $number_of_seats_available = $depart->getBusForBooking() !== null ? $depart->getBusForBooking()->getAvailableSeats()->count() : 0;
-        $busForBookings = null;
-        if ($number_of_seats_available >= count($bookings)){
-            $busForBookings = $depart->getBusForBooking();
-        } else{
-            // We try to find another bus  with enough seats for the bookings
-            foreach ($depart->buses as $bus) {
-                if ($bus->getAvailableSeats()->count() >= count($bookings) && !$bus->isFull() && !$bus->isClosed()) {
-                    $busForBookings = $bus;
-                    break;
-                }
-            }
-        }
-        if ($busForBookings === null) {
-            // not enough seats available
-            // We notify user and a refund is made
-            /** @var Booking $firsBooking */
-            $firsBooking = $bookings->first();
-            $message = "Le client ".$firsBooking?->customer->full_name
-                ." ".$firsBooking?->customer->phone_number." vient de faire un paiement pour une réservation groupée sur le départ sans assez de places disponibles " . $depart->name."\n Pas assez de places disponibles pour le départ " .
-                $depart->name;
-            $this->SMSSender->sendSms(773300853, $message);
-            $this->SMSSender->sendSms(771273535, $message);
-            throw new Exception('No bus available for booking');
-        }
-        if ($busForBookings instanceof Bus) {
-            // we take seats the number of bookings
-            $seats = $busForBookings->getAvailableSeats()->slice(0, $bookings->count());
-            if (count($seats) < $bookings->count()) {
-                // Handle the case where there are not enough seats
-                $logger->error('Not enough available seats for the number of bookings.');
-                throw new UnprocessableEntityHttpException('Not enough available seats for the number of bookings.');
-            }
-            $soldBy = User::requireMobileAppUser()->username;
-            foreach ($bookings as $booking) {
-                $ticket = $this->ticketManager->provideOneForBooking
-                ($this->ticketManager->calculateTicketPriceForBooking($booking, $payment_method));
-                $ticket->soldBy = $soldBy;
-                    $ticket->payment_method = $payment_method;
-                $booking->ticket()->associate($ticket);
-               // take one available seat and assign it to booking, seats array is not 0 indexed
-                foreach ($seats as /** @var BusSeat $seat */&$seat) {
-                    if ($seat instanceof BusSeat) {
-                        if (!$seat->isBooked() && $seat->isAvailable()) {
-                            $booking->seat()->associate($seat);
-                            $seat->book();
-                            $entities[] = $seat;
+
+
+        try {
+            DB::transaction(function () use ($depart, $bookings, $payment_method, $logger) {
+                $entities = [];
+                $number_of_seats_available = $depart->getBusForBooking() !== null ? $depart->getBusForBooking()->getAvailableSeats()->count() : 0;
+                $busForBookings = null;
+                if ($number_of_seats_available >= count($bookings)){
+                    $busForBookings = $depart->getBusForBooking();
+                } else{
+                    // We try to find another bus  with enough seats for the bookings
+                    foreach ($depart->buses as $bus) {
+                        if ($bus->getAvailableSeats()->count() >= count($bookings) && !$bus->isFull() && !$bus->isClosed()) {
+                            $busForBookings = $bus;
                             break;
                         }
                     }
                 }
-                $entities[] = $booking;
+                if ($busForBookings === null) {
+                    // not enough seats available
+                    // We notify user and a refund is made
+                    /** @var Booking $firsBooking */
+                    $firsBooking = $bookings->first();
+                    $message = "Le client ".$firsBooking?->customer->full_name
+                        ." ".$firsBooking?->customer->phone_number." vient de faire un paiement pour une réservation groupée sur le départ sans assez de places disponibles " . $depart->name."\n Pas assez de places disponibles pour le départ " .
+                        $depart->name;
+                    $this->SMSSender->sendSms(773300853, $message);
+                    $this->SMSSender->sendSms(771273535, $message);
+                    throw new Exception('No bus available for booking');
+                }
+                if ($busForBookings instanceof Bus) {
+                    // we take seats the number of bookings
+                    $seats = $busForBookings->getAvailableSeats()->slice(0, $bookings->count());
+                    if (count($seats) < $bookings->count()) {
+                        // Handle the case where there are not enough seats
+                        $logger->error('Not enough available seats for the number of bookings.');
+                        throw new UnprocessableEntityHttpException('Not enough available seats for the number of bookings.');
+                    }
+                    $soldBy = User::requireMobileAppUser()->username;
+                    foreach ($bookings as $booking) {
+                        $ticket = $this->ticketManager->provideOneForBooking
+                        ($this->ticketManager->calculateTicketPriceForBooking($booking, $payment_method));
+                        $ticket->soldBy = $soldBy;
+                        $ticket->payment_method = $payment_method;
+                        $ticket->save();
+                        $booking->ticket()->associate($ticket);
+                        // take one available seat and assign it to booking, seats array is not 0 indexed
+                        foreach ($seats as /** @var BusSeat $seat */&$seat) {
+                            if ($seat instanceof BusSeat) {
+                                if (!$seat->isBooked() && $seat->isAvailable()) {
+                                    $booking->seat()->associate($seat);
+                                    $seat->book();
+                                    $entities[] = $seat;
+                                    break;
+                                }
+                            }
+                        }
+                        $entities[] = $booking;
 
 
-            }
+                    }
 
-        } else {
+                } else {
 
-            return response()->json(['message' => 'Pas assez de places disponibles pour le départ ' . $depart->name
-            ()]);
-        }
+                    return response()->json(['message' => 'Pas assez de places disponibles pour le départ ' . $depart->name
+                        ()]);
+                }
 
-        // save entities in a doctrine transaction with commit and rollback
-        // start the transaction
-        DB::transaction(function () use ($entities, $logger) {
-            try {
+                // save entities in a doctrine transaction with commit and rollback
+                // start the transaction
                 foreach ($entities as $entity) {
                     if ($entity instanceof Model) {
                         $entity->save();
                     }
                 }
-            } catch (Exception $e) {
-                // rollback the transaction if something went wrong
-                $stackTrace = __FUNCTION__ . "-- " . __CLASS__ . ' -- ' . __FILE__;
-                $logger->error('Saving multiple transactions failed ' . $stackTrace);
-                $logger->error($e->getMessage() . ' --' . $e->getTraceAsString());
-            }
+                $messages = [];
+                foreach ($entities as $entity) {
+                    if ($entity instanceof Booking) {
+                        $messages[] = [
+                            'message' => "Quelqu'un a acheté un ticket pour vous sur Globe Transport pour le  départ " .
+                                $entity->depart->name .
+                                " RV " . $entity->formatted_schedule . " A " . $entity->point_dep->arret_bus .". " .
+                                "\n Contactez l'agent du bus ".AppParams::first()->getBusAgentDefaultNumber(),
+                            'phone_number' => $entity->customer->phone_number
+                        ];
+                    }
+                }
+                $this->SMSSender->sendMultipleSms($messages);
+                return response()->json(['message' => 'Booking saved successfully']);
+            });
+            return response()->json(['message' => 'Booking saved successfully']);
 
-
-        });
-        // send notifications to users after saving the bookings
-        $messages = [];
-        foreach ($entities as $entity) {
-            if ($entity instanceof Booking) {
-                $messages[] = [
-                    'message' => "Quelqu'un a acheté un ticket pour vous sur Globe Transport pour le  départ " .
-                        $entity->depart->name .
-                        " RV " . $entity->formatted_schedule . " A " . $entity->point_dep->arret_bus .". " .
-                        "\n Contactez l'agent du bus ".AppParams::first()->getBusAgentDefaultNumber(),
-                    'phone_number' => $entity->customer->phone_number
-                ];
-            }
+        } catch (Exception $e) {
+            // rollback the transaction if something went wrong
+            $stackTrace = __FUNCTION__ . "-- " . __CLASS__ . ' -- ' . __FILE__;
+            $logger->error('Saving multiple transactions failed ' . $stackTrace);
+            $logger->error($e->getMessage() . ' --' . $e->getTraceAsString());
         }
-        $this->SMSSender->sendMultipleSms($messages);
+        // send notifications to users after saving the bookings
+
 
 
         return response()->json(['message' => 'Booking saved successfully']);
