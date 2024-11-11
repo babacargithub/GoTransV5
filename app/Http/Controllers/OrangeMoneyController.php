@@ -189,7 +189,7 @@ class OrangeMoneyController extends Controller
                         'walletType' => 'PRINCIPAL',
                     ],
                     'reference' => 'globesoft.'.now()->timestamp,
-                    'metadata' => json_encode($metadata),
+                    'metadata' => $metadata,
                     'receiveNotification' => true
                 ];
             $headers = $this->omHeaders();
