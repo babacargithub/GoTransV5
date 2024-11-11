@@ -67,7 +67,9 @@ class Bus extends Model
 
     public function getAvailableSeats(): Collection
     {
-        return $this->seats()->where('booked', false)->get();
+        return $this->seats()->where('booked', false)
+            ->whereIsNull('bookedAt')
+            ->orderByDesc("seat_id")->get();
 
     }
     public function getOneAvailableSeat(): BusSeat

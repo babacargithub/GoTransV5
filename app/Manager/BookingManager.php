@@ -159,14 +159,18 @@ $logger, string
                         ($this->ticketManager->calculateTicketPriceForBooking($booking, $payment_method));
                         $ticket->soldBy = $soldBy;
                         $ticket->payment_method = $payment_method;
+                        $ticket->soldAt = now();
                         $ticket->save();
                         $booking->ticket()->associate($ticket);
+                        $booking->save();
                         // take one available seat and assign it to booking, seats array is not 0 indexed
                         foreach ($seats as /** @var BusSeat $seat */&$seat) {
                             if ($seat instanceof BusSeat) {
                                 if (!$seat->isBooked() && $seat->isAvailable()) {
                                     $booking->seat()->associate($seat);
                                     $seat->book();
+                                    $seat->save();
+                                    $booking->save();
                                     $entities[] = $seat;
                                     break;
                                 }
@@ -183,13 +187,6 @@ $logger, string
                         ()]);
                 }
 
-                // save entities in a doctrine transaction with commit and rollback
-                // start the transaction
-                foreach ($entities as $entity) {
-                    if ($entity instanceof Model) {
-                        $entity->save();
-                    }
-                }
                 $messages = [];
                 foreach ($entities as $entity) {
                     if ($entity instanceof Booking) {
