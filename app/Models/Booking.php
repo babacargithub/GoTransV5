@@ -125,7 +125,7 @@ class Booking extends Model
             $this->seat_id = null;
             $this->save();
         });
-       
+
 
         return $this;
 

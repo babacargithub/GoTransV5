@@ -50,4 +50,12 @@ class BusSeat extends Model
     {
         return (boolean)$this->booked;
     }
+
+    public function free(): self
+    {
+        $this->booked = false;
+        $this->booked_at = null;
+        return $this;
+
+    }
 }
