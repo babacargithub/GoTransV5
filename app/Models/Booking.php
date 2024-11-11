@@ -140,5 +140,11 @@ class Booking extends Model
         return $this->hasTicket();
     }
 
+    public function getPhoneNumberAttribute(): int
+    {
+        return intval(substr($this->customer->phone_number,-9,9));
+
+    }
+
 
 }
