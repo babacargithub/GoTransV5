@@ -118,14 +118,15 @@ class MobileTrajetDepartsResource extends JsonResource
         $discountedPrice = $depart->getBusForBooking()->ticket_price - TicketManager::DISCOUNT_AMOUNT - 50;
         $data = [
             "show_ticket_price" => true,
-            "promotional_message" =>null,
+            "promotional_message" =>"Globe Transport souhaite la bienvenue aux nouveaux bacheliers",
             "show_promotional_message" => false,
-            "show_discount" => true,
+            "show_discount" => false,
             "discount_amount" => TicketManager::DISCOUNT_AMOUNT,
             "discounted_price" => $discountedPrice,
-            "discount_message"=>"Si vous faites une réservation en groupe vous payez <span class='text-bold text-primary'>  ".
-                number_format($discountedPrice,0,","," ")."F</span> chacun au lieu de <span class='text-bold text-primary'> ".
-                number_format($depart->getBusForBooking()->ticket_price,0,","," ")."F</span>",
+            "discount_message"=>null,
+//            "discount_message"=>"Si vous faites une réservation en groupe vous payez <span class='text-bold text-primary'>  ".
+//                number_format($discountedPrice,0,","," ")."F</span> chacun au lieu de <span class='text-bold text-primary'> ".
+//                number_format($depart->getBusForBooking()->ticket_price,0,","," ")."F</span>",
             "start_point" => $depart->trajet->start_point,
             "end_point" => $depart->trajet->end_point,
         ];

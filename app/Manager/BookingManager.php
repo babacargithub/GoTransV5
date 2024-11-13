@@ -73,6 +73,7 @@ class BookingManager
             $stackTrace = __FUNCTION__ . "-- " . __CLASS__ . ' -- ' . __FILE__;
                 $seatBus = $booking->bus->getOneAvailableSeat();
                 $seatBus->book();
+                $seatBus->save();
                 $booking->seat()->associate($seatBus);
 
                 if ($booking->bus->isFull() || $booking->bus->isClosed()) {
@@ -87,7 +88,8 @@ class BookingManager
 
                 } else {
 
-                    $logger->error("got null value when trying to fetch a record of " . Seat::class . " for booking with id " . $booking->id . " in $stackTrace");
+
+                    $logger->error("got null value when trying to fetch a record of " . BusSeat::class . " for booking with id " . $booking->id . " in $stackTrace");
                 }
 
 
@@ -99,6 +101,7 @@ class BookingManager
                 $seatBus->save();
                 $ticket->save();
                 $booking->ticket()->associate($ticket);
+                $booking->seat()->associate($seatBus);
                 $booking->save();
             });
             //<-- send notification to user -->
