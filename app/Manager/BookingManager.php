@@ -207,7 +207,7 @@ $logger, string
                     }
                 }
                 $this->SMSSender->sendMultipleSms($messages);
-
+                return  true;
             });
             return response()->json(['message' => 'Finished: Booking saved successfully']);
 
