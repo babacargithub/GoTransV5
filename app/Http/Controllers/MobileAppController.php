@@ -319,6 +319,21 @@ class MobileAppController extends Controller
 
 
     }
+    public function departSchedules(Depart $depart)
+    {
+        // schedules grouped by trajet
+        $schedules = $depart->heuresDeparts()->orderBy('heureDepart')->get();
+        return response()->json($schedules->map(function (HeureDepart $schedule) {
+            return [
+                'position' => $schedule->pointDep->position,
+                'heure_depart' => $schedule->heureDepart?->format('H:i'),
+                'name' => $schedule->pointDep->name,
+                'arret_bus' => $schedule->pointDep->arret_bus,
+            ];
+        }));
+
+
+    }
 
     /**
      * @throws ConnectionException
