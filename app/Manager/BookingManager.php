@@ -71,10 +71,8 @@ class BookingManager
 
         try {
             $stackTrace = __FUNCTION__ . "-- " . __CLASS__ . ' -- ' . __FILE__;
-                $seatBus = $booking->bus->getOneAvailableSeat();
-                $seatBus->book();
-                $seatBus->save();
-                $booking->seat()->associate($seatBus);
+
+
 
                 if ($booking->bus->isFull() || $booking->bus->isClosed()) {
                     // we find another bus for another seat
@@ -97,15 +95,21 @@ class BookingManager
             $soldBy = User::requireMobileAppUser()->username;
             $ticket->soldBy = $soldBy;
                 $ticket->payment_method = $paymentMethod;
-            DB::transaction(function () use ($booking, $seatBus, $ticket) {
-                $seatBus->save();
+            $seatBus = $booking->bus->getOneAvailableSeat();
+            $transactionSuccess = DB::transaction(function () use ($booking, $seatBus, $ticket) {
+
+                $seatBus->book();
                 $ticket->save();
                 $booking->ticket()->associate($ticket);
                 $booking->seat()->associate($seatBus);
+                $seatBus->save();
                 $booking->save();
+                return true;
             });
             //<-- send notification to user -->
-            $this->sendNotificationOfTicketPaymentToCustomer($booking, true);
+            if ($transactionSuccess) {
+                $this->sendNotificationOfTicketPaymentToCustomer($booking, true);
+            }
         } catch (Exception $e) {
             $logger->error($e->getMessage() . ' --' . $e->getTraceAsString());
 

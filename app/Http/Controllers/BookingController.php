@@ -160,7 +160,7 @@ class BookingController extends Controller
         try {
             $ticket = $this->ticketManager->provideOne($booking->bus->ticket_price);
              DB::transaction(function ()use ($booking, $ticket){
-                $ticket->soldBy = "appli_mobile";
+                $ticket->soldBy = \request()->user()?->username ?? "system";
                 $ticket->save();
                 $booking->ticket()->associate($ticket);
                 $seat = $booking->bus->getAvailableSeats()->first();
@@ -208,6 +208,7 @@ class BookingController extends Controller
             $targetSeat->save();
             $booking->seat()->associate($targetSeat);
             $booking->bus()->associate($targetBus);
+            $booking->depart()->associate($targetBus->depart);
             $booking->save();
         });
         return response()->json('Réservation transférée avec succès');
