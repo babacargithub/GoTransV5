@@ -140,8 +140,12 @@ class MobileAppController extends Controller
                 ], 422);
             }
         }
+        if (!isset($validated["referer"])){
+            $validated['referer'] = $request->input('referer_id')??0;
 
+        }
         $booking = new Booking($validated);
+        $booking->referer_id = $validated['referer']  ??0;
         $booking->bus_id = $bus->id;
         $booking->customer()->associate($customer);
         $booking->paye = false;

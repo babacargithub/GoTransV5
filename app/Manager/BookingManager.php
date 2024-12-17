@@ -70,14 +70,13 @@ class BookingManager
     {
 
         try {
+            $transactionSuccess = DB::transaction(function () use ($booking,$paymentMethod, $logger) {
             $stackTrace = __FUNCTION__ . "-- " . __CLASS__ . ' -- ' . __FILE__;
-
-
 
                 if ($booking->bus->isFull() || $booking->bus->isClosed()) {
                     // we find another bus for another seat
                     $bus = $booking->depart->getBusForBooking();
-                        if (!$bus->isFull() || !$bus->isClosed()) {
+                        if (!$bus->isFull() && !$bus->isClosed()) {
                             $seat = $bus->getOneAvailableSeat();
                             $seat->book();
                             $booking->seat()->associate($seat);
@@ -85,19 +84,16 @@ class BookingManager
                         }
 
                 } else {
-
-
-                    $logger->error("got null value when trying to fetch a record of " . BusSeat::class . " for booking with id " . $booking->id . " in $stackTrace");
+                    $logger->error("Bus ".$booking->bus->full_name." is full or closed for booking with id " .
+                        $booking->id . " in $stackTrace");
                 }
 
 
-            $ticket = $this->ticketManager->provideOneForBooking($booking->bus->ticket_price - ($booking->bus->ticket_price * 0.01));
-            $soldBy = User::requireMobileAppUser()->username;
-            $ticket->soldBy = $soldBy;
+                $ticket = $this->ticketManager->provideOneForBooking($booking->bus->ticket_price - ($booking->bus->ticket_price * 0.01));
+                $soldBy = User::requireMobileAppUser()->username;
+                $ticket->soldBy = $soldBy;
                 $ticket->payment_method = $paymentMethod;
-            $seatBus = $booking->bus->getOneAvailableSeat();
-            $transactionSuccess = DB::transaction(function () use ($booking, $seatBus, $ticket) {
-
+                $seatBus = $booking->bus->getOneAvailableSeat();
                 $seatBus->book();
                 $ticket->save();
                 $booking->ticket()->associate($ticket);
