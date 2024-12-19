@@ -74,8 +74,10 @@ class  TicketManager
 
 
             if ($platform == "iphone" || $platform == "android") {
-                $ticketPrice -= self::DISCOUNT_AMOUNT;
-                $totalDiscount += self::DISCOUNT_AMOUNT;
+                if ($ticketPrice >= 3550) {
+                    $ticketPrice -= self::DISCOUNT_AMOUNT;
+                    $totalDiscount += self::DISCOUNT_AMOUNT;
+                }
             }
 
             $totalPrice += $ticketPrice;
