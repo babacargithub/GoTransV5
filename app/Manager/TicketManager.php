@@ -22,7 +22,7 @@ use Psr\Log\LoggerInterface;
 class  TicketManager
 {
     // TODO: make this dynamic
-    const DISCOUNT_AMOUNT = 200;
+    const DISCOUNT_AMOUNT = 450;
     private SMSSender $smsSender;
 
     public function __construct(SMSSender $smsSender)
