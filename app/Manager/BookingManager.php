@@ -48,7 +48,7 @@ class BookingManager
 
         $departName = $booking->depart->name;
         $seatNumber = $booking->depart->trajet_id == Trajet::UGB_DAKAR ? "\n Num place :" . $booking->seat_number . " " :
-        '';
+            '';
         $schedule = $seatNumber . "\n Heure:  " . $booking->formatted_schedule . "\n Arret du bus " .
             $booking->point_dep->arret_bus;
         $contactAgent = AppParams::first()->getBusAgentDefaultNumber();
@@ -71,17 +71,17 @@ class BookingManager
 
         try {
             $transactionSuccess = DB::transaction(function () use ($booking,$paymentMethod, $logger) {
-            $stackTrace = __FUNCTION__ . "-- " . __CLASS__ . ' -- ' . __FILE__;
+                $stackTrace = __FUNCTION__ . "-- " . __CLASS__ . ' -- ' . __FILE__;
 
                 if ($booking->bus->isFull() || $booking->bus->isClosed()) {
                     // we find another bus for another seat
                     $bus = $booking->depart->getBusForBooking();
-                        if (!$bus->isFull() && !$bus->isClosed()) {
-                            $seat = $bus->getOneAvailableSeat();
-                            $seat->book();
-                            $booking->seat()->associate($seat);
+                    if (!$bus->isFull() && !$bus->isClosed()) {
+                        $seat = $bus->getOneAvailableSeat();
+                        $seat->book();
+                        $booking->seat()->associate($seat);
 
-                        }
+                    }
 
                 } else {
                     $logger->error("Bus ".$booking->bus->full_name." is full or closed for booking with id " .
@@ -117,13 +117,14 @@ class BookingManager
      * @throws Exception
      */
     public function saveTicketPaymentMultipleBooking(Depart $depart, ?Bus $bus, Collection $bookings, LoggerInterface
-$logger, string
-    $payment_method): JsonResponse
+                                                            $logger, string
+                                                            $payment_method): JsonResponse
     {
 
         try {
-           $result = DB::transaction(function () use ($depart, $bookings, $payment_method, $logger) {
-                $entities = [];
+            $messages = [];
+
+            $result = DB::transaction(function () use ($depart, $bookings, $payment_method, $logger, &$messages) {
                 $number_of_seats_available = $depart->getBusForBooking() !== null ? $depart->getBusForBooking()->getAvailableSeats()->count() : 0;
                 $busForBookings = null;
                 if ($number_of_seats_available >= count($bookings)){
@@ -147,7 +148,7 @@ $logger, string
                         $depart->name;
                     $this->SMSSender->sendSms(773300853, $message);
                     $this->SMSSender->sendSms(771273535, $message);
-                    throw new Exception('No bus available for booking');
+                    throw new Exception('No bus available for booking for multiple bookings');
                 }
                 if ($busForBookings instanceof Bus) {
                     // we take seats the number of bookings
@@ -168,30 +169,25 @@ $logger, string
                         $booking->ticket()->associate($ticket);
                         $booking->save();
                         // take one available seat and assign it to booking, seats array is not 0 indexed
-                        foreach ($seats as /** @var BusSeat $seat */&$seat) {
-                            if ($seat instanceof BusSeat) {
-                                if (!$seat->isBooked() && $seat->isAvailable()) {
-                                    $booking->seat()->associate($seat);
-                                    $seat->book();
-                                    $seat->save();
-                                    $booking->save();
-                                    $entities[] = $seat;
-                                    break;
-                                }
-                            }
+                        $seat = $seats->shift();
+                        if (!$seat){
+                            $logger->error('No available seat for booking');
+                            throw new UnprocessableEntityHttpException('No available seat for booking');
                         }
-                        $entities[] = $booking;
-
+                        if ($seat instanceof BusSeat) {
+                            $booking->seat()->associate($seat);
+                            $seat->book();
+                            $seat->save();
+                            $booking->save();
+                        }
 
                     }
 
                 } else {
 
-                    return response()->json(['message' => 'Pas assez de places disponibles pour le départ ' . $depart->name
-                        ()]);
+                    throw new Exception( 'Pas assez de places disponibles pour le départ ' . $depart->name);
                 }
-                $messages = [];
-                foreach ($entities as $entity) {
+                foreach ($bookings as $entity) {
                     if ($entity instanceof Booking) {
                         $messages[] = [
                             'message' => "Quelqu'un a acheté un ticket pour vous sur Globe Transport pour le  départ " .
@@ -202,9 +198,12 @@ $logger, string
                         ];
                     }
                 }
-                $this->SMSSender->sendMultipleSms($messages);
+
                 return  true;
             });
+            if ($result && count($messages) > 0) {
+                $this->SMSSender->sendMultipleSms($messages);
+            }
             return response()->json(['message' => 'Finished: Booking saved successfully']);
 
         } catch (Exception $e) {
