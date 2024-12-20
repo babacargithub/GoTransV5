@@ -46,7 +46,7 @@ class Bus extends Model
     }
     public function seatsLeft(): int
     {
-        return $this->seats()->where('booked', false)->count();
+        return $this->getAvailableSeats()->count();
 
     }
     public function numberOfBookedSeats(): int
@@ -67,9 +67,14 @@ class Bus extends Model
 
     public function getAvailableSeats(): Collection
     {
-        return $this->seats()->where('booked', false)
-            ->whereNull('bookedAt')
-            ->orderBy("seat_id","asc")->get();
+        return $this->seats()
+            ->whereNotExists(function ($query) {
+                $query->select('id')
+                    ->from('bookings')
+                    ->whereColumn('bookings.seat_id', 'bus_seats.id');
+            })
+            ->lockForUpdate()
+            ->orderBy("bus_seats.seat_id","asc")->get();
 
     }
     public function getOneAvailableSeat(): BusSeat

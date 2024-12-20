@@ -74,18 +74,22 @@ class BookingManager
                 $stackTrace = __FUNCTION__ . "-- " . __CLASS__ . ' -- ' . __FILE__;
 
                 if ($booking->bus->isFull() || $booking->bus->isClosed()) {
-                    // we find another bus for another seat
+
                     $bus = $booking->depart->getBusForBooking();
+                    // we find another bus for another seat
                     if (!$bus->isFull() && !$bus->isClosed()) {
-                        $seat = $bus->getOneAvailableSeat();
-                        $seat->book();
-                        $booking->seat()->associate($seat);
+
+                        $booking->bus()->associate($bus);
+                        $booking->depart()->associate($bus->depart);
+
+                    }else{
+                        $logger->error("Bus ".$booking->bus->full_name." is full or closed for booking with id " .
+                            $booking->id . " in $stackTrace");
+                        throw new UnprocessableEntityHttpException("Bus ".$booking->bus->full_name." is full or closed for booking with id " .
+                            $booking->id . " in $stackTrace");
 
                     }
 
-                } else {
-                    $logger->error("Bus ".$booking->bus->full_name." is full or closed for booking with id " .
-                        $booking->id . " in $stackTrace");
                 }
 
 
@@ -175,9 +179,9 @@ class BookingManager
                             throw new UnprocessableEntityHttpException('No available seat for booking');
                         }
                         if ($seat instanceof BusSeat) {
-                            $booking->seat()->associate($seat);
                             $seat->book();
                             $seat->save();
+                            $booking->seat()->associate($seat);
                             $booking->save();
                         }
 

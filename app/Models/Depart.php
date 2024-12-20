@@ -107,10 +107,8 @@ class Depart extends Model
     public function getBusForBooking() : Bus
     {
         $openedBuses = $this->buses()->where("closed",false)->orderBy("id")->get();
-        foreach ($openedBuses as $bus) {
-            if ($bus->seatsLeft() > 0) {
-                return $bus;
-            }
+        if (!$openedBuses->isEmpty()){
+            return $openedBuses->first();
         }
         return $this->buses()->firstOrFail();
 
