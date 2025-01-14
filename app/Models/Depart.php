@@ -60,6 +60,7 @@ class Depart extends Model
         'shouldShowSeatNumbers' => 'boolean',
     ];
 
+    /** @noinspection PhpUnused */
     public function getIsPassedAttribute() : bool
     {
         return $this->date->isPast();
@@ -67,6 +68,14 @@ class Depart extends Model
     public function buses(): HasMany
     {
         return $this->hasMany(Bus::class);
+
+    }
+    /** @noinspection PhpUnused */
+    public function hasEnoughSeatsForBookings(int $numberOfBookings): bool
+    {
+        // uses a function to check if there is at least one bus with enough seats
+        return $this->buses->some(fn(Bus $bus) => $bus->seatsLeft() >= $numberOfBookings);
+
 
     }
     public function isPassed() : bool
@@ -106,12 +115,17 @@ class Depart extends Model
 
     public function getBusForBooking() : Bus
     {
-        $openedBuses = $this->buses()->where("closed",false)->orderBy("id")->get();
+        $openedBuses = $this->buses->filter(fn(Bus $bus) => !$bus->isFull() && !$bus->isClosed());
         if (!$openedBuses->isEmpty()){
             return $openedBuses->first();
         }
-        return $this->buses()->firstOrFail();
+        return $this->buses()->latest()->firstOrFail();
 
+    }
+
+    public function numberOfSeatsAvailableInAllBuses() : int
+    {
+        return $this->buses->sum(fn(Bus $bus) => $bus->seatsLeft());
     }
 
     public function isFull(): bool
@@ -134,6 +148,7 @@ class Depart extends Model
             ->orderBy('date')
             ->first();
     }
+
     public function waitingCustomers(): HasMany
     {
         return $this->hasMany(WaitingCustomer::class);

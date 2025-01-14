@@ -22,7 +22,7 @@ use Psr\Log\LoggerInterface;
 class  TicketManager
 {
     // TODO: make this dynamic
-    const DISCOUNT_AMOUNT = 450;
+    const DISCOUNT_AMOUNT = 400;
     private SMSSender $smsSender;
 
     public function __construct(SMSSender $smsSender)
@@ -119,7 +119,7 @@ class  TicketManager
     /**
      * @throws ConnectionException
      */
-    public function triggerWavePayment(Booking $booking): JsonResponse
+    public function triggerWavePayment(Booking $booking): PaymentResponseResource
     {
 
         $wavePaymentController = app(WavePaiementController::class);

@@ -93,17 +93,15 @@ class BookingManager
                 }
 
 
-                $ticket = $this->ticketManager->provideOneForBooking($booking->bus->ticket_price - ($booking->bus->ticket_price * 0.01));
-                $soldBy = User::requireMobileAppUser()->username;
-                $ticket->soldBy = $soldBy;
-                $ticket->payment_method = $paymentMethod;
+                $this->assignTicketToBooking($booking, $paymentMethod);
+
                 $seatBus = $booking->bus->getOneAvailableSeat();
-                $seatBus->book();
-                $ticket->save();
-                $booking->ticket()->associate($ticket);
-                $booking->seat()->associate($seatBus);
-                $seatBus->save();
-                $booking->save();
+                if ($seatBus) {
+                    $seatBus->book();
+                    $booking->seat()->associate($seatBus);
+                    $seatBus->save();
+                    $booking->save();
+                }
                 return true;
             });
             //<-- send notification to user -->
@@ -128,9 +126,9 @@ class BookingManager
         try {
             $messages = [];
 
-            $result = DB::transaction(function () use ($depart, $bookings, $payment_method, $logger, &$messages) {
+            $result = DB::transaction(function () use ($depart,$bus, $bookings, $payment_method, $logger, &$messages) {
                 $number_of_seats_available = $depart->getBusForBooking() !== null ? $depart->getBusForBooking()->getAvailableSeats()->count() : 0;
-                $busForBookings = null;
+                $busForBookings = $bus ?? null;
                 if ($number_of_seats_available >= count($bookings)){
                     $busForBookings = $depart->getBusForBooking();
                 } else{
@@ -142,6 +140,7 @@ class BookingManager
                         }
                     }
                 }
+
                 if ($busForBookings === null) {
                     // not enough seats available
                     // We notify user and a refund is made
@@ -162,16 +161,12 @@ class BookingManager
                         $logger->error('Not enough available seats for the number of bookings.');
                         throw new UnprocessableEntityHttpException('Not enough available seats for the number of bookings.');
                     }
-                    $soldBy = User::requireMobileAppUser()->username;
-                    foreach ($bookings as $booking) {
-                        $ticket = $this->ticketManager->provideOneForBooking
-                        ($this->ticketManager->calculateTicketPriceForBooking($booking, $payment_method));
-                        $ticket->soldBy = $soldBy;
-                        $ticket->payment_method = $payment_method;
-                        $ticket->soldAt = now();
-                        $ticket->save();
-                        $booking->ticket()->associate($ticket);
+                    foreach ($bookings as /** @var Booking $booking */$booking) {
+                        $booking->bus()->associate($busForBookings);
+                        $booking->depart()->associate($busForBookings->depart);
                         $booking->save();
+                        $booking->refresh();
+                        $booking = $this->assignTicketToBooking($booking, $payment_method);
                         // take one available seat and assign it to booking, seats array is not 0 indexed
                         $seat = $seats->shift();
                         if (!$seat){
@@ -191,6 +186,7 @@ class BookingManager
 
                     throw new Exception( 'Pas assez de places disponibles pour le départ ' . $depart->name);
                 }
+                // notifications sending
                 foreach ($bookings as $entity) {
                     if ($entity instanceof Booking) {
                         $messages[] = [
@@ -223,5 +219,26 @@ class BookingManager
 
 
         return response()->json(['message' => ' Booking saved successfully']);
+    }
+
+    /**
+     * @param Booking $booking
+     * @param mixed $paymentMethod
+     * @return void
+     * @throws Exception
+     */
+    function assignTicketToBooking(Booking $booking, string $paymentMethod): Booking
+    {
+        $ticketPrice = $this->ticketManager->calculateTicketPriceForBooking($booking, $paymentMethod);
+        $ticket = $this->ticketManager->provideOneForBooking($ticketPrice);
+        $soldBy = User::requireMobileAppUser()->username;
+        $ticket->price = $ticketPrice;
+        $ticket->soldBy = $soldBy;
+        $ticket->payment_method = $paymentMethod;
+
+        $ticket->save();
+        $booking->ticket()->associate($ticket);
+        $booking->save();
+        return $booking;
     }
 }

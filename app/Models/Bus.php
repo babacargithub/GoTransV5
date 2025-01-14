@@ -65,8 +65,14 @@ class Bus extends Model
 
     }
 
+    public function hasEnoughSeatsForBookings(int $numberOfBookings): bool
+    {
+        return $this->seatsLeft() >= $numberOfBookings;
+
+    }
     public function getAvailableSeats(): Collection
     {
+//        return  $this->seats()->where('booked', false)->get();
         return $this->seats()
             ->whereNotExists(function ($query) {
                 $query->select('id')
@@ -95,7 +101,7 @@ class Bus extends Model
     public function getFullNameAttribute(): string
     {
 
-        return $this->depart->name . ' - ' . $this->name;
+        return $this->depart->identifier(with_trajet_prefix: true) . ' - ' . $this->name;
 
     }
     // add global scope filter buses for departs that are not cancelled
