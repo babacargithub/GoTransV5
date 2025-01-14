@@ -30,7 +30,12 @@ class FirebaseService
         $notification = Notification::create($title, $body);
         
         $message = CloudMessage::withTarget('token', $token)
-            ->withNotification($notification);
+            ->withNotification($notification)
+            ->withHighestPossiblePriority() // This is important
+            ->withAndroidConfig([
+                'priority' => 'high',
+                'direct_boot_ok' => true
+            ]);
         
         if (!empty($data)) {
             $message = $message->withData($data);
