@@ -107,6 +107,8 @@ class BookingManager
             //<-- send notification to user -->
             if ($transactionSuccess) {
                 $this->sendNotificationOfTicketPaymentToCustomer($booking, true);
+                $bookingManager = app(BookingManager::class);
+                $bookingManager->checkIfBusIsFullAndNotifyManagerIfYes($booking);
             }
         } catch (Exception $e) {
             $logger->error($e->getMessage() . ' --' . $e->getTraceAsString());
@@ -203,6 +205,10 @@ class BookingManager
             });
             if ($result && count($messages) > 0) {
                 $this->SMSSender->sendMultipleSms($messages);
+                $bookingManager = app(BookingManager::class);
+
+                    $bookingManager->checkIfBusIsFullAndNotifyManagerIfYes($bookings[0]);
+
             }
             return response()->json(['message' => 'Finished: Booking saved successfully']);
 
@@ -240,5 +246,33 @@ class BookingManager
         $booking->ticket()->associate($ticket);
         $booking->save();
         return $booking;
+    }
+
+//    /** @noinspection PhpUnused */
+//    public function checkIfBusShouldBeClosed(Booking $booking): void
+//    {
+//        $bookings_count = $booking->bus->bookings()->count();
+//        if ($booking->bus->seats_count == $bookings_count || $booking->bus->isFull()){
+//            $booking->bus->close();
+//            $booking->bus->save();
+//        }
+//
+//    }
+    public function checkIfBusIsFullAndNotifyManagerIfYes(Booking $booking): void
+    {
+        $bookings_count = $booking->bus->bookings()->whereHas('ticket')->count();
+        if ($booking->bus->seats_count == $bookings_count -1){
+            $smsSender = app(SMSSender::class);
+            $smsSender->sendSms("773300853", "Le bus ".$booking->bus->name." depart ".$booking->depart->name." est arrivé à ". $bookings_count);
+        }else{
+            if ($bookings_count == $booking->bus->seats_count) {
+                if (!$booking->bus->isClosed()) {
+                    $booking->bus->close();
+                    $booking->bus->save();
+                }
+            }
+        }
+
+
     }
 }

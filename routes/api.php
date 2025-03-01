@@ -18,6 +18,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 // =========================== PUBLIC ROUTES ===========================
+Route::get('/messenger/upcoming-departs', [DepartController::class, 'upcomingDepartsForMessenger']);
+
 Route::post('/login', function (Request $request) {
     $validated = $request->validate([
         'username' => 'required',

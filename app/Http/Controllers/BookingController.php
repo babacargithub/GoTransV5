@@ -176,6 +176,7 @@ class BookingController extends Controller
             });
              $bookingManager = app(BookingManager::class);
              $bookingManager->sendNotificationOfTicketPaymentToCustomer($booking, true);
+             $bookingManager->checkIfBusIsFullAndNotifyManagerIfYes($booking);
 
             return response()->json("Paiement effectué avec succès !");
         } catch (Exception $e) {
@@ -210,7 +211,15 @@ class BookingController extends Controller
             $booking->bus()->associate($targetBus);
             $booking->depart()->associate($targetBus->depart);
             $booking->save();
+
         });
+        $booking->refresh();
+        $smsSender = app(SMSSender::class);
+        $smsSender->sendSms(substr($booking->customer->phone_number, -9, 9),
+            "Votre réservation a été transférée sur le départ " . $targetBus->depart->name. " sur le bus ".
+            $targetBus->name. " Nouveau Nº de siège ". $targetSeat->number);
+        $bookingManager = app(BookingManager::class);
+        $bookingManager->checkIfBusIsFullAndNotifyManagerIfYes($booking);
         return response()->json('Réservation transférée avec succès');
 
 

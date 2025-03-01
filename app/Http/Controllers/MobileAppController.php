@@ -243,6 +243,7 @@ class MobileAppController extends Controller
                 return response()->json(["message" => "Erreur lors de l'initialisation du paiement "], 422);
             }
 
+
             $paymentResponse->data['group_id'] = $group_id;
             $paymentResponse->data['paymentMethod'] = "om";
             return $paymentResponse;

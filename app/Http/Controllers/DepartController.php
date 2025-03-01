@@ -422,4 +422,25 @@ class DepartController extends Controller
         return collect($busStopSchedules);
     }
 
+    public function upcomingDepartsForMessenger()
+    {
+        $departs = Depart::with(['trajet', 'horaire', 'buses', 'heuresDeparts.pointDep'])
+            ->notPassed()
+            ->where('visibilite', 1)
+            ->orderByDESC('date')
+            ->get()
+            ->map(function ($depart) {
+                return [
+                    'id' => $depart->id,
+                    'name' => $depart->name,
+                    'date' => $depart->date->format('Y-m-d H:i'),
+                    'trajet' => $depart->trajet->name,
+                    'is_full' => $depart->isFull(),
+                    'is_closed' => $depart->isClosed()
+                ];
+            });
+
+        return response()->json($departs);
+    }
+
 }
