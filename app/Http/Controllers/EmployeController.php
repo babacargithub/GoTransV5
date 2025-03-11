@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CallLog;
 use App\Models\Employe;
 use Illuminate\Http\Request;
 
@@ -67,5 +68,45 @@ class EmployeController extends Controller
                     "canCancelPaidBooking" => $employe->can_cancel_paid_booking,
                     "canChooseSeats" => $employe->can_choose_seats];
             }));
+    }
+
+    public function registerPhoneCallLogs(Request $request)
+    {
+        // the purpose of this function is to register call logs coming customer service phone calls used by employees
+        $data = $request->input('call_logs');
+        \Log::info("call logs content body", $request->all());
+        // Save call logs to laravel.log
+        \Log::info("call logs", (array) $data);
+
+        return response()->json(['message' => 'Call logs registered successfully']);
+
+
+    }
+    public function logNewCall(Request $request)
+    {
+        // the purpose of this function is to register call logs coming customer service phone calls used by employees
+        $data = $request->all();
+        //content body {"callDate":"Mar 8, 2025 8:56:57 PM","callType":"INCOMING","contactName":"Unknown","duration":47,"phoneNumber":"+221770708208"}
+        $callLogEntry = new CallLog();
+        $callLogEntry->device_id = $data["deviceId"]??"Unknown";
+        $callLogEntry->device_name = $data["deviceName"]?? "Unknown";
+        $callLogEntry->device_phone_number = $data["devicePhoneNumber"]?? "Unknown";
+        $callLogEntry->called_at = $data["callDate"];
+        $callLogEntry->call_type = $data["callType"];
+        $callLogEntry->contact_name = $data["contactName"];
+        $callLogEntry->duration = $data["duration"];
+        $callLogEntry->caller_phone_number = $data["phoneNumber"];
+        $callLogEntry->status = $data["status"];
+        $callLogEntry->details = json_encode($data);
+
+        $callLogEntry->save();
+        
+        \Log::info("New call received:  content body", $request->all());
+        // Save call logs to laravel.log
+        \Log::info("new call", (array) $data);
+
+        return response()->json(['message' => 'Call logs registered successfully']);
+
+
     }
 }

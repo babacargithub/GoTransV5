@@ -261,7 +261,7 @@ class BookingManager
     public function checkIfBusIsFullAndNotifyManagerIfYes(Booking $booking): void
     {
         $bookings_count = $booking->bus->bookings()->whereHas('ticket')->count();
-        if ($booking->bus->seats_count == $bookings_count -1){
+        if (($booking->bus->seats_count-1) == $bookings_count){
             $smsSender = app(SMSSender::class);
             $smsSender->sendSms("773300853", "Le bus ".$booking->bus->name." depart ".$booking->depart->name." est arrivé à ". $bookings_count);
         }else{

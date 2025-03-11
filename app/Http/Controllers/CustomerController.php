@@ -100,4 +100,23 @@ class CustomerController extends Controller
         $customer->delete();
         return response()->noContent();
     }
+
+    public function getLatestContacts(Request $request)
+    {
+        $after_id = $request->query('after_id') ?? null;
+        $after_date = $request->query('after_date') ?? "2024-01-01";
+        $query = Customer::selectRaw('CONCAT( prenom," ",nom, " ","#",id) as name, phone_number');
+        if ($after_id != null){
+           $query->where('id',">", $after_id);
+       }
+        elseif ($after_date){
+          $query->whereDate("created_at",
+               ">",$after_date);
+       }
+        return response()->json(
+            $query
+                ->get()
+       );
+
+    }
 }

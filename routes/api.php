@@ -6,6 +6,7 @@ use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DepartController;
 use App\Http\Controllers\EmployeController;
 use App\Http\Controllers\EventController;
+use App\Http\Controllers\MessengerController;
 use App\Http\Controllers\MobileAppController;
 use App\Http\Controllers\OrangeMoneyController;
 use App\Http\Controllers\PointDepController;
@@ -18,7 +19,34 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 // =========================== PUBLIC ROUTES ===========================
-Route::get('/messenger/upcoming-departs', [DepartController::class, 'upcomingDepartsForMessenger']);
+
+Route::get('/contacts/latest', [CustomerController::class, 'getLatestContacts']);
+
+Route::prefix('messenger')->group(function () {
+    Route::get('upcoming-departs', [DepartController::class, 'upcomingDepartsForMessenger']);
+// Register phone calls
+    Route::post('register_phone_call_logs', [EmployeController::class, 'registerPhoneCallLogs']);
+    Route::post('register_single_call', [EmployeController::class, 'logNewCall']);
+    // Get batch of SMS messages
+    Route::get('/batch', [MessengerController::class, 'getSmsBatch'])
+        ->name('messenger.batch');
+
+    // Update SMS status
+    Route::post('/status', [MessengerController::class, 'updateSmsStatus'])
+        ->name('messenger.status');
+
+    // Device registration
+    Route::post('/device/register', [MessengerController::class, 'registerDevice'])
+        ->name('messenger.device.register');
+
+    // Device heartbeat
+    Route::post('/device/heartbeat', [MessengerController::class, 'sendHeartbeat'])
+        ->name('messenger.device.heartbeat');
+
+    Route::post('create-messages', [MessengerController::class, 'createMessages'])->name('messenger.create-messages');
+    Route::post('next-message-to-send', [MessengerController::class, 'nextMessageToSend']);
+    Route::post('report-message-sending-result', [MessengerController::class, 'reportMessageSendingResult']);
+});
 
 Route::post('/login', function (Request $request) {
     $validated = $request->validate([
