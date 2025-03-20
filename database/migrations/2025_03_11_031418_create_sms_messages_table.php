@@ -13,10 +13,10 @@ return new class extends Migration
     {
         Schema::create('sms_messages', function (Blueprint $table) {
             $table->id();
-            $table->string("text")->nullable(false);
+            $table->text("text")->nullable(false);
             $table->string("to")->nullable(false);
             $table->string("from")->nullable();
-            $table->enum("status",["PENDING","SENT","FAILED"]);
+            $table->enum("status",["PENDING","PROCESSING","SENT","FAILED"]);
             $table->dateTime("sent_at")->nullable();
             $table->foreignId("device_id")->nullable();
             $table->json("details")->nullable();

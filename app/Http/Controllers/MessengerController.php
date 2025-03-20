@@ -3,9 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Models\Device;
+use App\Models\SmsMessage;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use App\Models\Depart;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\File;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class MessengerController extends Controller
 {
@@ -13,7 +20,7 @@ class MessengerController extends Controller
      * Get a batch of SMS messages for a specific device
      *
      * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
+     * @return JsonResponse
      */
     public function getSmsBatch(Request $request)
     {
@@ -97,7 +104,7 @@ class MessengerController extends Controller
      * Process device heartbeat
      *
      * @param Request $request
-     * @return \Illuminate\Http\JsonResponse|\Illuminate\Http\Response
+     * @return JsonResponse|\Illuminate\Http\Response
      */
     public function sendHeartbeat(Request $request)
     {
@@ -174,8 +181,8 @@ class MessengerController extends Controller
                     return [
                         'to' => $message['to'] ?? null,
                         'text' => $message['text'] ?? null,
-                        'status' => 'PENDING',
-                        'created_at' => now(),
+                        'status' => SmsMessage::STATUS_PENDING,
+                      'created_at' => now(),
                         'updated_at' => now()
                         // Add any other required fields here
                     ];
@@ -215,5 +222,116 @@ class MessengerController extends Controller
         $message->save();
 
         return response()->noContent();
+    }
+
+    public function markMessageAsProcessing(Request $request)
+    {
+        $request->validate([
+            'device_id' => 'required|string',
+            'message_id' => 'required|integer',
+        ]);
+
+        $device = Device::where('device_id', $request->device_id)->first();
+
+        if (!$device) {
+            return response()->json(['message' => 'Device not found'], 404);
+        }
+
+        $message = $device->messages()->where('id', $request->message_id)->first();
+
+        if (!$message) {
+            return response()->json(['message' => 'Message not found'], 404);
+        }
+
+        $message->status = SmsMessage::STATUS_PROCESSING;
+        $message->save();
+
+        return response()->noContent();
+    }
+    public function getDepartsForBulkSms(Request $request)
+    {
+        $departs = Depart::query()
+    ->select([
+        'departs.id',
+        DB::raw('CONCAT(trajets.name, " ", departs.name) as name')
+    ])
+    ->join('trajets', 'trajets.id', '=', 'departs.trajet_id')
+    ->withCount(['bookings' => function ($query) {
+        $query->whereNotNull('ticket_id')
+              ->whereNull('bookings.deleted_at');
+    }])
+    ->where('departs.canceled', false)
+    ->orderByDesc('departs.date')
+    ->limit(30)
+    ->get();
+        return response()->json($departs);
+    }
+
+    public function getDepartCustomersForBulkSms(Request $request, Depart $depart)
+    {
+        $customers = $depart->bookings()->whereNotNull('ticket_id')
+        ->get()
+        ->map(function($booking) {
+            return [
+                'id' => $booking->id,
+                'name' => $booking->customer->full_name,
+                'phone_number' => $booking->customer->phone_number,
+                "field1" => $booking->point_dep->name,
+                "field2"=> $booking->formatted_schedule,
+                "field3"=> $booking->point_dep->arret_bus,
+                "field4"=> $booking->bus->name,
+                "field5"=> $booking->seat != null ? $booking->seat->number : "N/C",
+            ];
+        });
+        return response()->json($customers);
+    }
+
+    /**
+     * Get a list of all files in the storage directory
+     * 
+     * @return JsonResponse
+     */
+    public function getBatchExcelFiles()
+    {
+        // Specify the directory where your files are stored
+        $files = Storage::files('public/batch_excel_files');
+
+        
+        $filesList = [];
+        
+        foreach ($files as $file) {
+            $fileName = basename($file);
+            $fileSize = Storage::size($file);
+            $mimeType = Storage::mimeType($file);
+            
+            $filesList[] = [
+                'name' => $fileName,
+                'size' => $fileSize,
+                'type' => $mimeType,
+                'download_url' => route('messenger.download-file', ['filename' => $fileName])
+            ];
+        }
+        
+        return response()->json($filesList);
+    }
+    
+    /**
+     * Download a specific file
+     * 
+     * @param string $filename
+     * @return JsonResponse|BinaryFileResponse
+     */
+    public function downloadFile(string $filename)
+    {
+        $path = storage_path('app/public/batch_excel_files/' . $filename);
+        
+        if (!File::exists($path)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'File not found'
+            ], 404);
+        }
+        
+        return response()->download($path);
     }
 }

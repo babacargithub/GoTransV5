@@ -19,6 +19,7 @@ return new class extends Migration
             $table->string('name');
             $table->string('phone_number')->nullable();
             $table->timestamp('last_heartbeat')->nullable();
+            $table->boolean("sending_paused")->default(false);
             $table->timestamps();
         });
     }

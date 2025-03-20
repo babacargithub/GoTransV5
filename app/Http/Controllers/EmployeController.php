@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\CallLog;
+use App\Models\Device;
 use App\Models\Employe;
 use Illuminate\Http\Request;
 
@@ -88,9 +89,7 @@ class EmployeController extends Controller
         $data = $request->all();
         //content body {"callDate":"Mar 8, 2025 8:56:57 PM","callType":"INCOMING","contactName":"Unknown","duration":47,"phoneNumber":"+221770708208"}
         $callLogEntry = new CallLog();
-        $callLogEntry->device_id = $data["deviceId"]??"Unknown";
-        $callLogEntry->device_name = $data["deviceName"]?? "Unknown";
-        $callLogEntry->device_phone_number = $data["devicePhoneNumber"]?? "Unknown";
+        $callLogEntry->device_id = Device::where("device_id",$data["deviceId"])->first()?->id ??"Unknown";
         $callLogEntry->called_at = $data["callDate"];
         $callLogEntry->call_type = $data["callType"];
         $callLogEntry->contact_name = $data["contactName"];

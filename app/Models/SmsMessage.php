@@ -9,6 +9,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class SmsMessage extends Model
 {
     use HasFactory;
+    const STATUS_PENDING = 'PENDING';
+    const STATUS_PROCESSING = 'PROCESSING';
+    const STATUS_SENT = 'SENT';
+    const STATUS_FAILED = 'FAILED';
 
     protected $fillable = [
         'text',
