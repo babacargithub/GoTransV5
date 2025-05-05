@@ -133,6 +133,16 @@ class Bus extends Model
         return $this->hasMany(WaitingCustomer::class);
 
     }
+    public function pointDeparts(): HasMany
+    {
+        return $this->hasMany(PointDepBus::class);
+
+    }
+    public function destinations(): HasMany
+    {
+        return $this->hasMany(PointDepBus::class);
+
+    }
 
 
 

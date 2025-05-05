@@ -10,6 +10,7 @@ use App\Http\Controllers\WavePaiementController;
 use App\Http\Resources\PaymentResponseResource;
 use App\Models\Booking;
 use App\Models\Ticket;
+use App\Models\Vehicule;
 use App\Utils\NotificationSender\SMSSender\SMSSender;
 use Exception;
 use GuzzleHttp\Exception\GuzzleException;
@@ -22,7 +23,7 @@ use Psr\Log\LoggerInterface;
 class  TicketManager
 {
     // TODO: make this dynamic
-    const DISCOUNT_AMOUNT = 100;
+    const DISCOUNT_AMOUNT = 10;
     private SMSSender $smsSender;
 
     public function __construct(SMSSender $smsSender)
@@ -44,6 +45,11 @@ class  TicketManager
         }
         else if ($paymentMethod == "om"){
             $price += ($price * 0.00);
+        }
+        if ($booking->bus->vehicule !== null){
+            if ($booking->bus->vehicule->vehicule_type == 2){
+                $price = $price + ($price * 0.015);
+            }
         }
 
         return $price;

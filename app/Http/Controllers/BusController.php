@@ -215,6 +215,7 @@ class BusController extends Controller
                 'features' => $vehicule->features,
                 "type_vehicle" => $vehicule->vehicule_type,
                 "nombre_place" => $vehicule->nombre_place,
+                "ticket_price" => $vehicule->climatise ? 4000 : 3550,
 
             ];
         }));

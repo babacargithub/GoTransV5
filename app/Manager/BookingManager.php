@@ -43,18 +43,19 @@ class BookingManager
     }
 
 
-    public function sendNotificationOfTicketPaymentToCustomer(Booking $booking, bool $online = false): bool
+    public function sendNotificationOfTicketPaymentToCustomer(Booking $booking, bool $online = true): bool
     {
 
         $departName = $booking->depart->name;
-        $seatNumber = $booking->depart->trajet_id == Trajet::UGB_DAKAR ? "\n Num place :" . $booking->seat_number . " " :
+        $seatNumber = $booking->depart->trajet_id == Trajet::UGB_DAKAR ? "\n Num siège :" . $booking->seat_number . " " :
             '';
         $schedule = $seatNumber . "\n Heure:  " . $booking->formatted_schedule . "\n Arret du bus " .
             $booking->point_dep->arret_bus;
         $contactAgent = AppParams::first()->getBusAgentDefaultNumber();
-        $notificationMessageForOnlineUsers = "Vous avez acheté un ticket sur GolobOne Transport  pour le départ $departName" . $schedule . ", 
-            \nContact de l'agent qui sera dans le bus Bus: " . $contactAgent;
-        $notificationMessage = "Votre  ticket est enregistré sur GolobOne Transport pour $departName, paiement reçu. " . $seatNumber . "
+        $notificationMessageForOnlineUsers = "Vous avez acheté un ticket sur Globe Transports  pour le départ $departName. RV: " . $schedule . ", 
+            \nContact du convoyeur qui sera dans le bus Bus: " . $contactAgent;
+        $notificationMessage = "Votre  ticket est enregistré sur Globe Transports pour $departName, paiement reçu. " .
+            $seatNumber . "
             \ RV " . $schedule . ", 
             Contactez agent dans le bus: " . $contactAgent;
         $message = $online ? $notificationMessageForOnlineUsers : $notificationMessage;

@@ -199,25 +199,28 @@ class BookingController extends Controller
         }
         DB::transaction(function () use ($booking, $targetBus, $targetSeat) {
 
-            $previousSeat = $booking->seat;
-            $previousSeat?->freeSeat();
-            $previousSeat?->save();
-            $booking->freeSeat();
-            $booking->save();
 
-            $targetSeat->book();
-            $targetSeat->save();
-            $booking->seat()->associate($targetSeat);
             $booking->bus()->associate($targetBus);
             $booking->depart()->associate($targetBus->depart);
             $booking->save();
+            if ($booking->has_seat){
+                $previousSeat = $booking->seat;
+                $previousSeat?->freeSeat();
+                $previousSeat?->save();
+                $booking->freeSeat();
+                $booking->save();
+
+                $targetSeat->book();
+                $targetSeat->save();
+                $booking->seat()->associate($targetSeat);
+            }
 
         });
         $booking->refresh();
         $smsSender = app(SMSSender::class);
         $smsSender->sendSms(substr($booking->customer->phone_number, -9, 9),
             "Votre réservation a été transférée sur le départ " . $targetBus->depart->name. " sur le bus ".
-            $targetBus->name. " Nouveau Nº de siège ". $targetSeat->number);
+            $targetBus->name. " Nouveau Nº de siège ". $targetSeat->number." Contact 771273535/771163003");
         $bookingManager = app(BookingManager::class);
         $bookingManager->checkIfBusIsFullAndNotifyManagerIfYes($booking);
         return response()->json('Réservation transférée avec succès');

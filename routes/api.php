@@ -52,6 +52,7 @@ Route::prefix('messenger')->group(function () {
     Route::get('departs-bookings-for-bulk-sms/{depart}', [MessengerController::class, "getDepartCustomersForBulkSms"]);
     Route::get('download-file/{filename}', [MessengerController::class, 'downloadFile'])->name('messenger.download-file');
     Route::get('batch-excel-files', [MessengerController::class, 'getBatchExcelFiles']);
+    Route::get("call-logs", [MessengerController::class,'callLogs']);
 
 
 });

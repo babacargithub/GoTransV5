@@ -6,6 +6,7 @@ use App\Manager\TicketManager;
 use App\Models\Bus;
 use App\Models\Depart;
 use App\Models\Destination;
+use App\Models\DestinationBus;
 use App\Models\HeureDepart;
 use App\Models\PointDep;
 use App\Models\PromotionalMessage;
@@ -89,8 +90,25 @@ class MobileTrajetDepartsResource extends JsonResource
                 'id' => $bus->id,
                 'name' => $bus->vehicule != null ? $bus->vehicule->name : "Bus ordinaire",
                 "description" => $bus->vehicule?->description,
-                "attachements" => $bus->vehicule?->attachements,
+                "attachments" => $bus->vehicule?->attachments,
                 "features" => $bus->vehicule->features ??  [],
+                "point_departs"=> $bus->pointDeparts->map(function ($item){
+                    return [
+                        "id"=>$item->point_dep_id,
+                        "name"=> PointDep::find($item->point_dep_id)->name,
+                        "arret_bus"=>$item->arret_bus
+                    ];
+
+                }),
+                "destinations"=> $bus->destinations->map(function (DestinationBus $item){
+                    return [
+                        "id"=>$item->destination_id,
+//                        "name"=>$item->destination->name,
+                    ];
+
+                }),
+                "climatise" => $bus->vehicule?->climatise,
+                "price_label" => $bus->vehicule?->climatise ? "Prix promo étudiant" : null,
                 "full" => $bus->isFull(),
                 "closed" => $bus->isClosed(),
                 "nombre_place" => $bus->nombre_place,

@@ -13,6 +13,7 @@ use App\Models\Event;
 use App\Models\HeureDepart;
 use App\Models\Horaire;
 use App\Models\PointDep;
+use App\Models\PointDepBus;
 use App\Models\Seat;
 use App\Models\Trajet;
 use App\Models\User;
@@ -149,14 +150,26 @@ class DepartController extends Controller
                 Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
+
+
         $bus = new Bus($validated);
         if (!isset($validated['vehicule_id'])) {
             $bus->vehicule_id = Vehicule::where("default",true)->firstOrFail()->id;
         }
        DB::transaction(function () use ($depart, $validated, $bus)
         {
+
             $bus->closed = false;
+
             $depart->buses()->save($bus);
+            if ($bus->vehicule_id != Vehicule::where("default",true)->firstOrFail()->id){
+                $point_departs_ids = [2,16,17,39];
+                foreach ($point_departs_ids as $id){
+                    $pointDepBus = new PointDepBus(["bus_id" => $bus->id,"point_dep_id" => $id]);
+                    $pointDepBus->save();
+                }
+
+            }
             $busSeats = $this->generateBusSeats($bus);
             $bus->seats()->createMany($busSeats->toArray());
 
@@ -166,15 +179,22 @@ class DepartController extends Controller
 
     }
 
-    public function bookingGroupingsCount(Depart $depart)
+    public function bookingGroupingsCount(Depart $depart, Request $request)
     {
 
         // count bookings of each point depart
-        $groupingsCount = Booking::where('depart_id', $depart->id)
+        $query = Booking::where('depart_id', $depart->id)
             ->join('point_deps', 'bookings.point_dep_id', '=', 'point_deps.id')
-            ->whereNotNull('ticket_id')
-            ->selectRaw('point_deps.name as name, COUNT(bookings.id) as bookingsCount')
-            ->groupBy('point_deps.id','point_deps.name')
+            ->whereNotNull('ticket_id');
+
+        // Apply bus_id filter only if the query parameter is present
+        if ($request->has('bus_id')) {
+            $query->where('bookings.bus_id', $request->bus_id);
+        }
+
+        // Complete the query with grouping, ordering, and selection
+        $groupingsCount = $query->selectRaw('point_deps.name as name, COUNT(bookings.id) as bookingsCount')
+            ->groupBy('point_deps.id', 'point_deps.name')
             ->orderBy('point_deps.id')
             ->get();
 

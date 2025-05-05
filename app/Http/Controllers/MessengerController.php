@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CallLog;
 use App\Models\Device;
 use App\Models\SmsMessage;
 use Illuminate\Http\JsonResponse;
@@ -294,14 +295,16 @@ class MessengerController extends Controller
     public function getBatchExcelFiles()
     {
         // Specify the directory where your files are stored
-        $files = Storage::files('public/batch_excel_files');
+        $files = Storage::disk('public')->files('batch_excel_files');
+//        $files = glob(public_path('storage/batch_excel_files/*'));
 
         
         $filesList = [];
         
         foreach ($files as $file) {
             $fileName = basename($file);
-            $fileSize = Storage::size($file);
+//            $fileSize = Storage::size($file);
+            $fileSize = 19920393;
             $mimeType = Storage::mimeType($file);
             
             $filesList[] = [
@@ -333,5 +336,24 @@ class MessengerController extends Controller
         }
         
         return response()->download($path);
+    }
+
+    public function callLogs()
+    {
+        $call_logs = CallLog::limit(100)
+        ->get()
+            ->map(function (CallLog $callLog){
+                return [
+                    "phone_number"=>$callLog->caller_phone_number,
+                    "contact_name"=>$callLog->contact_name,
+                    "created_at"=>$callLog->created_at->format("d/m H:i"),
+                    "call_type"=>$callLog->call_type,
+                    //TODO change later
+                    "device_name"=>Device::where("id", $callLog->device_id)?->first()->name
+                ];
+
+            });
+
+        return response()->json($call_logs);
     }
 }

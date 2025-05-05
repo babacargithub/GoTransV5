@@ -107,8 +107,10 @@ class Booking extends Model
     public static function bookingsOrdererByTrajet(Trajet $trajet, Builder $query): Builder
     {
         if ($trajet->id== 1) {
-            $query->join('bus_seats', 'bookings.seat_id', '=', 'bus_seats.id')
+            $query->join('point_deps', 'bookings.point_dep_id', '=', 'point_deps.id')
+                ->join('bus_seats', 'bookings.seat_id', '=', 'bus_seats.id')
                 ->join('seats', 'bus_seats.seat_id', '=', 'seats.id')
+                ->orderBy('point_deps.position')
                 ->orderBy('seats.number');
         } else {
             $query->join('point_deps', 'bookings.point_dep_id', '=', 'point_deps.id')
