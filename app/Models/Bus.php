@@ -140,7 +140,7 @@ class Bus extends Model
     }
     public function destinations(): HasMany
     {
-        return $this->hasMany(PointDepBus::class);
+        return $this->hasMany(DestinationBus::class);
 
     }
 

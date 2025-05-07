@@ -84,29 +84,29 @@ class MobileTrajetDepartsResource extends JsonResource
             'date' => $depart->date->format('Y-m-d H:i:s'),
             "trajet_id" => $depart->trajet->id,
             "show_ticket_price" => false,
-            'buses' => $this->getBusesForBooking($depart)->count() >1 ?$this->getBusesForBooking($depart)->map(fn(Bus
-                                                                                                                      $bus) =>
+            'buses' => $this->getBusesForBooking($depart)->map(fn(Bus $bus) =>
     array_merge_recursive([
                 'id' => $bus->id,
                 'name' => $bus->vehicule != null ? $bus->vehicule->name : "Bus ordinaire",
                 "description" => $bus->vehicule?->description,
                 "attachments" => $bus->vehicule?->attachments,
                 "features" => $bus->vehicule->features ??  [],
-                "point_departs"=> $bus->pointDeparts->map(function ($item){
+                "point_departs"=> $bus->pointDeparts->count() > 0 ? $bus->pointDeparts?->map(function ($item){
                     return [
-                        "id"=>$item->point_dep_id,
-                        "name"=> PointDep::find($item->point_dep_id)->name,
-                        "arret_bus"=>$item->arret_bus
+                        "id"=>$item?->point_dep_id,
+                        "name"=> PointDep::find($item->point_dep_id)?->name,
+                        "arret_bus"=>$item?->arret_bus
                     ];
 
-                }),
-                "destinations"=> $bus->destinations->map(function (DestinationBus $item){
+                }) : [],
+                "destinations"=> $bus->destinations->count() > 0? $bus->destinations->map(function (DestinationBus
+                                                                                                   $item){
                     return [
                         "id"=>$item->destination_id,
 //                        "name"=>$item->destination->name,
                     ];
 
-                }),
+                }):[],
                 "climatise" => $bus->vehicule?->climatise,
                 "price_label" => $bus->vehicule?->climatise ? "Prix promo étudiant" : null,
                 "full" => $bus->isFull(),
@@ -114,7 +114,7 @@ class MobileTrajetDepartsResource extends JsonResource
                 "nombre_place" => $bus->nombre_place,
                 "ticket_price" => $bus->ticket_price,
 
-            ], $this->dataCommonToDepartAndBus($bus))):null,
+            ], $this->dataCommonToDepartAndBus($bus))),
 
 
         ];
