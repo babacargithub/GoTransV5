@@ -51,7 +51,7 @@ class MobileMultipleBookingRequest extends FormRequest
 
             "bookings.*.referer" => "nullable|integer",
             "booked_with_platform" => "nullable|string",
-            "bus_id" => "nullable|integer|exists:buses,id",
+            "bus_id" => "integer|exists:buses,id",
             "payment_method" => "required|string",
             "om_number" => "nullable|integer",
             "group_owner_phone_number" => "nullable|integer"
@@ -83,7 +83,7 @@ class MobileMultipleBookingRequest extends FormRequest
                     // check if bus belongs to depart
                     if (!Bus::where("depart_id", $depart->id)->where("id", $validated["bus_id"])->exists()) {
                         $this->error_code = self::ERROR_BUS_NOT_FOUND;
-                        $validator->errors()->add('bus_id', "Le bus n'existe pas ou n'appartient pas à ce départ !");
+                        $validator->errors()->add('bus_id', "Le bus sélectionné  n'est pas reconnu par notre système! C'est peut être une erreur interne");
                     }
                     $bus = Bus::findOrFail($validated["bus_id"]);
 
@@ -137,7 +137,7 @@ class MobileMultipleBookingRequest extends FormRequest
                             "customer_full_name" => $currentBooking->customer->full_name,
                             "current_booking_id" => $currentBooking->id,
                             "current_booking_depart" => $currentBooking->depart->name];
-                        $validator->errors()->add('phone_number', "Le client ".$currentBooking->customer->full_name.' a déjà fait une réservation pour le départ ' .
+                        $validator->errors()->add('phone_number', "".$currentBooking->customer->full_name.' a déjà fait une réservation pour le départ ' .
                             $currentBooking->depart->name);
                     }
                 }
@@ -196,7 +196,7 @@ class MobileMultipleBookingRequest extends FormRequest
             $booking = new Booking($bookingInput);
             $booking->booked_with_platform = $this->validated()["booked_with_platform"]?? null;
             $booking->depart_id = $depart->id;
-            $booking->bus_id = $this->validated()["bus_id"]?? $depart->getBusForBooking()->id;
+            $booking->bus_id = $this->validated()["bus_id"];
             $booking->paye = false;
             $booking->group_id = $group_id;
             $bookings[] = $booking;

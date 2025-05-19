@@ -91,15 +91,16 @@ class MobileTrajetDepartsResource extends JsonResource
                 "description" => $bus->vehicule?->description,
                 "attachments" => $bus->vehicule?->attachments,
                 "features" => $bus->vehicule->features ??  [],
-                "point_departs"=> $bus->pointDeparts->count() > 0 ? $bus->pointDeparts?->map(function ($item){
+                "point_departs"=> $bus->pointDeparts->count() > 100 ? $bus->pointDeparts?->map(function ($item){
+                    $pointDep = PointDep::withoutGlobalScope("withoutDisabled")->find($item->point_dep_id);
                     return [
                         "id"=>$item?->point_dep_id,
-                        "name"=> PointDep::find($item->point_dep_id)?->name,
-                        "arret_bus"=>$item?->arret_bus
+                        "name"=> $pointDep?->name,
+                        "arret_bus"=>$pointDep?->arret_bus
                     ];
 
                 }) : [],
-                "destinations"=> $bus->destinations->count() > 0? $bus->destinations->map(function (DestinationBus
+                "destinations"=> $bus->destinations->count() > 100? $bus->destinations->map(function (DestinationBus
                                                                                                    $item){
                     return [
                         "id"=>$item->destination_id,

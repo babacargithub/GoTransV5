@@ -44,6 +44,10 @@ class Bus extends Model
         return $this->hasMany(Booking::class);
 
     }
+    public function heuresDeparts() : HasMany
+    {
+        return $this->hasMany(HeureDepart::class);
+    }
     public function seatsLeft(): int
     {
         return $this->getAvailableSeats()->count();

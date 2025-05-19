@@ -35,8 +35,12 @@ class PointDep extends Model
     {
         parent::boot();
         static::addGlobalScope('order', function ($builder) {
-            $builder->where('disabled', false);
+
             $builder->orderBy('position');
+        });
+        static::addGlobalScope('withoutDisabled', function ($builder) {
+
+            $builder->where('disabled', false);
         });
     }
 }

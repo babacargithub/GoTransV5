@@ -6,6 +6,7 @@ use App\Manager\BookingManager;
 use App\Manager\TicketManager;
 use App\Models\Booking;
 use App\Models\Bus;
+use App\Models\Customer;
 use App\Models\Depart;
 use App\Models\User;
 use App\Utils\NotificationSender\SMSSender\SMSSender;
@@ -58,7 +59,8 @@ class BookingController extends Controller
         }
         // check if customer has already booked for this depart
         if ($depart->bookings()->where('customer_id', $validated['customer_id'])->exists()) {
-            return response()->json(['message' => "Ce client a déjà réservé sur ce depart !"], 422);
+            $customer = Customer::find($validated['customer_id']);
+            return response()->json(['message' => $customer->full_name. " a déjà réservé sur ce depart !"], 422);
         }
         $booking = new Booking($validated);
         $booking->paye = false;

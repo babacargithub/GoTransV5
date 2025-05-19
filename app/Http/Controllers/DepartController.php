@@ -202,10 +202,19 @@ class DepartController extends Controller
 
 
     }
-    public function busStopSchedules(Depart $depart)
+    public function busStopSchedules(Depart $depart, Request $request)
     {
         // get all heures departs and point departs
-        $busStopSchedules = $depart->heuresDeparts()->orderBy("point_dep_id")->get();
+        $bus = Bus::find($request->bus_id);
+
+        $query = $bus != null ? $bus->heuresDeparts() : $depart->heuresDeparts();
+
+         $query
+            ->join('point_deps', 'heure_departs.point_dep_id', '=', 'point_deps.id')
+             ->select('heure_departs.*', 'point_deps.position')
+            ->orderBy('point_deps.position');
+
+        $busStopSchedules = $query->get();
 
         return response()->json($busStopSchedules->map(function(HeureDepart $busStopSchedule){
             return [
@@ -213,6 +222,7 @@ class DepartController extends Controller
                 'pointDep' => $busStopSchedule->pointDep->name,
                 'rendezVousPoint' => $busStopSchedule->arretBus,
                 'rendezVousSchedule' => $busStopSchedule->heureDepart->format('H:i'),
+                "disabled" => $busStopSchedule->disabled,
             ];
         }));
 
@@ -227,14 +237,20 @@ class DepartController extends Controller
             'busStopSchedules.*.pointDep' => 'required|string',
             'busStopSchedules.*.rendezVousPoint' => 'required|string',
             'busStopSchedules.*.rendezVousSchedule' => 'required|date_format:H:i',
+            'busStopSchedules.*.disabled' => 'boolean',
         ]);
         $busStopSchedules = collect($validated['busStopSchedules'])
         ->map(function($busStopSchedule){
-            return [
+            $data = [
                 'id' => $busStopSchedule['id'],
                 'heureDepart' => $busStopSchedule['rendezVousSchedule'],
                 'arretBus' => $busStopSchedule['rendezVousPoint'],
+
             ];
+            if (isset($busStopSchedule['disabled'])) {
+                $data['disabled'] = $busStopSchedule['disabled'];
+            }
+            return $data;
         })->toArray();
         DB::transaction(function() use ($busStopSchedules){
             foreach ($busStopSchedules as $busStopSchedule) {
@@ -242,6 +258,7 @@ class DepartController extends Controller
                     ->update([
                         'heureDepart' => $busStopSchedule['heureDepart'],
                         'arretBus' => $busStopSchedule['arretBus'],
+                        'disabled' => $busStopSchedule['disabled'] ?? false,
                     ]);
             }
         });
