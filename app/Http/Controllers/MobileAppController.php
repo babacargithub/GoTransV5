@@ -71,10 +71,6 @@ class MobileAppController extends Controller
     {
 
         $validated = $request->validate([
-            "point_dep_id" => "required|integer|exists:point_deps,id",
-            "destination_id" => "required|integer|exists:destinations,id",
-            "customer_id" => "integer|exists:customers,id",
-            "bus_id" => "exists:buses,id",
             "first_name" => "nullable|string",
             "last_name" => "nullable|string",
             "nom_complet" => "nullable|string",
@@ -84,6 +80,21 @@ class MobileAppController extends Controller
             "booked_with_platform" => "string",
 
         ]);
+        // check the headers to find if the source is gp if no we will add additional validation rules
+        $source = $request->headers->get('source');
+        if ($source != "gp") {
+            $validated = array_merge_recursive($validated, $request->validate([
+                "point_dep_id" => "required|integer|exists:point_deps,id",
+                "destination_id" => "required|integer|exists:destinations,id",
+                "customer_id" => "nullable|integer|exists:customers,id",
+                "bus_id" => "exists:buses,id",
+            ]));
+        }else{
+            $defaultPointDep = $depart->heuresDeparts()->first();
+            $validated['point_dep_id'] = $defaultPointDep->point_dep_id;
+            $validated['destination_id'] = $depart->trajet->destinations()->first()->id;
+        }
+
         // if customer_id is not provided, we will create a new customer
         if (isset($validated["customer_id"])){
                 $customer = Customer::find($validated['customer_id']);
@@ -104,8 +115,10 @@ class MobileAppController extends Controller
         // check if customer has no current booking
         $currentBooking = $customer->getCurrentBooking();
            if ($currentBooking != null) {
+
             return response()->json([
-                'message' => 'Vous avez déjà fait une réservation pour le départ '.$currentBooking->depart->name,
+                'message' => $customer->full_name .'a déjà fait une réservation sur le départ '
+                    .$currentBooking->depart->name,
                 "error_code"=>"ALREADY_BOOKED",
                 "current_booking_id"=>$currentBooking->id,
                 "current_booking_depart"=>$currentBooking->depart->name
@@ -127,15 +140,23 @@ class MobileAppController extends Controller
             ], 422);
         }
 
-        if ($depart->closed ||  $bus->isClosed()) {
-            $bus = $depart->getBusForBooking();
-            if ($bus->isFull() || $bus->isClosed()) {
+        if ($bus->isFull() || $bus->isClosed()) {
+            // we will check if there is a bus of same vehicle type with available seats
+            $busOfSameVehicleType = $depart->buses()
+                ->where('vehicule_id', $bus->vehicule_id)
+                ->where('id', '!=', $bus->id)
+                ->where('closed', false)
+                ->first();
+            if ($busOfSameVehicleType != null && !$busOfSameVehicleType->isFull()) {
+                $bus = $busOfSameVehicleType;
+            } else {
                 $closestDepart = $depart->getClosestNextDepart();
-
                 return response()->json([
                     'message' => "Désolé, le bus choisi est plein, il n'y a plus de place",
                     "error_code"=>"BUS_FULL",
                     "closest_depart_id"=>$closestDepart?->id,
+                    "bus_of_same_type_depart"=> $depart->buses->filter(fn(Bus $busItem) => $busItem->id != $bus?->id
+                        && !$busItem->isClosed() || ! $busItem->isFull())->first(),
                     "closest_depart_name"=>$closestDepart?->name
                 ], 422);
             }
@@ -149,7 +170,7 @@ class MobileAppController extends Controller
         $booking->bus_id = $bus->id;
         $booking->customer()->associate($customer);
         $booking->paye = false;
-        $booking->depart()->associate($depart);
+        $booking->depart()->associate($bus->depart);
         $booking->save();
         $wavePaiementController = app(WavePaiementController::class);
         $ticketManager = app(TicketManager::class);
