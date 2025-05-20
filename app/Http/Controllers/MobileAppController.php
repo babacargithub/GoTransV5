@@ -12,6 +12,7 @@ use App\Models\AppParams;
 use App\Models\Booking;
 use App\Models\Bus;
 use App\Models\Customer;
+use App\Models\CustomerCategory;
 use App\Models\Depart;
 use App\Models\Destination;
 use App\Models\HeureDepart;
@@ -62,6 +63,39 @@ class MobileAppController extends Controller
 
 
     }
+    public function listeDepartsForGp(\Illuminate\Http\Request $request)
+    {
+
+        $trajets = Trajet::all()->map(function (Trajet $trajet){
+            return [
+                'id' => $trajet->id,
+                'name' => $trajet->name,
+                'departs' => $trajet->departs()->where("date",">=", now())->orderBy('date')
+                    ->get()
+//                    ->filter(function (Depart $depart) {
+//                        return !$depart->isPassed() && $depart->buses()
+//                                ->join('vehicules', 'vehicule_id', '=', 'vehicules.id')
+//                            ->where('vehicules.vehicule_type', Vehicule::VEHICULE_TYPE_CLIMATISE)
+//                            ->exists();
+//                    })
+                    ->map(function (Depart $depart) {
+                    return [
+                            'id' => $depart->id,
+                        // the name should be the date expressed in french like this mercredi 21 mai
+                            'name' => $depart->date->translatedFormat('l j F').
+                                " à ".$depart->heuresDeparts()->orderBy('heureDepart')->first()
+                                    ->heureDepart?->format('H\hi'),
+                            'ticket_price' => $depart->getBusForBooking(climatise: true)?->ticket_price,
+                            'is_closed' => $depart->closed,
+                            ];
+                    }),
+            ];
+        });
+
+        return response()->json($trajets);
+
+
+    }
 
     /**
      * @throws ConnectionException
@@ -106,7 +140,10 @@ class MobileAppController extends Controller
                     'prenom' => $validated['first_name'],
                     'nom' => $validated['last_name'],
                     'phone_number' => $validated['phone_number'],
+                    "customer_category_id" => \is_request_for_gp_customers() ? CustomerCategory::where('abrv',"GP")
+                        ->first()?->id : CustomerCategory::first()?->id,
                 ]);
+
             }else{
                 $customer = Customer::where('phone_number', $validated['phone_number'])->first();
             }
@@ -167,6 +204,7 @@ class MobileAppController extends Controller
         }
         $booking = new Booking($validated);
         $booking->referer_id = $validated['referer']  ??0;
+        $booking->comment = \is_request_for_gp_customers() ? "for_gp" : null;
         $booking->bus_id = $bus->id;
         $booking->customer()->associate($customer);
         $booking->paye = false;

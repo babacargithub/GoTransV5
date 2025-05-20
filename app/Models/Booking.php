@@ -148,5 +148,10 @@ class Booking extends Model
 
     }
 
+    public function getIsForGpAttribute() : bool
+    {
+        return  strtolower($this->comment) == "for_gp";
+    }
+
 
 }

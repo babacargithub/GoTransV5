@@ -39,6 +39,9 @@ class  TicketManager
 
     public function calculateTicketPriceForBooking(Booking $booking, $paymentMethod = null) : int
     {
+        if (\is_request_for_gp_customers()){
+            return  6600;
+        }
         $price =   $booking->bus->ticket_price;
         if ($paymentMethod == "wave"){
             $price += ($price * 0.00);

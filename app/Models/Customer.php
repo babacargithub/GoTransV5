@@ -19,10 +19,9 @@ class Customer extends Model
     "sexe",
     "disabled",
     "active",
-    "categorie",
     "email",
     "deleted",
-    "delete_at",
+        "customer_category_id",
     "last_active"];
     // get full name
     public function getFullNameAttribute(): string

@@ -102,7 +102,7 @@ class BookingResource extends JsonResource
 }*/
 
         return [
-            /** @var  $this Booking */
+            /** @var  $booking Booking */
             'id' => $this->id,
 //            'depart' => $this->depart->name,
             'seatNumber' => $this->seat?->seat->number,
@@ -114,6 +114,7 @@ class BookingResource extends JsonResource
             "paymentMethod" => $this->ticket?->payment_method,
             "isPassed" => $this->depart->isPassed(),
             "group_id" => $this->group_id,
+            "isForGp" => $this->is_for_gp,
             "belongsToGroup" => $this->group_id != null,
 //            "groupMembersCount" => $this->getOtherBookingsOfSameGroup()->count(),
             'client' => [

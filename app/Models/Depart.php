@@ -113,13 +113,25 @@ class Depart extends Model
         });
     }
 
-    public function getBusForBooking() : Bus
+    public function getBusForBooking(bool $climatise = false) : ?Bus
     {
-        $openedBuses = $this->buses->filter(fn(Bus $bus) => !$bus->isFull() && !$bus->isClosed());
-        if (!$openedBuses->isEmpty()){
-            return $openedBuses->first();
+        if (!$climatise) {
+            $openedBuses = $this->buses->filter(fn(Bus $bus) => !$bus->isFull() && !$bus->isClosed());
+            if (!$openedBuses->isEmpty()) {
+                return $openedBuses->first();
+            }
+            return $this->buses()->latest()->firstOrFail();
+        } else {
+            $openedBuses = $this->buses->filter(fn(Bus $bus) => !$bus->isFull() && !$bus->isClosed() && $bus->climatise);
+            if (!$openedBuses->isEmpty()) {
+                return $openedBuses->first();
+            }
+            return $this->buses()
+                ->join("vehicules","vehicules.id","=","buses.vehicule_id")
+                ->where("vehicules.vehicule_type","=",Vehicule::VEHICULE_TYPE_CLIMATISE)
+                ->latest()
+                ->first();
         }
-        return $this->buses()->latest()->firstOrFail();
 
     }
 
