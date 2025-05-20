@@ -115,8 +115,7 @@ class MobileAppController extends Controller
 
         ]);
         // check the headers to find if the source is gp if no we will add additional validation rules
-        $source = $request->headers->get('source');
-        if ($source != "gp") {
+        if (\is_request_for_gp_customers()) {
             $validated = array_merge_recursive($validated, $request->validate([
                 "point_dep_id" => "required|integer|exists:point_deps,id",
                 "destination_id" => "required|integer|exists:destinations,id",
@@ -124,9 +123,20 @@ class MobileAppController extends Controller
                 "bus_id" => "exists:buses,id",
             ]));
         }else{
-            $defaultPointDep = $depart->heuresDeparts()->first();
-            $validated['point_dep_id'] = $defaultPointDep->point_dep_id;
-            $validated['destination_id'] = $depart->trajet->destinations()->first()->id;
+            //TODO change this later
+
+            if ($depart->trajet->id == 1) {
+                $defaultPointDep = PointDep::findOrFail(40);
+            } else if ($depart->trajet->id == 2) {
+                $defaultPointDep = PointDep::findOrFail(2);
+            }else{
+                $defaultPointDep = PointDep::first();
+            }
+            $validated['point_dep_id'] = $defaultPointDep->id;
+            $validated['destination_id'] = $depart->trajet
+                ->destinations()
+                ->where("id", ($depart->trajet->id == 1 ? 34: 36 ))
+                ->firstOrFail()->id;
         }
 
         // if customer_id is not provided, we will create a new customer
@@ -249,8 +259,8 @@ class MobileAppController extends Controller
                     'type'=>'multiple_booking',
                     'group_id' => $group_id,
                     "depart_id"=>$depart->id],
-                "error_url" => 'https://globeone.site/#/multiple_bookings/'.$group_id,
-                "success_url" => 'https://globeone.site/#/multiple_bookings/'.$group_id,
+                "error_url" => WavePaiementController::getEndpointForRedirect().'/#/multiple_bookings/'.$group_id,
+                "success_url" => WavePaiementController::getEndpointForRedirect().'/#/multiple_bookings/'.$group_id,
             ];
 
 
@@ -476,8 +486,8 @@ class MobileAppController extends Controller
                     'type' => 'multiple_booking',
                     'group_id' => $group_id,
                 ],
-                "error_url" => 'https://globeone.site/#/multiple_bookings/' . $group_id,
-                "success_url" => 'https://globeone.site/#/multiple_bookings/' . $group_id,
+                "error_url" => WavePaiementController::getEndpointForRedirect().'/#/multiple_bookings/' . $group_id,
+                "success_url" => WavePaiementController::getEndpointForRedirect().'/#/multiple_bookings/' . $group_id,
             ];
             $wavePaiementController = app(WavePaiementController::class);
             $wavePaiementResponse = $wavePaiementController->getPaymentUrl($metadata);

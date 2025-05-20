@@ -143,8 +143,9 @@ class WavePaiementController extends Controller
                     "phone_number" => $booking->customer->phone_number,
                     "client" => $booking->customer->full_name
                 ],
-                "error_url" => "https://globeone.site/#/paiement/error/" . $booking->id,
-                "success_url" => "https://globeone.site/#/paiement/success/" . $booking->id,
+                "error_url" => self::getEndpointForRedirect()."/#/paiement/error/" . $booking->id,
+                "success_url" => self::getEndpointForRedirect()."/#/paiement/success/" .
+            $booking->id,
 
             ];
             return $this->getPaymentUrl($requestBody);
@@ -237,6 +238,12 @@ class WavePaiementController extends Controller
             return $response["items"];
         }
         return  [];
+    }
+
+    public static function getEndpointForRedirect()
+    {
+        return is_request_for_gp_customers() ? 'https://globaltransports.sn' : 'https://globeone.site';
+
     }
 
 }
