@@ -48,9 +48,16 @@ class DepartController extends Controller
             'departs' => 'required|array',
             'departs.*.name' => 'required|string',
             'departs.*.date' => 'required|date',
-            'departs.*.event_id' => 'required|integer|exists:events,id',
+            'departs.*.event_id' => 'nullable|integer|exists:events,id',
             'departs.*.trajet_id' => 'required|integer|exists:trajets,id',
+            'departs.*.type_of_bus_to_create' => 'required|string',
             'departs.*.visibilite' => 'required|integer',
+            "departs.*.bus" => 'array',
+            'departs.*.bus.name' => 'required|string',
+            'departs.*.bus.ticket_price' => 'required|numeric',
+            'departs.*.bus.gp_ticket_price' => 'required|numeric',
+            'departs.*.bus.nombre_place' => 'required|integer',
+            'departs.*.bus.vehicule_id' => 'nullable|integer|exists:vehicules,id',
             'departs.*.horaire_id' => 'required|integer|exists:horaires,id',
         ]);
         $departs = [];
@@ -58,7 +65,7 @@ class DepartController extends Controller
             $departs[] = new Depart([
                 'name' => $depart['name'],
                 'date' => $depart['date'],
-                'event_id' => $depart['event_id'],
+                'event_id' => Event::orderByDesc('date_end')->limit(1)->firstOrFail()->id,
                 'trajet_id' => $depart['trajet_id'],
                 'visibilite' => $depart['visibilite'],
                 'horaire_id' => $depart['horaire_id'],
@@ -67,31 +74,25 @@ class DepartController extends Controller
                 "locked" => false,
             ]);
         }
-        DB::transaction(function () use ($departs) {
-            foreach ($departs as $depart) {
-                $defaultBus = new Bus([
-                    'name' => 'Bus 1',
-                    'depart_id' => $depart->id,
-                    'ticket_price' => 3550,
-                    'nombre_place' => 57,
-                    "closed" => false,
-                    "vehicule_id" => Vehicule::first()?->id,
-                    'allows_seat_selection' => false,
-                    'should_show_seat_numbers' => false,
+        $busInformation = $validated['departs'][0]['bus'];
+        DB::transaction(function () use ($departs, $busInformation) {
 
-                ]);
+            foreach ($departs as $depart) {
+                $defaultBus = new Bus($busInformation);
                 /** @var  $depart Depart */
                 // create seats for bus
                 $date = $depart->date;
                 $depart->date = $date->setTime($depart->horaire->bus_leave_time->hour, $depart->horaire->bus_leave_time->minute);
                 $depart->created_by = User::requiredLoggedInUser()->username;
                 $depart->save();
+                $defaultBus->closed = false;
                 $depart->buses()->save($defaultBus);
                 $busSeats = $this->generateBusSeats($defaultBus);
                 $defaultBus->seats()->createMany($busSeats->toArray());
                 $busStopSchedules = $this->generateDefaultBusStopSchedules($depart, $defaultBus, Horaire::findOrFail
                 ($depart->horaire_id));
                 $depart->heuresDeparts()->createMany($busStopSchedules->toArray());
+
             }
         });
 
@@ -402,6 +403,7 @@ class DepartController extends Controller
             'events' => Event::orderByDesc('date_end')->limit(1)->get(),
             'trajets' => Trajet::all(),
             'horaires' => Horaire::all(),
+            "vehicules" => Vehicule::all(),
         ]);
 
     }

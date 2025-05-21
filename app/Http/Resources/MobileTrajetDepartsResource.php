@@ -40,7 +40,14 @@ class MobileTrajetDepartsResource extends JsonResource
         return [
             'id' => $this->id,
             'name' => $this->name,
-            'departs' => $this->departs()->where("date",">=", now())->orderBy('date')->get()->map(function ($depart) {
+            'departs' => $this->departs()
+                ->where("date", ">=", now())
+                ->where(function($query) {
+                    $query->where("visibilite", "=", Depart::VISIBILITE_GP_CUSTOMERS_ONLY)
+                        ->orWhere("visibilite", "=", Depart::VISIBILITE_ALL_CUSTOMERS);
+                })
+                ->orderBy('date')
+                ->get()->map(function ($depart) {
                /* return [
                     'id' => $depart->id,
                     'name' => $depart->name,
@@ -57,13 +64,19 @@ class MobileTrajetDepartsResource extends JsonResource
                 ];*/
                 return $this->departResource($depart);
             }),
-            'pointDeparts' => $this->pointDeps->map(function (PointDep $pointDepart) {
+//            TODO find a way to filter point departs dynamically
+            'pointDeparts' => $this->pointDeps()->where("id","!=",40)
+                ->get()
+                ->map(function (PointDep $pointDepart) {
                 return [
                     'name' => $pointDepart->name,
                     'id' => $pointDepart->id
                 ];
             }),
-            'destinations' => $this->destinations->map(function (Destination $destination) {
+            'destinations' => $this->destinations()
+                // TODO find a way to filter destinations dynamically
+                ->where("id","!=",36)
+                ->get()->map(function (Destination $destination) {
                 return [
                     'name' => $destination->name,
                     'id' => $destination->id

@@ -23,6 +23,7 @@ class MobileBookingResource extends JsonResource
             'seatNumber' => $this->seat?->number,
             "hasTicket" => $this->has_ticket,
             "hasSeat" => $this->has_seat,
+            "bus"=> $this->bus->name,
             "formattedSchedule" => $this->formatted_schedule,
             "rendezVousPoint" => $this->point_dep->arretBus,
             "paymentMethod" => $this->ticket?->payment_method,

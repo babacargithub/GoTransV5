@@ -70,7 +70,13 @@ class MobileAppController extends Controller
             return [
                 'id' => $trajet->id,
                 'name' => $trajet->name,
-                'departs' => $trajet->departs()->where("date",">=", now())->orderBy('date')
+                'departs' => $trajet->departs()
+                    ->where("date", ">=", now())
+                    ->where(function($query) {
+                        $query->where("visibilite", "=", Depart::VISIBILITE_GP_CUSTOMERS_ONLY)
+                            ->orWhere("visibilite", "=", Depart::VISIBILITE_ALL_CUSTOMERS);
+                    })
+                    ->orderBy('date')
                     ->get()
 //                    ->filter(function (Depart $depart) {
 //                        return !$depart->isPassed() && $depart->buses()
@@ -82,9 +88,7 @@ class MobileAppController extends Controller
                     return [
                             'id' => $depart->id,
                         // the name should be the date expressed in french like this mercredi 21 mai
-                            'name' => $depart->date->translatedFormat('l j F').
-                                " à ".$depart->heuresDeparts()->orderBy('heureDepart')->first()
-                                    ->heureDepart?->format('H\hi'),
+                            'name' => $depart->name,
                             'ticket_price' => $depart->getBusForBooking(climatise: true)?->ticket_price,
                             'is_closed' => $depart->closed,
                             ];
@@ -115,7 +119,7 @@ class MobileAppController extends Controller
 
         ]);
         // check the headers to find if the source is gp if no we will add additional validation rules
-        if (\is_request_for_gp_customers()) {
+        if (!\is_request_for_gp_customers()) {
             $validated = array_merge_recursive($validated, $request->validate([
                 "point_dep_id" => "required|integer|exists:point_deps,id",
                 "destination_id" => "required|integer|exists:destinations,id",
@@ -130,12 +134,10 @@ class MobileAppController extends Controller
             } else if ($depart->trajet->id == 2) {
                 $defaultPointDep = PointDep::findOrFail(2);
             }else{
-                $defaultPointDep = PointDep::first();
+                $defaultPointDep = PointDep::where("trajet_id", $depart->trajet_id)->first();
             }
             $validated['point_dep_id'] = $defaultPointDep->id;
-            $validated['destination_id'] = $depart->trajet
-                ->destinations()
-                ->where("id", ($depart->trajet->id == 1 ? 34: 36 ))
+            $validated['destination_id'] = Destination::where("id", ($depart->trajet->id == 1 ? 34: 36 ))
                 ->firstOrFail()->id;
         }
 
@@ -175,10 +177,26 @@ class MobileAppController extends Controller
            // check if the bus is not full or closed and depart is not closed, if bus is full or closed, we check if there is a bus with available seats
         try {
             $bus = isset($validated["bus_id"]) ? Bus::findOrFail($validated["bus_id"]) :
-                $depart->getBusForBooking();
+                $depart->getBusForBooking(climatise: is_request_for_gp_customers());
         } /** @noinspection PhpUnusedLocalVariableInspection */
         catch (ModelNotFoundException $e) {
-               $bus = $depart->getBusForBooking();
+            if (is_request_for_gp_customers()) {
+                $busClimatise = $depart->buses()
+                    ->join('vehicules',"buses.vehicule_id",'vehicules.id')
+                    ->where("buses.depart_id", $depart->id)
+                    ->where('vehicules.vehicule_type', Vehicule::VEHICULE_TYPE_CLIMATISE)
+                    ->first();
+                if ($busClimatise != null) {
+                    $bus = $busClimatise;
+                } else {
+                    return response()->json([
+                        'message' => "Désolé, aucun bus climatisé disponible pour ce départ",
+                        "error_code" => "DEPART_NOT_OPENED"
+                    ], 422);
+                }
+            } else {
+                $bus = $depart->getBusForBooking();
+            }
         }
         if ($depart->isPassed()){
             return response()->json([

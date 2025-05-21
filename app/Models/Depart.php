@@ -13,7 +13,11 @@ use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 class Depart extends Model
 {
     //
-
+    const
+        VISIBILITE_ALL_CUSTOMERS = 1,
+        VISIBILITE_GP_CUSTOMERS_ONLY = 2,
+        VISIBILITE_ST_CUSTOMERS_ONLY = 3,
+        VISIBILITE_STAFF_ONLY = 4;
     protected $fillable = [
         "name",
         "date",
@@ -129,7 +133,8 @@ class Depart extends Model
             return $this->buses()
                 ->join("vehicules","vehicules.id","=","buses.vehicule_id")
                 ->where("vehicules.vehicule_type","=",Vehicule::VEHICULE_TYPE_CLIMATISE)
-                ->latest()
+                ->where("buses.depart_id","=",$this->id)
+                ->orderBy("buses.created_at")
                 ->first();
         }
 
@@ -170,6 +175,21 @@ class Depart extends Model
     public function identifier($with_trajet_prefix = false) : string
     {
         return ($with_trajet_prefix ? $this->trajet->name . ' - ' : '') . $this->name;
+    }
+
+    public function getNameAttribute() : string
+    {
+        if (is_request_for_gp_customers()){
+            return ucfirst($this->date->translatedFormat('l j F') .
+                " " . $this->heuresDeparts()
+                    ->where('point_dep_id', "=", ($this->trajet->id == 1 ? 40 : 2))
+                    ->orderBy('heureDepart')
+                    ->limit(1)->first()?->heureDepart?->format('H\hi'));
+        }
+        return $this->attributes['name'] ;
+
+
+
     }
 
 }

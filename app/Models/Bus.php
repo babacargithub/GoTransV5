@@ -21,6 +21,7 @@ class Bus extends Model
         'deleted_at',
         "nombre_place",
         "ticket_price",
+        "gp_ticket_price",
         "vehicule_id",
 
 
@@ -147,7 +148,25 @@ class Bus extends Model
         return $this->hasMany(DestinationBus::class);
 
     }
-
+    public function getClimatiseAttribute(): bool
+    {
+        return $this->vehicule?->vehicule_type == Vehicule::VEHICULE_TYPE_CLIMATISE;
+    }
+    public function getTicketPriceAttribute(): int
+    {
+        if (is_request_for_gp_customers()){
+            if ($this->attributes["gp_ticket_price"] == null){
+                // TODO make this dynamic later
+                return 6600;
+            }
+            else{
+                return max($this->attributes['gp_ticket_price'], $this->attributes['ticket_price']);
+            }
+        }
+        else{
+            return $this->attributes['ticket_price'];
+        }
+    }
 
 
 
