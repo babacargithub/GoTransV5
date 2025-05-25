@@ -160,6 +160,8 @@ Route::group(['prefix' => 'mobile'], function () {
     Route::get("departs_for_gp", [MobileAppController::class, 'listeDepartsForGp']);
     Route::get("departs/trajet/{trajet}", [MobileAppController::class, 'listeDepartsTrajet']);
     Route::get("departs/{depart}/schedules", [MobileAppController::class, 'departSchedules']);
+    Route::get("buses/{bus}/seats_for_booking", [BusController::class, 'getBusSeats']);
+
     Route::get("customers/{phoneNumber}/current_booking", [MobileAppController::class, 'currentBooking']);
     Route::get("multiple_bookings/{groupId}", [MobileAppController::class, 'getMultipleBookingsOfSameGroupe']);
     Route::post("bookings/multiple_booking/{groupId}/pay", [MobileAppController::class, 'generatePaymentUrlForMultipleBooking']);

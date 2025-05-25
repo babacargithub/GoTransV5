@@ -37,10 +37,13 @@ class  TicketManager
      * @return int
      */
 
-    public function calculateTicketPriceForBooking(Booking $booking, $paymentMethod = null) : int
+    public function calculateTicketPriceForBooking(Booking $booking, $paymentMethod = null, bool $isForCheckout =
+    true) :
+    int
     {
-        if (\is_request_for_gp_customers()){
-            return  $booking->bus->ticket_price + ($booking->bus->ticket_price * 0.01);
+        if (\is_request_for_gp_customers() || $booking->is_for_gp) {
+            $ticketPrice = ($booking->bus->gp_ticket_price ?? $booking->bus->ticket_price );
+            return   $ticketPrice + ($isForCheckout ? $ticketPrice * 0.01 : 0);
         }
         $price =   $booking->bus->ticket_price;
         if ($paymentMethod == "wave"){

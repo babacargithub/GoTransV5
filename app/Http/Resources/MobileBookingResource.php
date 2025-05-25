@@ -17,7 +17,7 @@ class MobileBookingResource extends JsonResource
     public function toArray(Request $request): array
     {  /** @var Booking $booking */
 //        $booking->load('depart', 'seat', 'point_dep', 'destination', 'ticket');
-        return [
+        $data = [
             'id' => $this->id,
             'depart' => $this->bus->depart->name,
             'seatNumber' => $this->seat?->number,
@@ -33,8 +33,15 @@ class MobileBookingResource extends JsonResource
             'pointDep' => $this->point_dep->name,
             'destination' => $this->destination->name,
 
-            "agentNumber"=>AppParams::first()?->getBusAgentDefaultNumber()
+            "agentNumber"=>is_request_for_gp_customers()? 777794818 : AppParams::first()?->getBusAgentDefaultNumber()
 //
         ];
+        if (is_request_for_gp_customers()){
+            $data["customerName"] = $this->customer->full_name;
+        }
+        if ($this->has_ticket) {
+            $data['ticket_price'] = $this->ticket->price;
+        }
+        return  $data;
     }
 }

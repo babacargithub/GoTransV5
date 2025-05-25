@@ -51,13 +51,13 @@ class BookingManager
             '';
         $schedule = $seatNumber . "\n Heure:  " . $booking->formatted_schedule . "\n Arret du bus " .
             $booking->point_dep->arret_bus;
-        $contactAgent = AppParams::first()->getBusAgentDefaultNumber();
-        $notificationMessageForOnlineUsers = "Vous avez acheté un ticket sur Globe Transports  pour le départ $departName. RV: " . $schedule . ", 
+        $contactAgent = is_request_for_gp_customers() ? 777794818 : AppParams::first()->getBusAgentDefaultNumber();
+        $notificationMessageForOnlineUsers = "Vous avez acheté un ticket sur Global Transports  pour le départ $departName. RV: " . $schedule . ", 
             \nContact du convoyeur qui sera dans le bus Bus: " . $contactAgent;
-        $notificationMessage = "Votre  ticket est enregistré sur Globe Transports pour $departName, paiement reçu. " .
+        $notificationMessage = "Votre  ticket est enregistré sur Global Transports pour $departName, paiement reçu. " .
             $seatNumber . "
             \ RV " . $schedule . ", 
-            Contactez agent dans le bus: " . $contactAgent;
+            Contactez l'agent dans le bus: " . $contactAgent;
         $message = $online ? $notificationMessageForOnlineUsers : $notificationMessage;
         $this->SMSSender->sendSms($booking->customer->phone_number, $message);
         return true;
@@ -67,16 +67,17 @@ class BookingManager
     /**
      * @throws Exception
      */
-    public function saveTicketPayementForOnlineUsers(Booking $booking, LoggerInterface $logger, $paymentMethod = null): void
+    public function saveTicketPayementForOnlineUsers(Booking $booking, LoggerInterface $logger, $paymentMethod =
+    null, array $data = []): void
     {
 
         try {
-            $transactionSuccess = DB::transaction(function () use ($booking,$paymentMethod, $logger) {
+            $transactionSuccess = DB::transaction(function () use ($booking,$paymentMethod, $logger, $data) {
                 $stackTrace = __FUNCTION__ . "-- " . __CLASS__ . ' -- ' . __FILE__;
 
                 if ($booking->bus->isFull() || $booking->bus->isClosed()) {
 
-                    $bus = $booking->depart->getBusForBooking();
+                    $bus = $booking->depart->getBusForBooking(climatise: is_request_for_gp_customers());
                     // we find another bus for another seat
                     if (!$bus->isFull() && !$bus->isClosed()) {
 
@@ -94,7 +95,7 @@ class BookingManager
                 }
 
 
-                $this->assignTicketToBooking($booking, $paymentMethod);
+                $this->assignTicketToBooking($booking, $paymentMethod, $data);
 
                 $seatBus = $booking->bus->getOneAvailableSeat();
                 if ($seatBus) {
@@ -234,13 +235,14 @@ class BookingManager
      * @return void
      * @throws Exception
      */
-    function assignTicketToBooking(Booking $booking, string $paymentMethod): Booking
+    function assignTicketToBooking(Booking $booking, string $paymentMethod, array $data =[]): Booking
     {
         $ticketPrice = $this->ticketManager->calculateTicketPriceForBooking($booking, $paymentMethod);
         $ticket = $this->ticketManager->provideOneForBooking($ticketPrice);
         $soldBy = User::requireMobileAppUser()->username;
         $ticket->price = $ticketPrice;
         $ticket->soldBy = $soldBy;
+        $ticket->comment = $data['transaction_id'] ?? null;
         $ticket->payment_method = $paymentMethod;
 
         $ticket->save();

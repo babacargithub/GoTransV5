@@ -58,6 +58,7 @@ class WavePaiementController extends Controller
                 $webhook_event = $body->type;
                 if ($webhook_event == "checkout.session.completed") {
                     $webhook_data = $body->data;
+                    $waveTransactionId = $webhook_data->transaction_id;
 
                     $metaData = json_decode($webhook_data->client_reference, true);
                     $id = null;
@@ -74,7 +75,7 @@ class WavePaiementController extends Controller
                             if ($booking == null) {
                                 throw new NotFoundHttpException('Wave paiement failed : Booking with id ' . $id . ' not found for wave');
                             }
-                            $this->bookingManager->saveTicketPayementForOnlineUsers($booking, $this->logger, "wave");
+                            $this->bookingManager->saveTicketPayementForOnlineUsers($booking, $this->logger, "wave",["transaction_id" => $waveTransactionId]);
                             $this->logger->alert("Wave payment saved for booking !" . $id . ", for customer " .
                                 $booking->customer->full_name . ", for depart " . $booking->depart->name);
                         }

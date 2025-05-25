@@ -43,7 +43,7 @@ class MobileTrajetDepartsResource extends JsonResource
             'departs' => $this->departs()
                 ->where("date", ">=", now())
                 ->where(function($query) {
-                    $query->where("visibilite", "=", Depart::VISIBILITE_GP_CUSTOMERS_ONLY)
+                    $query->where("visibilite", "=", Depart::VISIBILITE_ST_CUSTOMERS_ONLY)
                         ->orWhere("visibilite", "=", Depart::VISIBILITE_ALL_CUSTOMERS);
                 })
                 ->orderBy('date')

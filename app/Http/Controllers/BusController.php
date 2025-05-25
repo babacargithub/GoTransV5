@@ -221,6 +221,180 @@ class BusController extends Controller
         }));
 
     }
+    public function getBusSeats(Request $request, $busId = 'bus-001'): JsonResponse
+    {
+        try {
+            $busId = 2428; // TODO For testing purposes, replace with actual bus ID from request
+            // Generate seats data (in real app, fetch from database)
+            $seatsData = $this->generateBusSeatsData($busId);
+
+            return response()->json([
+                'success' => true,
+                'data' => $seatsData,
+                'message' => 'Bus seats data retrieved successfully'
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'data' => null,
+                'message' => 'Error retrieving bus seats data',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Generate bus seats data structure
+     *
+     * @param string $busId
+     * @return array
+     */
+    private function generateBusSeatsData($busId): array
+    {
+        $seats = [];
+
+        // Create all passenger seats (1-34)
+        $bus = Bus::find($busId);
+        foreach ($bus->seats as $i => $seat) {
+            $seats[$i+1] = [
+                'id' => "seat-{$seat->number}",
+                'number' => $seat->number,
+                'status' => $seat->booked ? 'booked' : 'available', // 70% available, 30% booked
+                'isDriver' => false,
+                'price' => $seat->price, // Random price between 20-50 (in cents)
+                'position' => $this->getSeatPosition($i+1)
+            ];
+        }
+
+        // Add driver seat
+        $seats['driver'] = [
+            'id' => 'driver',
+            'number' => 'D',
+            'status' => 'booked',
+            'isDriver' => true,
+            'price' => 0,
+            'position' => 'front-left'
+        ];
+
+        return [
+            'id' => $busId,
+            'name' => 'Luxury Express Bus',
+            'route' => 'Casablanca - Rabat',
+            'departure_time' => '08:00',
+            'arrival_time' => '09:30',
+            'totalSeats' => 35, // 34 passengers + driver
+            'availableSeats' => count(array_filter($seats, fn($seat) => $seat['status'] === 'available')),
+            'seats' => $seats,
+            'layout' => $this->getBusLayout(),
+            'created_at' => now()->toISOString(),
+            'updated_at' => now()->toISOString()
+        ];
+    }
+
+    /**
+     * Get seat position description
+     *
+     * @param int $seatNumber
+     * @return string
+     */
+    private function getSeatPosition($seatNumber): string
+    {
+        $positions = [
+            34 => 'front-right',
+            1 => 'front-left-1', 2 => 'front-left-2',
+            3 => 'front-right-1', 4 => 'front-right-2',
+            5 => 'row2-left-1', 6 => 'row2-left-2',
+            7 => 'row2-right-1', 8 => 'row2-right-2',
+            9 => 'row3-left-1', 10 => 'row3-left-2',
+            11 => 'row3-right-1', 12 => 'row3-right-2',
+            13 => 'row4-left-1', 14 => 'row4-left-2',
+            15 => 'row4-right-1', 16 => 'row4-right-2',
+            17 => 'row5-left-1', 18 => 'row5-left-2',
+            19 => 'row5-right-1', 20 => 'row5-right-2',
+            21 => 'row6-left-1', 22 => 'row6-left-2',
+            23 => 'row6-right-1', 24 => 'row6-right-2',
+            25 => 'row7-left-1', 26 => 'row7-left-2',
+            27 => 'row7-right-1', 28 => 'row7-right-2',
+            29 => 'row8-left-1', 30 => 'row8-left-2',
+            31 => 'back-left', 32 => 'back-center-left',
+            33 => 'back-center-right'
+        ];
+
+        return $positions[$seatNumber] ?? "seat-{$seatNumber}";
+    }
+
+    /**
+     * Get bus layout configuration
+     *
+     * @return array
+     */
+    private function getBusLayout(): array
+    {
+        return [
+            'type' => 'luxury-express',
+            'rows' => 9,
+            'seatsPerRow' => 4,
+            'hasAisle' => true,
+            'specialFeatures' => [
+                'driver_seat' => true,
+                'luggage_compartment' => true,
+                'doors' => 2
+            ]
+        ];
+    }
+
+    /**
+     * Book selected seats
+     *
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function bookSeats(Request $request): JsonResponse
+    {
+        $request->validate([
+            'bus_id' => 'required|string',
+            'seats' => 'required|array|min:1|max:8',
+            'seats.*.id' => 'required|string',
+            'seats.*.number' => 'required',
+            'passenger_info' => 'required|array',
+            'passenger_info.name' => 'required|string|max:255',
+            'passenger_info.phone' => 'required|string|max:20',
+            'passenger_info.email' => 'required|email|max:255'
+        ]);
+
+        try {
+            // In a real application, you would:
+            // 1. Check seat availability in database
+            // 2. Create booking record
+            // 3. Update seat status
+            // 4. Send confirmation email/SMS
+
+            $bookingData = [
+                'booking_id' => 'BK-' . strtoupper(uniqid()),
+                'bus_id' => $request->input('bus_id'),
+                'seats' => $request->input('seats'),
+                'passenger_info' => $request->input('passenger_info'),
+                'total_amount' => count($request->input('seats')) * 3500, // 35 MAD per seat
+                'booking_date' => now()->toISOString(),
+                'status' => 'confirmed'
+            ];
+
+            return response()->json([
+                'success' => true,
+                'data' => $bookingData,
+                'message' => 'Seats booked successfully'
+            ], 201);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'data' => null,
+                'message' => 'Error booking seats',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 
 
 }

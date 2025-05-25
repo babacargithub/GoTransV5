@@ -215,6 +215,7 @@ class MobileAppController extends Controller
             if ($busOfSameVehicleType != null && !$busOfSameVehicleType->isFull()) {
                 $bus = $busOfSameVehicleType;
             } else {
+                // check if customer is not already in the waiting list
                 $closestDepart = $depart->getClosestNextDepart();
                 return response()->json([
                     'message' => "Désolé, le bus choisi est plein, il n'y a plus de place",
