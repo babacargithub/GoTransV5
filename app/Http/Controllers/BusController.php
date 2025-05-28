@@ -8,6 +8,7 @@ use App\Manager\BusManager;
 use App\Models\Booking;
 use App\Models\Bus;
 use App\Models\BusSeat;
+use App\Models\Depart;
 use App\Models\Vehicule;
 use App\Utils\NotificationSender\SMSSender\SMSSender;
 use Illuminate\Http\JsonResponse;
@@ -221,10 +222,10 @@ class BusController extends Controller
         }));
 
     }
-    public function getBusSeats(Request $request, $busId = 'bus-001'): JsonResponse
+    public function getBusSeats(Request $request, $departId): JsonResponse
     {
         try {
-            $busId = 2428; // TODO For testing purposes, replace with actual bus ID from request
+            $busId = Depart::find($departId)->getBusForBooking(climatise: is_request_for_gp_customers());
             // Generate seats data (in real app, fetch from database)
             $seatsData = $this->generateBusSeatsData($busId);
 
@@ -250,12 +251,9 @@ class BusController extends Controller
      * @param string $busId
      * @return array
      */
-    private function generateBusSeatsData($busId): array
+    private function generateBusSeatsData(Bus $bus): array
     {
         $seats = [];
-
-        // Create all passenger seats (1-34)
-        $bus = Bus::find($busId);
         foreach ($bus->seats as $i => $seat) {
             $seats[$i+1] = [
                 'id' => "seat-{$seat->number}",
@@ -278,17 +276,12 @@ class BusController extends Controller
         ];
 
         return [
-            'id' => $busId,
-            'name' => 'Luxury Express Bus',
-            'route' => 'Casablanca - Rabat',
-            'departure_time' => '08:00',
-            'arrival_time' => '09:30',
-            'totalSeats' => 35, // 34 passengers + driver
+            'busId' => $bus->id,
+            'name' => $bus->name,
+            'totalSeats' => $bus->nombre_place, // 34 passengers + driver
             'availableSeats' => count(array_filter($seats, fn($seat) => $seat['status'] === 'available')),
             'seats' => $seats,
             'layout' => $this->getBusLayout(),
-            'created_at' => now()->toISOString(),
-            'updated_at' => now()->toISOString()
         ];
     }
 

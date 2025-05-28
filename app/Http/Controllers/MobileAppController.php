@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\GpBookingRequest;
 use App\Http\Requests\MobileMultipleBookingRequest;
 use App\Http\Resources\BookingResource;
 use App\Http\Resources\MobileTrajetDepartsResource;
 use App\Http\Resources\MobileBookingResource;
 use App\Http\Resources\MobileMultipleBookingResource;
+use App\Manager\BookingManager;
 use App\Manager\TicketManager;
 use App\Models\AppParams;
 use App\Models\Booking;
@@ -63,6 +65,94 @@ class MobileAppController extends Controller
 
 
     }
+
+    /**
+     * @throws RequestException
+     * @throws GuzzleException
+     * @throws ConnectionException
+     */
+    public function handleBookingForGpMultiPassenger(GpBookingRequest $request)
+    {
+        $validated = $request->validated();
+        $depart = Depart::findOrFail($validated['depart_id']);
+        $bus = $depart->getBusForBooking(climatise: true);
+        $passengers = $validated['passengers'];
+        $passengers = collect($passengers)->map(function (array $passenger) {
+            // Create or update the customer
+
+            $customer = Customer::where('phone_number', $passenger['phone_number'])->first();
+            if ($customer == null) {
+                $customer = Customer::create([
+                    'prenom' => $passenger['first_name'],
+                    'nom' => $passenger['last_name'],
+                    'phone_number' => $passenger['phone_number'],
+                    "customer_category_id" => CustomerCategory::where('abrv',"GP")
+                        ->first()?->id,
+                ]);
+            }
+            return $customer;
+        });
+        $bookings = [];
+        $groupId = BookingManager::generateBookingGroupId();
+
+        foreach ($passengers as $passenger) {
+            $booking = new Booking([
+                'payment_method' => $validated['payment_method'],
+                'referer' => $validated['referer'] ?? 0,
+                'booked_with_platform' => $validated['booked_with_platform'] ?? "web",
+
+            ]);
+            $booking->depart()->associate($depart);
+            $booking->bus()->associate($bus);
+            $booking->customer()->associate($passenger);
+            $booking->point_dep()->associate($this->determinePointDepartAndDestinations($depart)["point_dep"]);
+            $booking->destination()->associate($this->determinePointDepartAndDestinations($depart)["destination"]);
+            $booking->paye = false;
+            $booking->comment = is_request_for_gp_customers() ? "for_gp" : null;
+            $booking->group_id = $groupId;
+//            $booking->save();
+            $bookings[] = $booking;
+        }
+        $seats = [];
+        if (isset($validated['selected_seats']) && is_array($validated['selected_seats'])) {
+            $seats = collect($validated['selected_seats'])->map(function ($seatNumber) use ($bus) {
+                return $bus->seats()
+                    ->join('seats', 'seats.id', '=', 'bus_seats.seat_id')
+                    ->select('bus_seats.*') // or specify exact columns like 'bus_seats.id', 'bus_seats.seat_id', etc.
+
+                    ->where('seats.number', $seatNumber)->firstOrFail();
+            });
+        }
+        if (count($seats)!= count($bookings)) {
+            return response()->json(["message" => "Le nombre de sièges sélectionnés ne correspond pas au nombre de passagers"], 422);
+        }
+        foreach ($bookings as $index => &$booking) {
+            if (isset($seats[$index])) {
+                $booking->seat()->associate($seats[$index]);
+            }
+            // check if customer has unpaid booking in the bookings table
+            $existingBooking = Booking::where('customer_id', $booking->customer_id)
+                ->where('bus_id', $booking->bus_id)
+                ->whereNull('ticket_id')
+                ->whereNull("deleted_at")
+                ->whereNull("deletion_timestamp")
+                ->first();
+            if ($existingBooking) {
+                if ($existingBooking->has_seat) {
+                    $seatOfExistingBooking = $existingBooking->seat;
+                    $seatOfExistingBooking->freeSeat();
+                    $seatOfExistingBooking->save();
+                }
+                $existingBooking->seat()->associate($seats[$index]);
+                $existingBooking->group_id = $booking->group_id;
+
+            }else{
+                $bookings[$index] = $booking;
+            }
+
+        }
+        return  $this->processGroupBookings($depart,$request, $bookings, payment_method: $request->validated()["payment_method"]);
+    }
     public function listeDepartsForGp(\Illuminate\Http\Request $request)
     {
 
@@ -87,7 +177,7 @@ class MobileAppController extends Controller
                     ->map(function (Depart $depart) {
                     return [
                             'id' => $depart->id,
-                        // the name should be the date expressed in french like this mercredi 21 mai
+                        // the name should be the date expressed in French like this mercredi 21 mai
                             'name' => $depart->name,
                             'ticket_price' => $depart->getBusForBooking(climatise: true)?->ticket_price,
                             'is_closed' => $depart->closed,
@@ -127,18 +217,7 @@ class MobileAppController extends Controller
                 "bus_id" => "exists:buses,id",
             ]));
         }else{
-            //TODO change this later
-
-            if ($depart->trajet->id == 1) {
-                $defaultPointDep = PointDep::findOrFail(40);
-            } else if ($depart->trajet->id == 2) {
-                $defaultPointDep = PointDep::findOrFail(2);
-            }else{
-                $defaultPointDep = PointDep::where("trajet_id", $depart->trajet_id)->first();
-            }
-            $validated['point_dep_id'] = $defaultPointDep->id;
-            $validated['destination_id'] = Destination::where("id", ($depart->trajet->id == 1 ? 34: 36 ))
-                ->firstOrFail()->id;
+            $validated = $this->determinePointDepartAndDestinations($depart, $validated);
         }
 
         // if customer_id is not provided, we will create a new customer
@@ -256,21 +335,42 @@ class MobileAppController extends Controller
      * @throws ConnectionException
      * @throws GuzzleException
      */
-    public function saveMultipleBookings(Depart $depart, MobileMultipleBookingRequest $request, )
+    public function saveMultipleBookings(Depart $depart, MobileMultipleBookingRequest $request)
     {
-        $bookings = $request->input('bookings');
+            $bookings = $request->input('bookings');
+        $payment_method = $request->input("payment_method");
+        $platform = $request->headers->get('Platform')?? $request->input("booked_with_platform")?? "web";
+        return $this->processGroupBookings($depart, $request, $bookings, $payment_method);
+
+
+    } /**
+     * @throws RequestException
+     * @throws ConnectionException
+     * @throws GuzzleException
+     */
+    protected function processGroupBookings(Depart $depart, \Illuminate\Http\Request $request, array $bookings = [],
+                                         $payment_method = null, $platform ="mobile")
+    {
+
+        if (count($bookings) == 0){
+            throw new \InvalidArgumentException("Aucune réservation à enregistrer ");
+        }
         DB::transaction(function () use ($bookings) {
             foreach ($bookings as  $booking) {
                 $booking->save();
+                $seat = $booking->seat;
+                if ($seat != null) {
+                    $seat->book();
+                    $seat->save();
+                }
             }
         });
         $ticketManager = app(TicketManager::class);
         $waveController = app(WavePaiementController::class);
         $omPaymentController = app(OrangeMoneyController::class);
-        $payment_method = $request->input("payment_method");
-        $platform = $request->headers->get('Platform')?? $request->input("booked_with_platform")?? "web";
         $group_id = $bookings[0]->group_id;
             $totalTicketPrice = $ticketManager->calculatePriceForMultipleBookings($bookings, $payment_method, $platform) ['totalPrice'];
+            $payment_method = strtolower($payment_method);
         if ($payment_method == "wave") {
             $metadata = [
                 "amount" => '' .$totalTicketPrice,
@@ -281,7 +381,6 @@ class MobileAppController extends Controller
                 "error_url" => WavePaiementController::getEndpointForRedirect().'/#/multiple_bookings/'.$group_id,
                 "success_url" => WavePaiementController::getEndpointForRedirect().'/#/multiple_bookings/'.$group_id,
             ];
-
 
 
             $wavePaiementResponse = $waveController->getPaymentUrl($metadata);
@@ -302,6 +401,7 @@ class MobileAppController extends Controller
         } else if ($payment_method == "om") {
             $metadata = [
                 "amount"=>$totalTicketPrice,
+                //TODO om number to be defined
                 "customer" => $request->input("om_number"),
                 "metadata" => [
                     "group_id" => $group_id,
@@ -599,6 +699,28 @@ class MobileAppController extends Controller
         $ticketManager = app(TicketManager::class);
         $platform = $request->header("Platform") ?? $request->input("booked_with_platform") ?? "web";
         return $ticketManager->calculatePriceForMultipleBookings($bookings, $validated['payment_method'], $platform);
+    }
+
+    /**
+     * @param Depart $depart
+     * @param array $validated
+     * @return array
+     */
+    public function determinePointDepartAndDestinations(Depart $depart): array
+    {
+//TODO change this later
+
+        if ($depart->trajet->id == 1) {
+            $defaultPointDep = PointDep::findOrFail(40);
+        } else if ($depart->trajet->id == 2) {
+            $defaultPointDep = PointDep::findOrFail(2);
+        } else {
+            $defaultPointDep = PointDep::where("trajet_id", $depart->trajet_id)->first();
+        }
+        $defaultDestination = Destination::where("id", ($depart->trajet->id == 1 ? 34 : 36))
+            ->firstOrFail();
+
+        return ["point_dep"=>$defaultPointDep,"destination"=>$defaultDestination];
     }
 
 

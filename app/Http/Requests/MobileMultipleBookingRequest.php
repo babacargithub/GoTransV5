@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Manager\BookingManager;
 use App\Models\Booking;
 use App\Models\Bus;
 use App\Models\Customer;
@@ -188,7 +189,7 @@ class MobileMultipleBookingRequest extends FormRequest
         // transforming  customers
         $bookings = [];
         $bookingInputs = $this->validated()["bookings"];
-        $group_id = Booking::latest()->first()?->id.now()->timestamp;
+        $group_id = BookingManager::generateBookingGroupId();
 
         foreach ($bookingInputs as $bookingInput) {
             $customer = Customer::where('phone_number', substr($bookingInput["phone_number"],-9,9))->firstOrFail();

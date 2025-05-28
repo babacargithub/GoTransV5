@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use App\Models\AppParams;
 use App\Models\Booking;
+use App\Models\TicketPayment;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -32,15 +33,28 @@ class MobileBookingResource extends JsonResource
             "belongsToGroup" => $this->group_id != null,
             'pointDep' => $this->point_dep->name,
             'destination' => $this->destination->name,
-
             "agentNumber"=>is_request_for_gp_customers()? 777794818 : AppParams::first()?->getBusAgentDefaultNumber()
 //
         ];
+        $data["total_ticket_price"] = (int)TicketPayment::where("group_id", $this->group_id)
+            ->sum("montant");
         if (is_request_for_gp_customers()){
             $data["customerName"] = $this->customer->full_name;
         }
         if ($this->has_ticket) {
             $data['ticket_price'] = $this->ticket->price;
+        }
+        if (\is_request_for_gp_customers()){
+            if ($this->belongsToAGroup()) {
+                $data['passengers'] = $this->getOtherBookingsOfSameGroup()->map(function ($booking) {
+                        return [
+                            'id' => $booking->id,
+                            'seat_number' => $booking->seat?->number,
+                            "full_name" => $booking->customer->full_name,
+                            "phone_number"=> $booking->customer->phone_number,
+                        ];
+                    })->toArray();
+            }
         }
         return  $data;
     }

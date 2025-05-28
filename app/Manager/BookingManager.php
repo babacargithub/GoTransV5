@@ -42,6 +42,11 @@ class BookingManager
         $this->SMSSender = $SMSSender;
     }
 
+    public static function generateBookingGroupId(): string
+    {
+        return (Booking::latest()->first()?->id+1).now()->format("dHi");
+    }
+
 
     public function sendNotificationOfTicketPaymentToCustomer(Booking $booking, bool $online = true): bool
     {

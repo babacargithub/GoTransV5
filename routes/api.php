@@ -160,7 +160,7 @@ Route::group(['prefix' => 'mobile'], function () {
     Route::get("departs_for_gp", [MobileAppController::class, 'listeDepartsForGp']);
     Route::get("departs/trajet/{trajet}", [MobileAppController::class, 'listeDepartsTrajet']);
     Route::get("departs/{depart}/schedules", [MobileAppController::class, 'departSchedules']);
-    Route::get("buses/{bus}/seats_for_booking", [BusController::class, 'getBusSeats']);
+    Route::get("departs/{departId}/seats_for_booking", [BusController::class, 'getBusSeats']);
 
     Route::get("customers/{phoneNumber}/current_booking", [MobileAppController::class, 'currentBooking']);
     Route::get("multiple_bookings/{groupId}", [MobileAppController::class, 'getMultipleBookingsOfSameGroupe']);
@@ -170,6 +170,7 @@ Route::group(['prefix' => 'mobile'], function () {
     Route::get("bookings/{booking}", [MobileAppController::class, 'showBooking']);
     Route::post("bookings/multiple_booking/calculate_price_for_groupe", [MobileAppController::class, 'calculatePriceForGroupe']);
     Route::delete("bookings/{booking}", [MobileAppController::class, 'cancelBooking']);
+    Route::post("bookings/gp_booking/depart/{depart}", [MobileAppController::class, 'handleBookingForGpMultiPassenger']);
     Route::post("bookings/single_booking/depart/{depart}", [MobileAppController::class, 'saveBooking']);
     Route::post("bookings/multiple_booking/depart/{depart}", [MobileAppController::class, 'saveMultipleBookings']);
     Route::get("payment/wave/get_url/booking/{booking}", [MobileAppController::class, 'getWavePaymentUrlForBooking']);
