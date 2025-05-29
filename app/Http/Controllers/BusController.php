@@ -236,6 +236,7 @@ class BusController extends Controller
             ], 200);
 
         } catch (\Exception $e) {
+            dump($e);
             return response()->json([
                 'success' => false,
                 'data' => null,
@@ -254,6 +255,31 @@ class BusController extends Controller
     private function generateBusSeatsData(Bus $bus): array
     {
         $seats = [];
+        $layout = json_decode($bus->vehicule->template);
+        foreach ($layout as $index => $slotRow) {
+            foreach ($slotRow as $slotIndex => $slot) {
+                if (isset($slot->seat)) {
+                    // Get seat status from database
+                    $seatStatus = $bus->seats()
+                        ->join("seats", "bus_seats.seat_id", "=", "seats.id")
+                        ->select("bus_seats.*")
+                        ->where("number", $slot->seat->number)
+                        ->first();
+
+                    // Update seat status directly in the layout object
+                    $slotRow[$slotIndex]->seat->status = $seatStatus?->booked ? "booked" : "available";
+
+                    // Add seat to seats array for easy access
+                    $seats[$slot->seat->number] = [
+                        'number' => $slot->seat->number,
+                        'status' => $slotRow[$slotIndex]->seat->status,
+                        'row_index' => $index,
+                        'slot_index' => $slotIndex
+                    ];
+                }
+            }
+        }
+
         foreach ($bus->seats as $i => $seat) {
             $seats[$i+1] = [
                 'id' => "seat-{$seat->number}",
@@ -280,8 +306,7 @@ class BusController extends Controller
             'name' => $bus->name,
             'totalSeats' => $bus->nombre_place, // 34 passengers + driver
             'availableSeats' => count(array_filter($seats, fn($seat) => $seat['status'] === 'available')),
-            'seats' => $seats,
-            'layout' => $this->getBusLayout(),
+            'layout' => $layout,
         ];
     }
 

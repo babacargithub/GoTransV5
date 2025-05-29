@@ -131,24 +131,35 @@ class MobileAppController extends Controller
                 $booking->seat()->associate($seats[$index]);
             }
             // check if customer has unpaid booking in the bookings table
-            $existingBooking = Booking::where('customer_id', $booking->customer_id)
+            $existingBookings = Booking::where('customer_id', $booking->customer_id)
                 ->where('bus_id', $booking->bus_id)
                 ->whereNull('ticket_id')
                 ->whereNull("deleted_at")
                 ->whereNull("deletion_timestamp")
-                ->first();
-            if ($existingBooking) {
-                if ($existingBooking->has_seat) {
-                    $seatOfExistingBooking = $existingBooking->seat;
-                    $seatOfExistingBooking->freeSeat();
-                    $seatOfExistingBooking->save();
-                }
-                $existingBooking->seat()->associate($seats[$index]);
-                $existingBooking->group_id = $booking->group_id;
+                ->get();
+            $hasExistingBooking = $existingBookings->isNotEmpty();
+            foreach ($existingBookings as $existingBooking){
+                if ($existingBooking) {
+                    if ($existingBooking->has_seat) {
+                        $seatOfExistingBooking = $existingBooking->seat;
+                        $existingBooking->freeSeat();
+                        $existingBooking->save();
+                        $seatOfExistingBooking->freeSeat();
+                        $seatOfExistingBooking->save();
+                    }
+                    $existingBooking->seat()->associate($seats[$index]);
+                    $existingBooking->group_id = $booking->group_id;
 
-            }else{
+
+                }
+
+            }
+            if ($hasExistingBooking) {
+                    $bookings[$index] = $existingBookings->last();
+            } else {
                 $bookings[$index] = $booking;
             }
+
 
         }
         return  $this->processGroupBookings($depart,$request, $bookings, payment_method: $request->validated()["payment_method"]);
@@ -340,7 +351,7 @@ class MobileAppController extends Controller
             $bookings = $request->input('bookings');
         $payment_method = $request->input("payment_method");
         $platform = $request->headers->get('Platform')?? $request->input("booked_with_platform")?? "web";
-        return $this->processGroupBookings($depart, $request, $bookings, $payment_method);
+        return $this->processGroupBookings($depart, $request, $bookings, $payment_method, $platform);
 
 
     } /**
@@ -369,9 +380,10 @@ class MobileAppController extends Controller
         $waveController = app(WavePaiementController::class);
         $omPaymentController = app(OrangeMoneyController::class);
         $group_id = $bookings[0]->group_id;
+        $main_booking_id = $bookings[0]->id;
             $totalTicketPrice = $ticketManager->calculatePriceForMultipleBookings($bookings, $payment_method, $platform) ['totalPrice'];
             $payment_method = strtolower($payment_method);
-        if ($payment_method == "wave") {
+        if (strtolower($payment_method) == "wave") {
             $metadata = [
                 "amount" => '' .$totalTicketPrice,
                 "client_reference" => [
@@ -396,9 +408,10 @@ class MobileAppController extends Controller
 
             }
             $wavePaiementResponse->data['group_id'] = $group_id;
+            $wavePaiementResponse->data['main_booking_id'] = $main_booking_id;
             $wavePaiementResponse->data['paymentMethod'] = "om";
             return $wavePaiementResponse;
-        } else if ($payment_method == "om") {
+        } else if (strtolower($payment_method) == "om") {
             $metadata = [
                 "amount"=>$totalTicketPrice,
                 //TODO om number to be defined
@@ -433,6 +446,7 @@ class MobileAppController extends Controller
 
 
             $paymentResponse->data['group_id'] = $group_id;
+            $paymentResponse->data['main_booking_id'] = $main_booking_id;
             $paymentResponse->data['paymentMethod'] = "om";
             return $paymentResponse;
 

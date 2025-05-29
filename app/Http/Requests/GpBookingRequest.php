@@ -30,7 +30,7 @@ class GpBookingRequest extends FormRequest
             'passenger_count' => 'required|integer|min:1|max:10',
             'payment_method' => 'required|string|in:Wave,OM,Orange Money',
             'selected_seats' => 'required|array|min:1|max:10',
-            'selected_seats.*' => 'required|integer|min:1|max:50',
+            'selected_seats.*' => 'required|integer|min:1|max:200',
             'passengers' => 'required|array|min:1|max:10',
             'passengers.*.full_name' => 'required|string|max:255',
             'passengers.*.first_name' => 'required|string|max:100',
