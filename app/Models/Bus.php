@@ -23,6 +23,7 @@ class Bus extends Model
         "ticket_price",
         "gp_ticket_price",
         "vehicule_id",
+        "visibilite",
 
 
     ];

@@ -13,7 +13,9 @@ return new class extends Migration
     {
         Schema::table('vehicules', function (Blueprint $table) {
             //
-            $table->json('template')->nullable();
+            if (!Schema::hasColumn('vehicules', 'template')) {
+                $table->json('template')->nullable();
+            }
         });
     }
 
@@ -24,7 +26,9 @@ return new class extends Migration
     {
         Schema::table('vehicules', function (Blueprint $table) {
             //
-            $table->dropColumn('template');
+            if (Schema::hasColumn('vehicules', 'template')) {
+                $table->dropColumn('template');
+            }
         });
     }
 };

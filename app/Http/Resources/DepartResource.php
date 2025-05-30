@@ -38,6 +38,7 @@ class DepartResource extends JsonResource
             "trajet_id" => $this->trajet->id,
             "horaire_id" => $this->horaire_id,
             "event_id" => $this->event_id,
+            "visibilite" => $this->visibilite,
 //            'date' => $this->date->format('d/m/Y'),
             'buses' => $this->buses->map(fn(Bus $bus) => [
                 'id' => $bus->id,
@@ -49,6 +50,8 @@ class DepartResource extends JsonResource
                 "seatLeft" => $bus->seatsLeft(),
                 "nombre_place" => $bus->nombre_place,
                 "ticket_price" => $bus->ticket_price,
+                "gp_ticket_price" => $bus->gp_ticket_price,
+                "visibilite" => $bus->visibilite,
                 "numberOfBookedSeats" => $bus->numberOfBookedSeats(),
                 "numberOfTicketSold" => $bus->numberOfTicketsSold(),
                 "numberOfBookings" => $bus->bookings->count(),

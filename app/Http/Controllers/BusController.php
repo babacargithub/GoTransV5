@@ -88,6 +88,8 @@ class BusController extends Controller
             'name' => 'string',
             'nombre_place' => 'integer',
             'ticket_price' => 'numeric',
+            'gp_ticket_price' => 'numeric',
+            'visibilite' => 'integer',
         ]);
         $bus->update($validated);
         return response()->json($bus);
