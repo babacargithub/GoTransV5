@@ -144,6 +144,7 @@ class DepartController extends Controller
             "ticket_price" => "required|numeric",
             "nombre_place" => "required|integer",
             "vehicule_id" => "nullable|integer",
+            "gp_ticket_price" => "numeric",
         ]);
         // validate name bus is unique for depart
         if ($depart->buses()->where('name', $validated['name'])->exists()) {
@@ -173,6 +174,9 @@ class DepartController extends Controller
             }
             $busSeats = $this->generateBusSeats($bus);
             $bus->seats()->createMany($busSeats->toArray());
+            $bus->refresh();
+            $busStopSchedules = $this->generateDefaultBusStopSchedules($depart, $bus, Horaire::findOrFail($depart->horaire_id));
+            $bus->heuresDeparts()->createMany($busStopSchedules->toArray());
 
         });
        return response()->json($bus,Response::HTTP_CREATED);
@@ -342,11 +346,11 @@ class DepartController extends Controller
             ->orderBy("number")
             ->get();
         // transform seats to bus seats
-        return $seats->map(function (Seat $seat) {
+        return $seats->map(function (Seat $seat) use ($bus) {
             return new BusSeat([
                 'seat_id' => $seat->id,
                 'booked' => false,
-                'price' => 3550,
+                'price' => $bus->ticket_price,
             ]);
         });
     }
@@ -437,18 +441,7 @@ class DepartController extends Controller
         $busStopSchedules = [];
         $pointDeps = $depart->trajet->pointDeps;
         foreach ($pointDeps as $pointDep) {
-            $heure_point_dep = null;
-            if ($horaire->periode == Horaire::PERIODE_MATIN) {
-                $heure_point_dep = $pointDep->heure_point_dep;
-            } elseif ($horaire->periode == Horaire::PERIODE_APRES_MIDI) {
-                $heure_point_dep = $pointDep->heure_point_dep_soir;
-            }elseif ($horaire->periode == Horaire::PERIODE_NUIT) {
-                $heure_point_dep = $pointDep->heure_point_dep_soir->addHours(11);
-            }else{
-                throw new HttpResponseException(response()->json(['message' => Horaire::PERIODE_NUIT.' '
-                    .$horaire->periode.' Horaire non pris en charge'],
-                    Response::HTTP_UNPROCESSABLE_ENTITY));
-            }
+            $heure_point_dep = $this->determineHeureDepartForPointDepartBasedOnHoraire($horaire, $pointDep);
 
             $busStopSchedules[] = new HeureDepart([
                 "depart_id" => $depart->id,
@@ -480,6 +473,49 @@ class DepartController extends Controller
             });
 
         return response()->json($departs);
+    }
+    public function addPointDepsSchedulesForBus(Bus $bus)
+    {
+        $depart = $bus->depart;
+        $pointDeps = PointDep::where('trajet_id', $bus->depart->trajet_id)
+            ->orderBy('position')
+            ->get();
+        $busStopSchedules = [];
+        foreach ($pointDeps as $pointDep) {
+            if (!$bus->heuresDeparts()->where('point_dep_id', $pointDep->id)->exists()) {
+                $busStopSchedules[] = new HeureDepart([
+                    "bus_id" => $bus->id,
+                    'depart_id' => $depart->id,
+                    'point_dep_id' => $pointDep->id,
+                    'heureDepart' => $this->determineHeureDepartForPointDepartBasedOnHoraire($depart->horaire, $pointDep),
+                    'arretBus' => $pointDep->arret_bus,
+                ]);
+            }
+        }
+        $bus->heuresDeparts()->saveMany($busStopSchedules);
+        return response()->json($busStopSchedules);
+
+    }
+
+    /**
+     * @param Horaire $horaire
+     * @param mixed $pointDep
+     * @return mixed
+     */
+    public function determineHeureDepartForPointDepartBasedOnHoraire(Horaire $horaire, mixed $pointDep): mixed
+    {
+        if ($horaire->periode == Horaire::PERIODE_MATIN) {
+            $heure_point_dep = $pointDep->heure_point_dep;
+        } elseif ($horaire->periode == Horaire::PERIODE_APRES_MIDI) {
+            $heure_point_dep = $pointDep->heure_point_dep_soir;
+        } elseif ($horaire->periode == Horaire::PERIODE_NUIT) {
+            $heure_point_dep = $pointDep->heure_point_dep_soir->addHours(11);
+        } else {
+            throw new HttpResponseException(response()->json(['message' => Horaire::PERIODE_NUIT . ' '
+                . $horaire->periode . ' Horaire non pris en charge'],
+                Response::HTTP_UNPROCESSABLE_ENTITY));
+        }
+        return $heure_point_dep;
     }
 
 }

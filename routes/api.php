@@ -112,6 +112,7 @@ Route::put("buses/{bus}/toggle_close", [BusController::class, 'toggleClose']);
 Route::put("buses/{bus}/toggle_seat_visibility", [BusController::class, 'toggleBusSeatVisibility']);
 Route::get("buses/{bus}/seats", [BusController::class, 'seats']);
 Route::get("buses/vehicules", [BusController::class, 'vehicules']);
+Route::post("buses/{bus}/add_missing_point_dep_heures", [DepartController::class, 'addPointDepsSchedulesForBus']);
 Route::put("buses/{sourceBus}/transfer_bookings", [BusController::class, 'transferBookings']);
 Route::resource('buses', BusController::class);
 
@@ -123,6 +124,7 @@ Route::get("bookings/{booking}/trigger_payment_request/{paymentMethod}", [Bookin
 Route::put("bookings/{booking}/save_ticket_payment", [BookingController::class, 'saveTicketPayment']);
 Route::put("bookings/{booking}/transfer/target_bus/{targetBus}", [BookingController::class, 'transferBooking']);
 Route::post("bookings/{booking}/send_schedule_notification", [BookingController::class, 'sendScheduleNotification']);
+Route::post("bookings/{booking}/refund", [BookingController::class, 'refundTicket']);
 
 Route::resource('bookings', BookingController::class)->only(['index', 'store', 'update', 'destroy']);
 Route::resource("point_departs", PointDepController::class);
@@ -137,6 +139,9 @@ Route::group(["prefix" => "discounts/"], function () {
 });
 Route::resource("employees", EmployeController::class);
 Route::group(['prefix' => 'finance'], function () {
+    Route::group(["prefix" => "wave"], function () {
+        Route::get("refund/{transaction_id}", [WavePaiementController::class, 'refundTransaction']);
+    });
     Route::group(["prefix" => "om"], function () {
         Route::get("transactions", [OrangeMoneyController::class, 'transactions']);
         Route::get("balance", [OrangeMoneyController::class, 'balance']);

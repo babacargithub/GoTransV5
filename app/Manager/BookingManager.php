@@ -56,13 +56,15 @@ class BookingManager
             '';
         $schedule = $seatNumber . "\n Heure:  " . $booking->formatted_schedule . "\n Arret du bus " .
             $booking->point_dep->arret_bus;
-        $contactAgent = is_request_for_gp_customers() ? 777794818 : AppParams::first()->getBusAgentDefaultNumber();
-        $notificationMessageForOnlineUsers = "Vous avez acheté un ticket sur Global Transports  pour le départ $departName. RV: " . $schedule . ", 
-            \nContact du convoyeur qui sera dans le bus Bus: " . $contactAgent;
-        $notificationMessage = "Votre  ticket est enregistré sur Global Transports pour $departName, paiement reçu. " .
+        $contactAgent = is_request_for_gp_customers() || $booking->is_for_gp ? 777794818 : AppParams::first()
+            ->getBusAgentDefaultNumber();
+        $notificationMessageForOnlineUsers = "Vous avez acheté un ticket sur Global Transports  pour le départ $departName. RV: " . $schedule . ",
+         \nBus: " . $booking->bus->name . ",".
+            "\nContact du convoyeur qui sera dans le bus Bus: " . $contactAgent;
+        $notificationMessage = "Votre  ticket est enregistré sur Global Transports pour $departName, paiement reçu. " . $booking->bus->name . ",".
             $seatNumber . "
-            \ RV " . $schedule . ", 
-            Contactez l'agent dans le bus: " . $contactAgent;
+            RV " . $schedule . ", 
+            Contact convoyeur du bus: " . $contactAgent;
         $message = $online ? $notificationMessageForOnlineUsers : $notificationMessage;
         $this->SMSSender->sendSms($booking->customer->phone_number, $message);
         return true;
@@ -103,11 +105,14 @@ class BookingManager
                 $this->assignTicketToBooking($booking, $paymentMethod, $data);
 
                 $seatBus = $booking->bus->getOneAvailableSeat();
-                if ($seatBus) {
+                if ($seatBus instanceof BusSeat) {
                     $seatBus->book();
-                    $booking->seat()->associate($seatBus);
                     $seatBus->save();
+                    $booking->seat()->associate($seatBus);
                     $booking->save();
+                }else{
+                    $logger->error("No available seat for booking with id " . $booking->id . " in $stackTrace");
+                    throw new UnprocessableEntityHttpException("No available seat for booking with id " . $booking->id . " in $stackTrace");
                 }
                 return true;
             });
@@ -247,7 +252,7 @@ class BookingManager
         $soldBy = User::requireMobileAppUser()->username;
         $ticket->price = $ticketPrice;
         $ticket->soldBy = $soldBy;
-        $ticket->comment = $data['transaction_id'] ?? null;
+        $ticket->comment = $data['checkout_id'] ?? null;
         $ticket->payment_method = $paymentMethod;
 
         $ticket->save();

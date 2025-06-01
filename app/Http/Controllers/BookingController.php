@@ -241,4 +241,20 @@ class BookingController extends Controller
 
 
     }
+
+    public function refundTicket(Booking $booking)
+    {
+        if (!$booking->hasTicket()) {
+            return response()->json(['message' => "Cette réservation n'a pas de ticket à rembourser"], 422);
+        }
+        if ($booking->deleted_at != null || $booking->ticket?->deleted_at != null) {
+            return response()->json(['message' => "Cette réservation a déjà été annulée"], 422);
+        }
+        if ($booking->ticket?->payment_method != "wave") {
+            return response()->json(['message' => "Cette réservation n'a pas été payée par Wave"], 422);
+        }
+        return WavePaiementController::refundTransaction(
+            $booking->ticket?->comment,
+        );
+    }
 }

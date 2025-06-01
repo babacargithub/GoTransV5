@@ -223,7 +223,7 @@ class MobileAppController extends Controller
         if (!\is_request_for_gp_customers()) {
             $validated = array_merge_recursive($validated, $request->validate([
                 "point_dep_id" => "required|integer|exists:point_deps,id",
-                "destination_id" => "required|integer|exists:destinations,id",
+                "destination_id" => "numeric",
                 "customer_id" => "nullable|integer|exists:customers,id",
                 "bus_id" => "exists:buses,id",
             ]));

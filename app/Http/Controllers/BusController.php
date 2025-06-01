@@ -159,17 +159,7 @@ class BusController extends Controller
     }
     public function seats(Bus $bus)
     {
-        return response()->json($bus->seats->map(function (BusSeat $seat) {
-            return [
-                'id' => $seat->id,
-                'number' => $seat->seat->number,
-                'booked' => $seat->booked,
-                'bookedAt' => $seat->booked_at,
-                'available' => !$seat->booked,
-                'price' => $seat->seat->price,
-                "position_in_bus" => $seat->seat->positionInBus,
-            ];
-        }));
+        return response()->json($this->formatBusTemplate($bus));
 
 
     }
@@ -229,7 +219,7 @@ class BusController extends Controller
         try {
             $busId = Depart::find($departId)->getBusForBooking(climatise: is_request_for_gp_customers());
             // Generate seats data (in real app, fetch from database)
-            $seatsData = $this->generateBusSeatsData($busId);
+            $seatsData = $this->formatBusTemplate($busId);
 
             return response()->json([
                 'success' => true,
@@ -254,7 +244,7 @@ class BusController extends Controller
      * @param string $busId
      * @return array
      */
-    private function generateBusSeatsData(Bus $bus): array
+    public function formatBusTemplate(Bus $bus): array
     {
         $seats = [];
         $layout = json_decode($bus->vehicule->template);

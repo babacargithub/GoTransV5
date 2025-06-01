@@ -23,7 +23,17 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class WavePaiementController extends Controller
 {
-    public string $waveUrl = 'https://api.wave.com/v1/checkout/sessions';
+    public  string $waveUrl = 'https://api.wave.com/v1/checkout/sessions';
+    public static function headers()
+    {
+
+        return [
+            'Authorization' => 'Bearer ' . config('app.wave_key'),
+            'Content-Type' => 'application/json',
+            'Accept' => 'application/json',
+        ];
+    }
+
 
     /**
      * @var BookingManager
@@ -58,7 +68,8 @@ class WavePaiementController extends Controller
                 $webhook_event = $body->type;
                 if ($webhook_event == "checkout.session.completed") {
                     $webhook_data = $body->data;
-                    $waveTransactionId = $webhook_data->transaction_id;
+                    $waveTransactionId = $webhook_data->transaction_id ?? null;
+                    $waveCheckoutId = $webhook_data->id?? null;
 
                     $metaData = json_decode($webhook_data->client_reference, true);
                     $id = null;
@@ -75,7 +86,7 @@ class WavePaiementController extends Controller
                             if ($booking == null) {
                                 throw new NotFoundHttpException('Wave paiement failed : Booking with id ' . $id . ' not found for wave');
                             }
-                            $this->bookingManager->saveTicketPayementForOnlineUsers($booking, $this->logger, "wave",["transaction_id" => $waveTransactionId]);
+                            $this->bookingManager->saveTicketPayementForOnlineUsers($booking, $this->logger, "wave",["transaction_id" => $waveTransactionId, "checkout_id" => $waveCheckoutId]);
                             $this->logger->alert("Wave payment saved for booking !" . $id . ", for customer " .
                                 $booking->customer->full_name . ", for depart " . $booking->depart->name);
                         }
@@ -194,11 +205,7 @@ class WavePaiementController extends Controller
     }
     protected function getWaveHeaders(): array
     {
-        return   [
-            'Authorization'=>'Bearer '.config('app.wave_key'),
-            'Content-Type'=>'application/json',
-            'Accept'=>'application/json',
-        ];
+        return   self::headers();
     }
 
 
@@ -246,6 +253,45 @@ class WavePaiementController extends Controller
         return is_request_for_gp_customers() ? 'https://globaltransports.sn' : 'https://globeone.site';
 
     }
+
+    public static  function refundTransaction($checkout_id): Response
+    {
+        // if checkout_id doest not start with cos it means it is a transaction id and we need to get the checkout id
+        // first by issuing a request to the wave api via https://api.wave
+        //.com/v1/checkout/sessions?transaction_id=FAH.4827.1734 and then retrieving the checkout id before making a second
+        // request to refund the transaction
+        $data = null;
+            $headers = self::headers();
+        if (!str_starts_with($checkout_id, "cos")) {
+            $urlSession = "https://api.wave.com/v1/checkout/sessions?transaction_id=" . $checkout_id;
+            try {
+                $response = Http::withHeaders($headers)
+                    ->asJson()
+                    ->get($urlSession);
+                $response->throw();
+                $data = $response->json();
+                $checkout_id = $data['id'];
+
+            } catch (RequestException $e) {
+                return (new Response($e->getMessage()))->setStatusCode(ResponseAlias::HTTP_BAD_REQUEST);
+            }
+        }
+
+        $url = "https://api.wave.com/v1/checkout/sessions/" . $checkout_id . "/refund";
+        try {
+            $response = Http::withHeaders($headers)
+                ->asJson()
+                ->send('POST', $url);
+            $response->throw();
+            return (new Response())->setStatusCode(ResponseAlias::HTTP_OK);
+        } catch (RequestException $e) {
+            dd($e);
+            return (new Response($e->getMessage()))->setStatusCode(ResponseAlias::HTTP_BAD_REQUEST);
+        } catch (Exception $e) {
+            return (new Response($e->getMessage()))->setStatusCode(ResponseAlias::HTTP_BAD_REQUEST);
+        }
+    }
+
 
 }
 

@@ -85,8 +85,15 @@ class Booking extends Model
 
     public function getFormattedScheduleAttribute(): ?string
     {
-        $schedule = $this->depart->heuresDeparts()->where("point_dep_id",$this->point_dep_id)->first();
-        return $schedule?->heureDepart->format('H:i');
+        $busSchedule = $this->bus->heuresDeparts()->where("point_dep_id",$this->point_dep_id)->first();
+        if( $busSchedule == null) {
+            $busSchedule = $this->depart->heuresDeparts()->where("point_dep_id",$this->point_dep_id)->first();
+        }
+        $schedule = $busSchedule;
+        if ($schedule == null) {
+           $schedule = $this->depart->heuresDeparts()->orderBy("heureDepart")->firstOrFail();
+        }
+        return $schedule->heureDepart->format('H:i');
 
     }
     public function getHasSeatAttribute(): bool

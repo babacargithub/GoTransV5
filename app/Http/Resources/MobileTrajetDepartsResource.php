@@ -64,8 +64,10 @@ class MobileTrajetDepartsResource extends JsonResource
                 ];*/
                 return $this->departResource($depart);
             }),
-//            TODO find a way to filter point departs dynamically
-            'pointDeparts' => $this->pointDeps()->where("id","!=",40)
+            'pointDeparts' => $this->pointDeps()
+                ->where("visibilite","=",Depart::VISIBILITE_ST_CUSTOMERS_ONLY)
+                ->orWhere("visibilite","=",Depart::VISIBILITE_ALL_CUSTOMERS)
+                ->where("trajet_id", "=", $this->id)
                 ->get()
                 ->map(function (PointDep $pointDepart) {
                 return [
@@ -74,8 +76,8 @@ class MobileTrajetDepartsResource extends JsonResource
                 ];
             }),
             'destinations' => $this->destinations()
-                // TODO find a way to filter destinations dynamically
-                ->where("id","!=",36)
+//                // TODO find a way to filter destinations dynamically
+//                ->where("id","=",35)
                 ->get()->map(function (Destination $destination) {
                 return [
                     'name' => $destination->name,
@@ -219,7 +221,8 @@ class MobileTrajetDepartsResource extends JsonResource
         }
         foreach ($vehicles as $vehicule){
             $bus = $depart->buses->filter(function (Bus $bus) use ($vehicule) {
-                return $bus->vehicule_id == $vehicule->id;
+                return $bus->vehicule_id == $vehicule->id && $bus->visibilite == Depart::VISIBILITE_ALL_CUSTOMERS ||
+                    $bus->visibilite == Depart::VISIBILITE_ST_CUSTOMERS_ONLY;
 //                    && !$bus->isFull() && !$bus->isClosed();
             })->first();
             if ($bus != null) {

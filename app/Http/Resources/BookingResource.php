@@ -122,6 +122,12 @@ class BookingResource extends JsonResource
                 "phoneNumber" => $this->customer->phone_number,
 
             ],
+            "extra_info"=>[
+                "id" => $this->id,
+                "transactionId" => $this->ticket?->comment,
+                "group_id" => $this->group_id
+
+            ],
             'pointDep' => $this->point_dep->name,
             'destination' => $this->destination->name,
 //
