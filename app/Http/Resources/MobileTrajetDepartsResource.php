@@ -13,6 +13,7 @@ use App\Models\PromotionalMessage;
 use App\Models\Trajet;
 use App\Models\Vehicule;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\Request;
@@ -220,11 +221,12 @@ class MobileTrajetDepartsResource extends JsonResource
             }
         }
         foreach ($vehicles as $vehicule){
-            $bus = $depart->buses->filter(function (Bus $bus) use ($vehicule) {
-                return $bus->vehicule_id == $vehicule->id && $bus->visibilite == Depart::VISIBILITE_ALL_CUSTOMERS ||
-                    $bus->visibilite == Depart::VISIBILITE_ST_CUSTOMERS_ONLY;
-//                    && !$bus->isFull() && !$bus->isClosed();
-            })->first();
+            $bus = $depart->buses()->where("vehicule_id", "=", $vehicule->id)
+                ->where(function (Builder $query) {
+                    $query->where("visibilite", "=", Depart::VISIBILITE_ALL_CUSTOMERS)
+                        ->orWhere("visibilite", "=", Depart::VISIBILITE_ST_CUSTOMERS_ONLY);
+                })
+                ->first();
             if ($bus != null) {
                 $busesForBooking[] = $bus;
             }

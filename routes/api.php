@@ -113,6 +113,7 @@ Route::put("buses/{bus}/toggle_seat_visibility", [BusController::class, 'toggleB
 Route::get("buses/{bus}/seats", [BusController::class, 'seats']);
 Route::get("buses/vehicules", [BusController::class, 'vehicules']);
 Route::post("buses/{bus}/add_missing_point_dep_heures", [DepartController::class, 'addPointDepsSchedulesForBus']);
+Route::post("buses/{bus}/import_yobuma_passengers", [BusController::class, 'importPassengersFromYobuma']);
 Route::put("buses/{sourceBus}/transfer_bookings", [BusController::class, 'transferBookings']);
 Route::resource('buses', BusController::class);
 

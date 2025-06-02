@@ -60,7 +60,7 @@ class BookingManager
             ->getBusAgentDefaultNumber();
         $notificationMessageForOnlineUsers = "Vous avez acheté un ticket sur Global Transports  pour le départ $departName. RV: " . $schedule . ",
          \nBus: " . $booking->bus->name . ",".
-            "\nContact du convoyeur qui sera dans le bus Bus: " . $contactAgent;
+            "\nContact du convoyeur qui sera dans le bus: " . $contactAgent;
         $notificationMessage = "Votre  ticket est enregistré sur Global Transports pour $departName, paiement reçu. " . $booking->bus->name . ",".
             $seatNumber . "
             RV " . $schedule . ", 

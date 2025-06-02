@@ -215,6 +215,7 @@ class BookingController extends Controller
                 $targetSeat->book();
                 $targetSeat->save();
                 $booking->seat()->associate($targetSeat);
+                $booking->save();
             }
 
         });

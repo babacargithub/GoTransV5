@@ -14,7 +14,7 @@ class BookingForExportResource extends JsonResource
             return [
                 "id" => $booking->id,
                 "seatNumber" => $booking->seat?->number,
-                "client" => $booking->customer->full_name,
+                "client" => $booking->passenger_full_name,
                 "phoneNumber" => $booking->customer->phone_number,
                 "pointDep" => $booking->point_dep->name,
                 "destination" => $booking->destination->name,

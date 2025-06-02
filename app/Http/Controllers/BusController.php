@@ -406,5 +406,23 @@ class BusController extends Controller
         }
     }
 
+    public function importPassengersFromYobuma(Bus $bus, Request $request)
+    {
+       $validated = $request->validate([
+            'passengers' => 'required|array',
+            'passengers.*.prenom' => 'required|string|max:255',
+            'passengers.*.nom' => 'required|string|max:255',
+            'passengers.*.telephone' => 'required|string|max:20',
+           "passengers.*.siege" => 'required|numeric',
+        ]);
+
+        $busManager = app(BusManager::class);
+        $passengers = $busManager->convertYobumaPassengersToList($bus, $validated['passengers']);
+
+        return response()->json($passengers);
+
+
+    }
+
 
 }

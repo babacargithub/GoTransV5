@@ -58,4 +58,12 @@ class BusSeat extends Model
         return $this;
 
     }
+    public function hasBooking()
+    {
+       return Booking::where("seat_id", $this->id)
+            ->where("bus_id", $this->bus_id)
+            ->whereNull("deleted_at")
+            ->exists();
+
+    }
 }

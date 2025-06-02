@@ -116,6 +116,7 @@ class Booking extends Model
         if ($trajet->id== 1) {
             $query->join('point_deps', 'bookings.point_dep_id', '=', 'point_deps.id')
                 ->join('bus_seats', 'bookings.seat_id', '=', 'bus_seats.id')
+                ->select('bookings.*')
                 ->join('seats', 'bus_seats.seat_id', '=', 'seats.id')
                 ->orderBy('point_deps.position')
                 ->orderBy('seats.number');
@@ -158,6 +159,33 @@ class Booking extends Model
     public function getIsForGpAttribute() : bool
     {
         return  strtolower($this->comment) == "for_gp";
+    }
+
+    public function getPassengerFullNameAttribute() : string
+    {
+        $fullName = "";
+        if ($this->comment != null){
+            try {
+                $customerInfo = json_decode($this->comment, true);
+                if (isset($customerInfo['passenger_full_name'])) {
+                    $fullName = $customerInfo['passenger_full_name'];
+                } elseif (isset($customerInfo['name'])) {
+                    $fullName = $customerInfo['name'];
+                } elseif (isset($customerInfo['firstName']) && isset($customerInfo['lastName'])) {
+                    $fullName = $customerInfo['firstName'] . ' ' . $customerInfo['lastName'];
+                }
+            } catch (\Exception $e) {
+                // Handle the case where JSON decoding fails or the structure is unexpected
+                $fullName = $this->customer->full_name ?? 'N/A';
+
+            }
+
+        }else{
+            // If comment is null, use the customer full name directly
+            $fullName = $this->customer->full_name ?? 'N/A';
+        }
+        return $fullName;
+
     }
 
 
