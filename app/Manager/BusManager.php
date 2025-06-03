@@ -6,6 +6,7 @@ use App\Models\Booking;
 use App\Models\Bus;
 use App\Models\BusSeat;
 use App\Models\Customer;
+use App\Models\CustomerCategory;
 use App\Models\Destination;
 use App\Models\PointDep;
 use App\Models\Ticket;
@@ -494,6 +495,7 @@ class BusManager
                 if ($customer === null) {
                     $customer = new Customer($passengerData);
                     $customer->phone_number = $normalizedPhone;
+                    $customer->customer_category_id = CustomerCategory::where("abrv","GP")->first()->id;
                     $customer->save();
                 }
 
