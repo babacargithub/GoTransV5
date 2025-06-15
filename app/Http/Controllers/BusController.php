@@ -259,7 +259,7 @@ class BusController extends Controller
                         ->first();
 
                     // Update seat status directly in the layout object
-                    $slotRow[$slotIndex]->seat->status = $seatStatus?->booked ? "booked" : "available";
+                    $slotRow[$slotIndex]->seat->status = $seatStatus?->hasBooking() ? "booked" : "available";
 
                     // Add seat to seats array for easy access
                     $seats[$slot->seat->number] = [

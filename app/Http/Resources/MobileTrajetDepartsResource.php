@@ -66,9 +66,12 @@ class MobileTrajetDepartsResource extends JsonResource
                 return $this->departResource($depart);
             }),
             'pointDeparts' => $this->pointDeps()
-                ->where("visibilite","=",Depart::VISIBILITE_ST_CUSTOMERS_ONLY)
-                ->orWhere("visibilite","=",Depart::VISIBILITE_ALL_CUSTOMERS)
                 ->where("trajet_id", "=", $this->id)
+                ->where(function($query) {
+                    $query->where("visibilite", "=", Depart::VISIBILITE_ST_CUSTOMERS_ONLY)
+                        ->orWhere("visibilite", "=", Depart::VISIBILITE_ALL_CUSTOMERS);
+
+                })
                 ->get()
                 ->map(function (PointDep $pointDepart) {
                 return [
@@ -107,15 +110,7 @@ class MobileTrajetDepartsResource extends JsonResource
                 "description" => $bus->vehicule?->description,
                 "attachments" => $bus->vehicule?->attachments,
                 "features" => $bus->vehicule->features ??  [],
-                "point_departs"=> $bus->pointDeparts->count() > 100 ? $bus->pointDeparts?->map(function ($item){
-                    $pointDep = PointDep::withoutGlobalScope("withoutDisabled")->find($item->point_dep_id);
-                    return [
-                        "id"=>$item?->point_dep_id,
-                        "name"=> $pointDep?->name,
-                        "arret_bus"=>$pointDep?->arret_bus
-                    ];
-
-                }) : [],
+                "point_departs"=>  $this->getBusPointDeparts($bus),
                 "destinations"=> $bus->destinations->count() > 100? $bus->destinations->map(function (DestinationBus
                                                                                                    $item){
                     return [
@@ -236,6 +231,24 @@ class MobileTrajetDepartsResource extends JsonResource
             $busesForBooking[] = $depart->getBusForBooking();
         }
         return collect($busesForBooking);
+    }
+
+    private function getBusPointDeparts(Bus $bus): ?Collection
+    {
+        $itinerary = $bus->itinerary;
+        if ($itinerary){
+
+            return  $itinerary->pointDeparts();
+        }
+        return $bus->pointDeparts?->map(function ($item){
+            $pointDep = PointDep::withoutGlobalScope("withoutDisabled")->find($item->point_dep_id);
+            return [
+                "id"=>$item?->point_dep_id,
+                "name"=> $pointDep?->name,
+                "arret_bus"=>$pointDep?->arret_bus
+            ];
+
+        });
     }
 
 }

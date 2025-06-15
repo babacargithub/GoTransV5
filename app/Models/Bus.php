@@ -169,6 +169,11 @@ class Bus extends Model
         }
     }
 
+    public function itinerary(): BelongsTo
+    {
+        return $this->belongsTo(Itinerary::class);
+    }
+
 
 
     protected $casts = [

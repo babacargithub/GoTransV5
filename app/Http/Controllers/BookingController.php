@@ -127,17 +127,7 @@ class BookingController extends Controller
     public function destroy(Booking $booking)
     {
         //
-        DB::transaction(function () use ($booking) {
-            $seat = $booking->seat;
-            $seat?->freeSeat();
-            $seat?->save();
-            $booking->freeSeat();
-            $booking->save();
-            $booking->delete();
-
-            return response()->noContent();
-
-        });
+        $this->cancelBooking($booking);
     }
     //url to trigger wave paiement:  mobile/payment/wave/trigger_payment/booking/186505
     // url trigger om payment mobile/payment/om/init/booking/186505
@@ -199,6 +189,9 @@ class BookingController extends Controller
         if ($targetSeat == null) {
             return response()->json(['message' => "Impossible de trouver un siège disponible pour ce bus !"], 422);
         }
+        if ($booking->depart->isPassed()){
+            return response()->json(['message' => "Impossible de transférer une réservation depuis un départ déjà passé"], 422);
+        }
         DB::transaction(function () use ($booking, $targetBus, $targetSeat) {
 
 
@@ -254,8 +247,33 @@ class BookingController extends Controller
         if ($booking->ticket?->payment_method != "wave") {
             return response()->json(['message' => "Cette réservation n'a pas été payée par Wave"], 422);
         }
+        //TODO un comment later
+//        if ($booking->depart->isPassed()) {
+//            return response()->json(['message' => "Impossible de rembourser une réservation pour un départ déjà passé"], 422);
+//        }
+        $this->cancelBooking($booking);
+
         return WavePaiementController::refundTransaction(
             $booking->ticket?->comment,
         );
+    }
+
+    /**
+     * @param Booking $booking
+     * @return void
+     */
+    public function cancelBooking(Booking $booking): void
+    {
+        DB::transaction(function () use ($booking) {
+            $seat = $booking->seat;
+            $seat?->freeSeat();
+            $seat?->save();
+            $booking->freeSeat();
+            $booking->save();
+            $booking->delete();
+
+            return response()->noContent();
+
+        });
     }
 }

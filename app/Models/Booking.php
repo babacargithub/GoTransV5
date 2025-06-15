@@ -113,16 +113,18 @@ class Booking extends Model
     }
     public static function bookingsOrdererByTrajet(Trajet $trajet, Builder $query): Builder
     {
+        $query->join('point_deps', 'bookings.point_dep_id', '=', 'point_deps.id')
+            ->join('bus_seats', 'bookings.seat_id', '=', 'bus_seats.id')
+            ->select('bookings.*')
+            ->join('seats', 'bus_seats.seat_id', '=', 'seats.id');
+
         if ($trajet->id== 1) {
-            $query->join('point_deps', 'bookings.point_dep_id', '=', 'point_deps.id')
-                ->join('bus_seats', 'bookings.seat_id', '=', 'bus_seats.id')
-                ->select('bookings.*')
-                ->join('seats', 'bus_seats.seat_id', '=', 'seats.id')
-                ->orderBy('point_deps.position')
+
+               $query ->orderBy('point_deps.position')
                 ->orderBy('seats.number');
         } else {
-            $query->join('point_deps', 'bookings.point_dep_id', '=', 'point_deps.id')
-                ->orderBy('point_deps.position');
+               $query ->orderBy('point_deps.position')
+            ->orderBy('seats.number');
         }
         return $query;
 
@@ -164,7 +166,7 @@ class Booking extends Model
     public function getPassengerFullNameAttribute() : string
     {
         $fullName = "";
-        if ($this->comment != null){
+        if ($this->comment != null && $this->comment != "for_gp" && $this->comment != "gp") {
             try {
                 $customerInfo = json_decode($this->comment, true);
                 if (isset($customerInfo['passenger_full_name'])) {
