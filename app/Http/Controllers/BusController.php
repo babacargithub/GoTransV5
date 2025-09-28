@@ -219,6 +219,9 @@ class BusController extends Controller
         try {
             $busId = Depart::find($departId)->getBusForBooking(climatise: is_request_for_gp_customers());
             // Generate seats data (in real app, fetch from database)
+            if ($busId == null){
+                return  response()->json(["message"=>"Aucun bus disponible pour réservation"], 422);
+            }
             $seatsData = $this->formatBusTemplate($busId);
 
             return response()->json([
@@ -228,7 +231,6 @@ class BusController extends Controller
             ], 200);
 
         } catch (\Exception $e) {
-            dump($e);
             return response()->json([
                 'success' => false,
                 'data' => null,
@@ -296,6 +298,8 @@ class BusController extends Controller
         return [
             'busId' => $bus->id,
             'name' => $bus->name,
+            //TODO make seat selection allowed dynamic
+            "seatSelectionAllowed"=> false,
             'totalSeats' => $bus->nombre_place, // 34 passengers + driver
             'availableSeats' => count(array_filter($seats, fn($seat) => $seat['status'] === 'available')),
             'layout' => $layout,

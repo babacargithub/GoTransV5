@@ -20,7 +20,7 @@ class Trajet extends Model
     public $timestamps = false;
 
     protected $fillable =[
-        "name", "length", "end_point","start_point", "deleted_at"
+        "name", "length", "end_point","start_point", "deleted_at", "departure_city", "arrival_city", "code"
     ];
     public function destinations() : HasMany
     {

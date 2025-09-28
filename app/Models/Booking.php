@@ -37,6 +37,7 @@ class Booking extends Model
     "booked_with_platform",
     "group_id",
     "referer_id",
+        "booked_for_customer",
 
     ];
 

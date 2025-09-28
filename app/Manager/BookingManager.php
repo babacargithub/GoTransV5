@@ -181,17 +181,20 @@ class BookingManager
                         $booking->save();
                         $booking->refresh();
                         $booking = $this->assignTicketToBooking($booking, $payment_method);
+                        $booking->save();
                         // take one available seat and assign it to booking, seats array is not 0 indexed
-                        $seat = $seats->shift();
-                        if (!$seat){
-                            $logger->error('No available seat for booking');
-                            throw new UnprocessableEntityHttpException('No available seat for booking');
-                        }
-                        if ($seat instanceof BusSeat) {
-                            $seat->book();
-                            $seat->save();
-                            $booking->seat()->associate($seat);
-                            $booking->save();
+                        if (!$booking->has_seat) {
+                            $seat = $seats->shift();
+                            if (!$seat) {
+                                $logger->error('No available seat for booking');
+                                throw new UnprocessableEntityHttpException('No available seat for booking');
+                            }
+                            if ($seat instanceof BusSeat) {
+                                $seat->book();
+                                $seat->save();
+                                $booking->seat()->associate($seat);
+                                $booking->save();
+                            }
                         }
 
                     }
@@ -204,10 +207,10 @@ class BookingManager
                 foreach ($bookings as $entity) {
                     if ($entity instanceof Booking) {
                         $messages[] = [
-                            'message' => "Quelqu'un a acheté un ticket pour vous sur Globe Transport pour le  départ " .
+                            'message' => "Achat de ticket réussi sur Global Transports. Date voyage " .
                                 $entity->depart->name .
                                 " RV " . $entity->formatted_schedule . " A " . $entity->point_dep->arret_bus .". " .
-                                "\n Contactez l'agent du bus ".AppParams::first()->getBusAgentDefaultNumber(),
+                                "\n Contacts du convoyeur du bus  ".AppParams::first()->getBusAgentDefaultNumber(),
                             'phone_number' => $entity->customer->phone_number
                         ];
                     }
@@ -216,6 +219,10 @@ class BookingManager
                 return  true;
             });
             if ($result && count($messages) > 0) {
+                $messages[] = [
+                    'message' => "Un client GP vient d'acheter un ticket sur ".$depart->name."! Sa réservation doit être enregistré sur le terminal Yobuma",
+                    'phone_number' => 771273535
+                ];
                 $this->SMSSender->sendMultipleSms($messages);
                 $bookingManager = app(BookingManager::class);
 
@@ -261,19 +268,11 @@ class BookingManager
         return $booking;
     }
 
-//    /** @noinspection PhpUnused */
-//    public function checkIfBusShouldBeClosed(Booking $booking): void
-//    {
-//        $bookings_count = $booking->bus->bookings()->count();
-//        if ($booking->bus->seats_count == $bookings_count || $booking->bus->isFull()){
-//            $booking->bus->close();
-//            $booking->bus->save();
-//        }
-//
-//    }
     public function checkIfBusIsFullAndNotifyManagerIfYes(Booking $booking): void
     {
-        $bookings_count = $booking->bus->bookings()->whereHas('ticket')->count();
+        $bookings_count = $booking->bus->bookings()
+            ->whereHas('ticket')
+            ->count();
         if (($booking->bus->seats_count-1) == $bookings_count){
             $smsSender = app(SMSSender::class);
             $smsSender->sendSms("773300853", "Le bus ".$booking->bus->name." depart ".$booking->depart->name." est arrivé à ". $bookings_count);

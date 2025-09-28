@@ -89,6 +89,15 @@ class MobileAppController extends Controller
                     "customer_category_id" => CustomerCategory::where('abrv',"GP")
                         ->first()?->id,
                 ]);
+            }else{
+                $passengerData = [
+                    "id" => $customer->id,
+                    'prenom' => $passenger['first_name'],
+                    'nom' => $passenger['last_name'],
+                    "full_name" => $passenger['first_name']. " ". $passenger['last_name'],
+                    'phone_number' => $passenger['phone_number'],
+                ];
+                return $passengerData;
             }
             return $customer;
         });
@@ -104,9 +113,15 @@ class MobileAppController extends Controller
             ]);
             $booking->depart()->associate($depart);
             $booking->bus()->associate($bus);
-            $booking->customer()->associate($passenger);
-            $booking->point_dep()->associate($this->determinePointDepartAndDestinations($depart)["point_dep"]);
-            $booking->destination()->associate($this->determinePointDepartAndDestinations($depart)["destination"]);
+            if ($passenger instanceof Customer) {
+                $booking->customer()->associate($passenger);
+            } else {
+                $booking->customer_id = $passenger["id"];
+                $booking->booked_for_customer = $passenger["full_name"];
+            }
+            $pointDepartAndDestination = $this->determinePointDepartAndDestinations($depart);
+            $booking->point_dep()->associate($pointDepartAndDestination["point_dep"]);
+            $booking->destination()->associate($pointDepartAndDestination["destination"]);
             $booking->paye = false;
             $booking->comment = is_request_for_gp_customers() ? "for_gp" : null;
             $booking->group_id = $groupId;
@@ -114,7 +129,10 @@ class MobileAppController extends Controller
             $bookings[] = $booking;
         }
         $seats = [];
-        if (isset($validated['selected_seats']) && is_array($validated['selected_seats'])) {
+        if (count($seats) > 0 && count($seats)!= count($bookings)) {
+        return response()->json(["message" => "Le nombre de sièges sélectionnés ne correspond pas au nombre de passagers"], 422);
+         }
+        if (isset($validated['selected_seats']) && is_array($validated['selected_seats']) && count($validated['selected_seats']) > 0) {
             $seats = collect($validated['selected_seats'])->map(function ($seatNumber) use ($bus) {
                 return $bus->seats()
                     ->join('seats', 'seats.id', '=', 'bus_seats.seat_id')
@@ -122,10 +140,10 @@ class MobileAppController extends Controller
 
                     ->where('seats.number', $seatNumber)->firstOrFail();
             });
+        }else{
+            $seats = $bus->getAvailableSeats()->take($validated["passenger_count"]);
         }
-        if (count($seats)!= count($bookings)) {
-            return response()->json(["message" => "Le nombre de sièges sélectionnés ne correspond pas au nombre de passagers"], 422);
-        }
+        // assigning seats to bookings
         foreach ($bookings as $index => &$booking) {
             if (isset($seats[$index])) {
                 $booking->seat()->associate($seats[$index]);
@@ -149,7 +167,6 @@ class MobileAppController extends Controller
                     }
                     $existingBooking->seat()->associate($seats[$index]);
                     $existingBooking->group_id = $booking->group_id;
-
 
                 }
 

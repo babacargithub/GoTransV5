@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Trajet;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rules\Unique;
 
@@ -145,5 +146,84 @@ class TrajetController extends Controller
         $trajet->delete();
         return response()->noContent();
 
+    }
+
+    /**
+     * Search trajets by departure and arrival cities
+     */
+    public function searchByCities(Request $request)
+    {
+        $request->validate([
+            'departure_city' => 'required|string',
+            'arrival_city' => 'required|string',
+            "travel_date" => 'required|date',
+        ]);
+        $data = [];
+
+        try {
+            $trajet = Trajet::where('departure_city', $request->departure_city)
+                ->where('arrival_city', $request->arrival_city)
+                ->firstOrFail();
+            $data = $trajet->departs()->whereDate('date', '>', now()->toDateString())
+                ->whereDate('date', '=', $request->travel_date)
+                ->get()->map(function ($depart) {
+                    return [
+                        'id' => $depart->id,
+                        // format the departure time to be in the format of H:i
+                        'departure_time' => date('H\hi', strtotime($depart->horaire->bus_leave_time)),
+                        "departure_date" => $depart->date->format('Y-m-d'),
+                        'seats_remaining' => $depart->getBusForBooking()?->seatsLeft() ?? 0,
+                        'ticket_price' => $depart->getBusForBooking()?->ticket_price,
+                    ];
+                });
+            $message =  'Trajets found successfully';
+        }
+        catch (ModelNotFoundException $e) {
+            $message = 'Trajets found not found';
+
+        }
+
+        return response()->json([
+            'data' => $data,
+            'message' => $message
+        ]);
+    }
+
+    /**
+     * Search available departures by cities and date for mobile app
+     */
+    public function searchDepartures(Request $request)
+    {
+        return $this->searchByCities($request);
+    }
+
+    /**
+     * Get list of available cities for departure/arrival selection
+     */
+    public function getCities()
+    {
+        $departureCities = Trajet::whereNotNull('departure_city')
+            ->distinct()
+            ->pluck('departure_city')
+            ->map(function($city, $index) {
+                return ['id' => $index + 1, 'name' => $city];
+            });
+
+        $arrivalCities = Trajet::whereNotNull('arrival_city')
+            ->distinct()
+            ->pluck('arrival_city')
+            ->map(function($city, $index) {
+                return ['id' => $index + 100, 'name' => $city];
+            });
+
+        $cities = $departureCities->merge($arrivalCities)
+            ->unique('name')
+            ->sortBy('name')
+            ->values();
+
+        return response()->json([
+            'data' => $cities,
+            'message' => 'Cities retrieved successfully'
+        ]);
     }
 }

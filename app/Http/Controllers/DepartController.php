@@ -86,6 +86,8 @@ class DepartController extends Controller
                 $depart->created_by = User::requiredLoggedInUser()->username;
                 $depart->save();
                 $defaultBus->closed = false;
+                $defaultBus->itinerary_id = $depart->trajet->id == Trajet::DAKAR_UGB && $defaultBus->climatise ? 1:
+                    null;
                 $depart->buses()->save($defaultBus);
                 $busSeats = $this->generateBusSeats($defaultBus);
                 $defaultBus->seats()->createMany($busSeats->toArray());

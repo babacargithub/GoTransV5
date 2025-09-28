@@ -6,6 +6,7 @@ use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DepartController;
 use App\Http\Controllers\EmployeController;
 use App\Http\Controllers\EventController;
+use App\Http\Controllers\ItineraryController;
 use App\Http\Controllers\MessengerController;
 use App\Http\Controllers\MobileAppController;
 use App\Http\Controllers\OrangeMoneyController;
@@ -154,6 +155,10 @@ Route::get("vehicules",function (){
 
 });
 Route::resource("trajets", TrajetController::class);
+Route::resource("itineraires", ItineraryController::class);
+Route::post("itineraires/{itinerary}/delete_multiple", [ItineraryController::class, 'deleteMultiplePointDeparts']);
+    Route::post("itineraires/{itinerary}/add_multiple", [ItineraryController::class, 'addMultiplePointDeparts']);
+
 // admin routes
 Route::group(["prefix" => "admin"],function (){
     Route::put("app/update_params", [MobileAppController::class, 'updateParams']);
@@ -163,6 +168,9 @@ Route::group(["prefix" => "admin"],function (){
 
 //   ================ mobile app routes ==============
 Route::group(['prefix' => 'mobile'], function () {
+    Route::get("trajets/search/cities", [TrajetController::class, 'searchByCities'])->name("trajets.search.cities");
+    Route::get("cities", [TrajetController::class, 'getCities'])->name("trajets.cities");
+    Route::get("departs/search", [TrajetController::class, 'searchDepartures']);
     Route::get("departs_for_gp", [MobileAppController::class, 'listeDepartsForGp']);
     Route::get("departs/trajet/{trajet}", [MobileAppController::class, 'listeDepartsTrajet']);
     Route::get("departs/{depart}/schedules", [MobileAppController::class, 'departSchedules']);

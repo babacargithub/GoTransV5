@@ -29,8 +29,8 @@ class GpBookingRequest extends FormRequest
             'bus_id' => 'required|integer|exists:buses,id',
             'passenger_count' => 'required|integer|min:1|max:10',
             'payment_method' => 'required|string|in:Wave,OM,Orange Money',
-            'selected_seats' => 'required|array|min:1|max:10',
-            'selected_seats.*' => 'required|integer|min:1|max:200',
+            'selected_seats' => 'nullable|array|max:10',
+            'selected_seats.*' => 'nullable|integer|max:200',
             'passengers' => 'required|array|min:1|max:100',
             'passengers.*.full_name' => 'required|string|max:255',
             'passengers.*.first_name' => 'required|string|max:100',
@@ -79,13 +79,11 @@ class GpBookingRequest extends FormRequest
     {
         $validator->after(function ($validator) {
             // Check if passenger_count matches the number of passengers
-            if ($this->passenger_count != count($this->passengers ?? [])) {
-                $validator->errors()->add('passenger_count', 'Le nombre de passagers ne correspond pas au nombre d\'informations fournies.');
-            }
-
             // Check if passenger_count matches the number of selected seats
-            if ($this->passenger_count != count($this->selected_seats ?? [])) {
-                $validator->errors()->add('selected_seats', 'Le nombre de sièges sélectionnés doit être le même que le nombre de passagers.');
+            if (count($this->selected_seats ?? []) > 0) {
+                if ($this->passenger_count != count($this->selected_seats ?? [])) {
+                    $validator->errors()->add('selected_seats', 'Le nombre de sièges sélectionnés doit être le même que le nombre de passagers.');
+                }
             }
 
             // Check for duplicate seat numbers
@@ -122,11 +120,7 @@ class GpBookingRequest extends FormRequest
                 $validator->errors()->add('selected_seats', 'Les sièges  ' . implode(', ', $alreadyBookedSeats) . ' sont déjà pris par d\'autres clients.');
             }
 
-            // Check for duplicate phone numbers
-            $phoneNumbers = collect($this->passengers ?? [])->pluck('phone_number')->toArray();
-            if (count($phoneNumbers) !== count(array_unique($phoneNumbers))) {
-                $validator->errors()->add('passengers', 'Certains  des passagers ont les numéros de téléphone en double.');
-            }
+
         });
     }
 
@@ -168,6 +162,10 @@ class GpBookingRequest extends FormRequest
                     "customer_category_id" => CustomerCategory::where('abrv',"GP")
                         ->first()?->id,
                 ]);
+            }else{
+                $customer->prenom = $passenger['first_name'];
+                $customer->nom = $passenger['last_name'];
+
             }
             return $customer;
         });
