@@ -9,11 +9,15 @@ use App\Models\Booking;
 use App\Models\Bus;
 use App\Models\BusSeat;
 use App\Models\Depart;
+use App\Models\Itinerary;
+use App\Models\Seat;
 use App\Models\Vehicule;
 use App\Utils\NotificationSender\SMSSender\SMSSender;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpFoundation\Response as ResponseAlias;
 
 class BusController extends Controller
 {
@@ -90,6 +94,7 @@ class BusController extends Controller
             'ticket_price' => 'numeric',
             'gp_ticket_price' => 'numeric',
             'visibilite' => 'integer',
+            "itinerary_id" => "required|integer",
         ]);
         $bus->update($validated);
         return response()->json($bus);
@@ -159,7 +164,7 @@ class BusController extends Controller
     }
     public function seats(Bus $bus)
     {
-        return response()->json($this->formatBusTemplate($bus));
+        return $this->seatsForAdmin($bus);
 
 
     }
@@ -201,17 +206,20 @@ class BusController extends Controller
     public function vehicules()
     {
 
-        return response()->json(Vehicule::all()->map(function (Vehicule $vehicule) {
-            return [
-                'id' => $vehicule->id,
-                'name' => $vehicule->name. " - ".$vehicule->nombre_place." places",
-                'features' => $vehicule->features,
-                "type_vehicle" => $vehicule->vehicule_type,
-                "nombre_place" => $vehicule->nombre_place,
-                "ticket_price" => $vehicule->climatise ? 4000 : 3550,
+        return response()->json([
+            "vehicules" =>Vehicule::all()->map(function (Vehicule $vehicule) {
+                return [
+                    'id' => $vehicule->id,
+                    'name' => $vehicule->name. " - ".$vehicule->nombre_place." places",
+                    'features' => $vehicule->features,
+                    "type_vehicle" => $vehicule->vehicule_type,
+                    "nombre_place" => $vehicule->nombre_place,
+                    "ticket_price" => $vehicule->climatise ? 4000 : 3550,
 
-            ];
-        }));
+                ];
+            }),
+            "itineraries" =>Itinerary::all(),
+        ]);
 
     }
     public function getBusSeats(Request $request, $departId): JsonResponse
@@ -338,6 +346,8 @@ class BusController extends Controller
         return $positions[$seatNumber] ?? "seat-{$seatNumber}";
     }
 
+
+
     /**
      * Get bus layout configuration
      *
@@ -428,5 +438,170 @@ class BusController extends Controller
 
     }
 
+    public function seatsForAdmin(Bus $bus)
+    {
+        return $bus->seats->map(fn(BusSeat $seat) => [
+            'id'=>$seat->id,
+            "name"=>$seat->number,
+            "booked"=>$seat->isBooked(),
+            "locked"=>$seat->locked
+        ]);
+
+
+    }
+
+    public function performBulkAction(Bus $bus, Request $request)
+    {
+        $action = $request->query('action');
+
+        // Validate action
+        $allowedActions = ['lock', 'unlock', 'book', 'unbook'];
+        if (!in_array($action, $allowedActions)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Action not defined or not allowed. Allowed actions: ' . implode(', ', $allowedActions)
+            ], ResponseAlias::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        // Validate request data
+        $validated = $request->validate([
+            'seat_ids' => 'required|array|min:1',
+            'seat_ids.*' => 'integer|exists:bus_seats,id',
+        ], [
+            'seat_ids.required' => 'Les IDs des sièges sont requis',
+            'seat_ids.array' => 'Les IDs des sièges doivent être un tableau',
+            'seat_ids.min' => 'Au moins un siège doit être sélectionné',
+            'seat_ids.*.integer' => 'Les IDs des sièges doivent être des entiers',
+            'seat_ids.*.exists' => 'Un ou plusieurs sièges n\'existent pas',
+            'depart_id.required' => 'L\'ID du départ est requis',
+            'depart_id.exists' => 'Le départ sélectionné n\'existe pas'
+        ]);
+
+        try {
+            // Get seats that belong to this bus
+            $seats = BusSeat::whereIn('id', $validated['seat_ids'])
+                ->where('bus_id', $bus->id)
+                ->get();
+
+            // Verify all seat IDs belong to this bus
+            if ($seats->count() !== count($validated['seat_ids'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Un ou plusieurs sièges ne correspondent pas à ce bus'
+                ], ResponseAlias::HTTP_UNPROCESSABLE_ENTITY);
+            }
+
+            // Initialize counters for response
+            $processedCount = 0;
+            $skippedCount = 0;
+            $errors = [];
+
+            // Perform action based on type
+            switch ($action) {
+                case 'lock':
+                    foreach ($seats as $seat) {
+                        if (!$seat->locked) {
+                            $seat->locked = true;
+                            $seat->save();
+                            $processedCount++;
+                        } else {
+                            $skippedCount++;
+                        }
+                    }
+                    $message = "{$processedCount} siège(s) verrouillé(s)";
+                    break;
+
+                case 'unlock':
+                    foreach ($seats as $seat) {
+                        if ($seat->locked) {
+                            $seat->locked = false;
+                            $seat->save();
+                            $processedCount++;
+                        } else {
+                            $skippedCount++;
+                        }
+                    }
+                    $message = "{$processedCount} siège(s) déverrouillé(s)";
+                    break;
+
+                case 'book':
+
+                    foreach ($seats as $seat) {
+                        // Can only book seats that are not locked and not already booked
+                        if (!$seat->locked && !$seat->booked) {
+                            $seat->book();
+                            $seat->save();
+                            $processedCount++;
+                        } else {
+                            $skippedCount++;
+                        }
+                    }
+                    $message = "{$processedCount} siège(s) réservé(s)";
+                    break;
+
+                case 'unbook':
+                    foreach ($seats as $seat) {
+                        if ($seat->booked) {
+                                $seat->freeSeat();
+                                $seat->save();
+                                $processedCount++;
+
+                        } else {
+                            $skippedCount++;
+                        }
+                    }
+                    $message = "{$processedCount} siège(s) libéré(s)";
+                    break;
+            }
+
+            // Build response
+            $response = [
+                'success' => true,
+                'message' => $message,
+                'data' => [
+                    'action' => $action,
+                    'processed' => $processedCount,
+                    'skipped' => $skippedCount,
+                    'total' => $seats->count()
+                ]
+            ];
+
+            // Add warnings if some seats were skipped
+            if ($skippedCount > 0) {
+                $response['data']['warnings'] = [
+                    'message' => "{$skippedCount} siège(s) ignoré(s)",
+                    'details' => array_unique($errors)
+                ];
+            }
+
+            // Log the action for audit trail
+            \Log::info('Bulk seat action performed', [
+                'bus_id' => $bus->id,
+                'action' => $action,
+                'seat_ids' => $validated['seat_ids'],
+                'processed' => $processedCount,
+                'user_id' => auth()->id() ?? 'system'
+            ]);
+
+            // You might want to fire events here for real-time updates
+            // event(new SeatsUpdated($bus, $seats, $action));
+
+            return response()->json($response);
+
+        } catch (\Exception $e) {
+            \Log::error('Error performing bulk seat action', [
+                'bus_id' => $bus->id,
+                'action' => $action,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'exécution de l\'action',
+                'error' => config('app.debug') ? $e->getMessage() : 'Une erreur inattendue s\'est produite'
+            ], ResponseAlias::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
 
 }

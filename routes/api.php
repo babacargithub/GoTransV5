@@ -112,6 +112,7 @@ Route::get("buses/{bus}/ticket_sales", [BusController::class, 'busTicketSales'])
 Route::put("buses/{bus}/toggle_close", [BusController::class, 'toggleClose']);
 Route::put("buses/{bus}/toggle_seat_visibility", [BusController::class, 'toggleBusSeatVisibility']);
 Route::get("buses/{bus}/seats", [BusController::class, 'seats']);
+Route::post("buses/{bus}/seats/bulk-action", [BusController::class, 'performBulkAction']);
 Route::get("buses/vehicules", [BusController::class, 'vehicules']);
 Route::post("buses/{bus}/add_missing_point_dep_heures", [DepartController::class, 'addPointDepsSchedulesForBus']);
 Route::post("buses/{bus}/import_yobuma_passengers", [BusController::class, 'importPassengersFromYobuma']);

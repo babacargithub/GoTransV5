@@ -147,6 +147,7 @@ class DepartController extends Controller
             "nombre_place" => "required|integer",
             "vehicule_id" => "nullable|integer",
             "gp_ticket_price" => "numeric",
+            "itinerary_id" => "nullable|integer",
         ]);
         // validate name bus is unique for depart
         if ($depart->buses()->where('name', $validated['name'])->exists()) {

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Itinerary;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class ItineraryController extends Controller
 {
@@ -112,9 +113,143 @@ class ItineraryController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, Itinerary $itinerary)
+    public function update(Request $request, Itinerary $itineraire)
     {
-        //
+        // Validate the incoming request
+        $itinerary = $itineraire;
+        $validated = $request->validate([
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+                // Unique validation excluding the current itinerary
+                Rule::unique($itinerary->getTable(), 'name')->ignoreModel($itinerary)
+            ],
+            'trajet_id' => 'required|integer|exists:trajets,id',
+            'point_depart_ids' => 'required|array|min:1',
+            'point_depart_ids.*' => 'integer|exists:point_deps,id',
+        ], [
+            'name.required' => 'Le nom de l\'itinéraire est requis',
+            'name.unique' => 'Ce nom d\'itinéraire existe déjà ! Donc impossible à modifier',
+            'trajet_id.required' => 'Le trajet est requis',
+            'trajet_id.exists' => 'Le trajet sélectionné n\'existe pas',
+            'point_depart_ids.required' => 'Au moins un point de départ est requis',
+            'point_depart_ids.min' => 'Au moins un point de départ doit être sélectionné',
+            'point_depart_ids.*.exists' => 'Un ou plusieurs points de départ sélectionnés n\'existent pas',
+            'point_depart_ids.*.distinct' => 'Les points de départ ne peuvent pas être dupliqués'
+        ]);
+
+        try {
+            // Store original data for comparison (optional - for logging changes)
+            $originalData = $itinerary->toArray();
+
+            // Update the itinerary
+            $itinerary->name = $validated['name'];
+            $itinerary->trajet_id = $validated['trajet_id'];
+            $itinerary->point_deps = $validated['point_depart_ids'];
+
+
+            $itinerary->save();
+
+            // Load the itinerary with its relations for the response
+
+            // Optional: Log the changes
+            \Log::info('Itinerary updated', [
+                'itinerary_id' => $itinerary->id,
+                'user_id' => auth()->id() ?? 'system',
+                'changes' => $itinerary->getChanges()
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Itinéraire modifié avec succès',
+                'data' => $itinerary
+            ], 200);
+
+        } catch (\Exception $e) {
+            // Log the error for debugging
+            \Log::error('Error updating itinerary: ' . $e->getMessage(), [
+                'itinerary_id' => $itinerary->id,
+                'request_data' => $request->all(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la modification de l\'itinéraire',
+                'errors' => ['general' => ['Une erreur inattendue s\'est produite']]
+            ], 500);
+        }
+    }
+
+    /**
+     * Alternative method for partial updates (if you want to support PATCH requests)
+     */
+    public function partialUpdate(Request $request, Itinerary $itinerary)
+    {
+        // Define which fields can be partially updated
+        $allowedFields = ['name', 'trajet_id', 'point_depart_ids', 'disabled'];
+        $updateData = $request->only($allowedFields);
+
+        // Validation rules for partial update
+        $rules = [];
+        $messages = [];
+
+        if (isset($updateData['name'])) {
+            $rules['name'] = [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('itineraries', 'name')->ignore($itinerary->id)
+            ];
+            $messages['name.unique'] = 'Ce nom d\'itinéraire existe déjà';
+        }
+
+        if (isset($updateData['trajet_id'])) {
+            $rules['trajet_id'] = 'required|integer|exists:trajets,id';
+            $messages['trajet_id.exists'] = 'Le trajet sélectionné n\'existe pas';
+        }
+
+        if (isset($updateData['point_depart_ids'])) {
+            $rules['point_depart_ids'] = 'required|array|min:1';
+            $rules['point_depart_ids.*'] = 'integer|exists:point_departs,id|distinct';
+            $messages['point_depart_ids.min'] = 'Au moins un point de départ doit être sélectionné';
+        }
+
+        if (isset($updateData['disabled'])) {
+            $rules['disabled'] = 'boolean';
+        }
+
+        // Validate only the fields being updated
+        $validated = $request->validate($rules, $messages);
+
+        try {
+            // Update only the provided fields
+            foreach ($validated as $field => $value) {
+                if ($field === 'point_depart_ids') {
+                    $itinerary->point_deps = $value;
+                } else {
+                    $itinerary->$field = $value;
+                }
+            }
+
+            $itinerary->save();
+            $itinerary->load(['trajet', 'pointDeparts']);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Itinéraire modifié avec succès',
+                'data' => $itinerary
+            ], 200);
+
+        } catch (\Exception $e) {
+            \Log::error('Error partially updating itinerary: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la modification de l\'itinéraire'
+            ], 500);
+        }
     }
 
     /**
