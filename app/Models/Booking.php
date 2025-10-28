@@ -183,7 +183,9 @@ class Booking extends Model
 
             }
 
-        }else{
+        }elseif($this->booked_for_customer !=null) {
+            $fullName = $this->booked_for_customer;
+        } else{
             // If comment is null, use the customer full name directly
             $fullName = $this->customer->full_name ?? 'N/A';
         }

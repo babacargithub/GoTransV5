@@ -53,7 +53,13 @@ class Bus extends Model
     }
     public function seatsLeft(): int
     {
-        return $this->getAvailableSeats()->count();
+           return $this->seats()
+               ->whereNotExists(function ($query) {
+                   $query->select('id')
+                       ->from('bookings')
+                       ->whereColumn('bookings.seat_id', 'bus_seats.id');
+               })
+               ->count();
 
     }
     public function numberOfBookedSeats(): int

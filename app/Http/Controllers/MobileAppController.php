@@ -740,7 +740,6 @@ class MobileAppController extends Controller
     public function determinePointDepartAndDestinations(Depart $depart): array
     {
 //TODO change this later
-
         if ($depart->trajet->id == 1) {
             $defaultPointDep = PointDep::findOrFail(40);
         } else if ($depart->trajet->id == 2) {

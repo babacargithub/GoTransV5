@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Depart;
 use App\Models\Trajet;
+use App\Models\Vehicule;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rules\Unique;
@@ -164,16 +166,28 @@ class TrajetController extends Controller
             $trajet = Trajet::where('departure_city', $request->departure_city)
                 ->where('arrival_city', $request->arrival_city)
                 ->firstOrFail();
-            $data = $trajet->departs()->whereDate('date', '>', now()->toDateString())
+            $departs = $trajet->departs()->where('date', '>=', now())
                 ->whereDate('date', '=', $request->travel_date)
-                ->get()->map(function ($depart) {
+                ->get();
+//            foreach ($departs as $depart) {
+//                $bus = $depart->getBusForBooking(climatise: true);
+//                    if ($bus?->climatise) {
+//                            $data[] = $depart;
+//                    }
+//
+//            }
+                $data = collect($departs)->map(function ($depart) {
+                    $bus = $depart->getBusForBooking(climatise: true);
                     return [
                         'id' => $depart->id,
                         // format the departure time to be in the format of H:i
-                        'departure_time' => date('H\hi', strtotime($depart->horaire->bus_leave_time)),
+                        'departure_time' => $depart->date->format('H\hi'),
                         "departure_date" => $depart->date->format('Y-m-d'),
-                        'seats_remaining' => $depart->getBusForBooking()?->seatsLeft() ?? 0,
-                        'ticket_price' => $depart->getBusForBooking()?->ticket_price,
+                        "seats_left"=> $bus?->seatsLeft(). " ".$bus->full_name,
+                        'seats_remaining' => $bus?->seatsLeft()  > 0  &&
+                        !$bus?->isClosed()
+                            ? $bus?->seatsLeft() : 0,
+                        'ticket_price' => $bus?->ticket_price,
                     ];
                 });
             $message =  'Trajets found successfully';

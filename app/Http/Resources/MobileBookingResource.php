@@ -37,9 +37,9 @@ class MobileBookingResource extends JsonResource
 //
         ];
         $data["total_ticket_price"] = (int)TicketPayment::where("group_id", $this->group_id)
-            ->sum("montant");
+            ->limit(1)->sum("montant");
         if (is_request_for_gp_customers()){
-            $data["customerName"] = $this->customer->full_name;
+            $data["customerName"] = $this->passenger_full_name;
         }
         if ($this->has_ticket) {
             $data['ticket_price'] = $this->ticket->price;
@@ -50,7 +50,7 @@ class MobileBookingResource extends JsonResource
                         return [
                             'id' => $booking->id,
                             'seat_number' => $booking->seat?->number,
-                            "full_name" => $booking->customer->full_name,
+                            "full_name" => $booking->passenger_full_name,
                             "phone_number"=> $booking->customer->phone_number,
                         ];
                     })->toArray();

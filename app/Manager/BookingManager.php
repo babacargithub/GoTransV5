@@ -134,7 +134,7 @@ class BookingManager
      */
     public function saveTicketPaymentMultipleBooking(Depart $depart, ?Bus $bus, Collection $bookings, LoggerInterface
                                                             $logger, string
-                                                            $payment_method): JsonResponse
+                                                            $payment_method, array $data): JsonResponse
     {
 
         try {

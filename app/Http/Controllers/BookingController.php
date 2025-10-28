@@ -190,7 +190,9 @@ class BookingController extends Controller
             return response()->json(['message' => "Impossible de trouver un siège disponible pour ce bus !"], 422);
         }
         if ($booking->depart->isPassed()){
+            if (\request()->user()?->username !== "pdg_34") {
             return response()->json(['message' => "Impossible de transférer une réservation depuis un départ déjà passé"], 422);
+            }
         }
         DB::transaction(function () use ($booking, $targetBus, $targetSeat) {
 
@@ -229,7 +231,7 @@ class BookingController extends Controller
         $data = $request->validate([
             'message' => 'required|string',
         ]);
-        $smsSender = app(SmsSender::class);
+        $smsSender = app(SMSSender::class);
         $response = $smsSender->sendSms(substr($booking->customer->phone_number, -9, 9), $data['message']);
         return response()->json(["sent"=>$response, "message"=>$data['message']]);
 

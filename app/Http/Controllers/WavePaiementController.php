@@ -100,13 +100,14 @@ class WavePaiementController extends Controller
                                 throw new NotFoundHttpException('Wave paiement failed : Booking group with group id '
                                     . $group_id . ' not found during Wave payment');
                             }
+                            // TODO replace depart with bus
                             $departForMultipleBooking = Depart::find($depart_id);
                             if ($departForMultipleBooking == null) {
                                 throw new NotFoundHttpException('Wave paiement failed : Depart with id ' . $depart_id . ' not found for wave');
                             }
                             $this->bookingManager->saveTicketPaymentMultipleBooking($departForMultipleBooking,
                                 $departForMultipleBooking->getBusForBooking(),
-                                $bookings, $this->logger, "wave");
+                                $bookings, $this->logger, "wave", ["transaction_id" => $waveTransactionId, "checkout_id" => $waveCheckoutId]);
                             $this->logger->alert("Wave payment saved for multiple  booking !" . $id . ", for group id of bookings  "
                                 .$group_id);
 
@@ -193,6 +194,7 @@ class WavePaiementController extends Controller
             ->post($this->waveUrl, $requestBody);
         try {
             $response->throw();
+            dd($response);
             return new PaymentResponseResource($response, paymentMethod: "wave");
         } catch (RequestException $e) {
             $this->logger->error($e->getMessage());
@@ -290,6 +292,23 @@ class WavePaiementController extends Controller
         } catch (Exception $e) {
             return (new Response($e->getMessage()))->setStatusCode(ResponseAlias::HTTP_BAD_REQUEST);
         }
+    }
+
+    public function getBalance() : int
+    {
+
+        $url = "https://api.wave.com/v1/balance";
+        $headers = $this->getWaveHeaders();
+        $response = Http::withHeaders($headers)
+            ->asJson()
+            ->get($url);
+        $response->throw();
+        $response = $response->json();
+        if (isset($response["amount"])){
+            return $response["amount"];
+        }
+        return  0;
+
     }
 
 

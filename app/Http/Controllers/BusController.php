@@ -307,7 +307,7 @@ class BusController extends Controller
             'busId' => $bus->id,
             'name' => $bus->name,
             //TODO make seat selection allowed dynamic
-            "seatSelectionAllowed"=> false,
+            "seatSelectionAllowed"=> true,
             'totalSeats' => $bus->nombre_place, // 34 passengers + driver
             'availableSeats' => count(array_filter($seats, fn($seat) => $seat['status'] === 'available')),
             'layout' => $layout,
@@ -545,6 +545,15 @@ class BusController extends Controller
                                 $seat->freeSeat();
                                 $seat->save();
                                 $processedCount++;
+                                if (Booking::where('seat_id', $seat->id)->exists()) {
+                                    $booking = Booking::where('seat_id', $seat->id)->first();
+                                    if (! $booking->hasTicket()) {
+                                        $booking->freeSeat();
+                                        $booking->save();
+                                    } else {
+                                    }
+
+                                }
 
                         } else {
                             $skippedCount++;
