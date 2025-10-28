@@ -17,26 +17,26 @@ class TicketController extends Controller
      */
     public function index()
     {
-        /**
-         * response looks like this
-         * [
-         * {
-         * "total": "10437",
-         * "paymentMethod": "om"
-         * },
-         * {
-         * "total": "27832",
-         * "paymentMethod": "wave"
-         * }
-         * ]
-         */
         // find total tickets sold by payment method of current departs
-        return Booking::join('tickets', 'bookings.ticket_id', '=', 'tickets.id')
+        $balancesByPaymentMethods = Booking::join('tickets', 'bookings.ticket_id', '=', 'tickets.id')
             ->join('departs', 'bookings.depart_id', '=', 'departs.id')
             ->where('departs.date', '>', now())
             ->selectRaw('sum(tickets.price) as total, tickets.payment_method as paymentMethod')
             ->groupBy('tickets.payment_method')
             ->get();
+        $waveController = app(WavePaiementController::class);
+        $orangeMoneyController = app(OrangeMoneyController::class);
+
+        $waveBalance = $waveController->getBalance();
+        $orangeMoneyBalance = $orangeMoneyController->balance();
+
+        return response()->json([
+            "balances_per_payment_methods" => $balancesByPaymentMethods,
+            "wave_balance" => $waveBalance,
+            "orange_money_balance" => intval(json_decode($orangeMoneyBalance->content(),true)["balance"]),
+
+        ]);
+
     }
 
     /**
