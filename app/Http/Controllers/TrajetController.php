@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Depart;
 use App\Models\Trajet;
 use App\Models\Vehicule;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rules\Unique;
@@ -168,6 +169,10 @@ class TrajetController extends Controller
                 ->firstOrFail();
             $departs = $trajet->departs()->where('date', '>=', now())
                 ->whereDate('date', '=', $request->travel_date)
+                ->where(function ($query) {
+                    $query->where('visibilite', Depart::VISIBILITE_GP_CUSTOMERS_ONLY)
+                        ->orWhere('visibilite', Depart::VISIBILITE_ALL_CUSTOMERS);
+                })
                 ->get();
 //            foreach ($departs as $depart) {
 //                $bus = $depart->getBusForBooking(climatise: true);

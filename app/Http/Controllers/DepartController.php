@@ -420,6 +420,7 @@ class DepartController extends Controller
         $departs = Depart::where('event_id', $event->id)
             ->where('date', '<', now())
             ->orderByDesc('date')
+            ->limit(30)
             ->get();
         return response()->json(DepartResource::collection($departs));
 

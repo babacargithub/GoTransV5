@@ -194,7 +194,6 @@ class WavePaiementController extends Controller
             ->post($this->waveUrl, $requestBody);
         try {
             $response->throw();
-            dd($response);
             return new PaymentResponseResource($response, paymentMethod: "wave");
         } catch (RequestException $e) {
             $this->logger->error($e->getMessage());
@@ -287,7 +286,6 @@ class WavePaiementController extends Controller
             $response->throw();
             return (new Response())->setStatusCode(ResponseAlias::HTTP_OK);
         } catch (RequestException $e) {
-            dd($e);
             return (new Response($e->getMessage()))->setStatusCode(ResponseAlias::HTTP_BAD_REQUEST);
         } catch (Exception $e) {
             return (new Response($e->getMessage()))->setStatusCode(ResponseAlias::HTTP_BAD_REQUEST);
