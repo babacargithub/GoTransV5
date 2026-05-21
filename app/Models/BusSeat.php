@@ -29,12 +29,12 @@ class BusSeat extends Model
     public function freeSeat(): void
     {
         $this->booked = false;
-        $this->bookedAt = null;
+        $this->booked_at = null;
     }
     public function book(): void
     {
         $this->booked = true;
-        $this->bookedAt = now();
+        $this->booked_at = now();
     }
     public function getNumberAttribute()
     {
@@ -54,7 +54,7 @@ class BusSeat extends Model
     public function free(): self
     {
         $this->booked = false;
-        $this->bookedAt = null;
+        $this->booked_at = null;
         return $this;
 
     }

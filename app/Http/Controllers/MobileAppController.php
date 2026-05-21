@@ -573,7 +573,8 @@ class MobileAppController extends Controller
     public function initOmPayment(Booking $booking)
     {
         $omController = app(OrangeMoneyController::class);
-        $amount = $booking->bus->ticket_price;
+        $ticketManager = app(TicketManager::class);
+        $amount = $ticketManager->calculateTicketPriceForBooking($booking, 'om');
         $customerNumber = $booking->customer->phone_number;
         $bookingId = $booking->id;
         $requestData =
@@ -602,7 +603,14 @@ class MobileAppController extends Controller
         if ($booking->hasTicket()) {
             return response()->json(["message" => "Impossible d'annuler une réservation déjà payée"], 422);
         }
-        $booking->delete();
+        DB::transaction(function () use ($booking) {
+            $seat = $booking->seat;
+            $seat?->free();
+            $seat?->save();
+            $booking->seat_id = null;
+            $booking->save();
+            $booking->delete();
+        });
         return response()->noContent();
 
     }
@@ -629,12 +637,14 @@ class MobileAppController extends Controller
         $result = $this->calculateTicketPriceForMultipleBooking($validated, $request);
         $payment_method = $validated['payment_method'];
         $group_id = $validated['group_id'];
+        $depart_id = Booking::where('group_id', $group_id)->value('depart_id');
         if ($payment_method == "wave") {
             $metadata = [
                 "amount" => '' . $result['totalPrice'],
                 "client_reference" => [
                     'type' => 'multiple_booking',
                     'group_id' => $group_id,
+                    'depart_id' => $depart_id,
                 ],
                 "error_url" => WavePaiementController::getEndpointForRedirect().'/#/multiple_bookings/' . $group_id,
                 "success_url" => WavePaiementController::getEndpointForRedirect().'/#/multiple_bookings/' . $group_id,

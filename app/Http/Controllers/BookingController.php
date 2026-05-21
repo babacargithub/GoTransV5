@@ -70,28 +70,37 @@ class BookingController extends Controller
         $booking->bus()->associate($busForBooking);
         $busForBooking->bookings()->save($booking);
         $booking->withoutRelations();
-        if (isset($validated["ticket_paid"] ) && $validated["ticket_paid"]) {
-            $ticket = $this->ticketManager->provideOne($booking->bus->ticket_price);
+        if (isset($validated["ticket_paid"]) && $validated["ticket_paid"]) {
+            $ticketPrice = $this->ticketManager->calculateTicketPriceForBooking($booking);
+            $ticket = $this->ticketManager->provideOne($ticketPrice);
 
-            $ticket->soldBy = User::requireMobileAppUser()->username;
-            $ticket->save();
-            $booking->ticket()->associate($ticket);
-            $seat = null;
-            if (isset($validated["seat_id"])){
-                $seat = $booking->bus->seats()->find($validated["seat_id"]);
+            try {
+                DB::transaction(function () use ($booking, $ticket, $validated) {
+                    $ticket->soldBy = User::requireMobileAppUser()->username;
+                    $ticket->save();
+                    $booking->ticket()->associate($ticket);
+                    $seat = null;
+                    if (isset($validated["seat_id"])) {
+                        $seat = $booking->bus->seats()->where('seat_id', $validated["seat_id"])->first();
+                    }
+                    if ($seat == null) {
+                        $seat = $booking->bus->getAvailableSeats()->first();
+                    }
+                    if ($seat == null) {
+                        throw new \RuntimeException("Il n'y a pas de place disponible pour ce bus !");
+                    }
+                    $seat->book();
+                    $seat->save();
+                    $booking->seat()->associate($seat);
+                    $booking->save();
+                });
+            } catch (\RuntimeException $e) {
+                $booking->delete();
+                return response()->json(['message' => $e->getMessage()], 422);
             }
-            if ($seat == null){
-                $seat = $booking->bus->getAvailableSeats()->first();
-            }
-            if ($seat == null){
-                return response()->json(['message' => "Il n'y a pas de place disponible pour ce bus !"], 422);
-            }
-            $seat->book();
-            $seat->save();
-            $booking->seat()->associate($seat);
-
+        } else {
+            $booking->save();
         }
-        $booking->save();
 
         return response()->json($booking);
 
@@ -126,8 +135,8 @@ class BookingController extends Controller
      */
     public function destroy(Booking $booking)
     {
-        //
         $this->cancelBooking($booking);
+        return response()->noContent();
     }
     //url to trigger wave paiement:  mobile/payment/wave/trigger_payment/booking/186505
     // url trigger om payment mobile/payment/om/init/booking/186505
@@ -150,25 +159,25 @@ class BookingController extends Controller
     public function saveTicketPayment(Booking $booking)
     {
         try {
-            $ticket = $this->ticketManager->provideOne($booking->bus->ticket_price);
-             DB::transaction(function ()use ($booking, $ticket){
+            $ticketPrice = $this->ticketManager->calculateTicketPriceForBooking($booking);
+            $ticket = $this->ticketManager->provideOne($ticketPrice);
+            DB::transaction(function () use ($booking, $ticket) {
                 $ticket->soldBy = \request()->user()?->username ?? "system";
                 $ticket->save();
                 $booking->ticket()->associate($ticket);
                 $seat = $booking->bus->getAvailableSeats()->first();
                 if ($seat == null) {
-                    return response()->json(['message' => "Il n'y a pas de place disponible pour ce bus !"], 422);
+                    throw new \RuntimeException("Il n'y a pas de place disponible pour ce bus !");
                 }
                 $seat->book();
                 $seat->save();
                 $booking->seat()->associate($seat);
                 $booking->paye = true;
                 $booking->save();
-            return true;
             });
-             $bookingManager = app(BookingManager::class);
-             $bookingManager->sendNotificationOfTicketPaymentToCustomer($booking, true);
-             $bookingManager->checkIfBusIsFullAndNotifyManagerIfYes($booking);
+            $bookingManager = app(BookingManager::class);
+            $bookingManager->sendNotificationOfTicketPaymentToCustomer($booking, true);
+            $bookingManager->checkIfBusIsFullAndNotifyManagerIfYes($booking);
 
             return response()->json("Paiement effectué avec succès !");
         } catch (Exception $e) {

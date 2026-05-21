@@ -136,114 +136,104 @@ class BookingManager
                                                             $logger, string
                                                             $payment_method, array $data): JsonResponse
     {
-
         try {
             $messages = [];
 
-            $result = DB::transaction(function () use ($depart,$bus, $bookings, $payment_method, $logger, &$messages) {
-                $number_of_seats_available = $depart->getBusForBooking() !== null ? $depart->getBusForBooking()->getAvailableSeats()->count() : 0;
-                $busForBookings = $bus ?? null;
-                if ($number_of_seats_available >= count($bookings)){
-                    $busForBookings = $depart->getBusForBooking();
-                } else{
-                    // We try to find another bus  with enough seats for the bookings
-                    foreach ($depart->buses as $bus) {
-                        if ($bus->getAvailableSeats()->count() >= count($bookings) && !$bus->isFull() && !$bus->isClosed()) {
-                            $busForBookings = $bus;
+            $result = DB::transaction(function () use ($depart, $bookings, $payment_method, $logger, $data, &$messages) {
+                // Idempotency: ignore bookings that already have a ticket from a previous callback
+                $unpaidBookings = $bookings->filter(fn(Booking $booking) => !$booking->hasTicket());
+
+                if ($unpaidBookings->isEmpty()) {
+                    return true;
+                }
+
+                // Bookings that already have a seat pre-assigned only need a ticket
+                $bookingsWithSeats    = $unpaidBookings->filter(fn(Booking $booking) => $booking->has_seat);
+                $bookingsWithoutSeats = $unpaidBookings->reject(fn(Booking $booking) => $booking->has_seat);
+
+                foreach ($bookingsWithSeats as $booking) {
+                    $this->assignTicketToBooking($booking, $payment_method, $data);
+                }
+
+                // Bookings without seats need a bus + seat assignment
+                if ($bookingsWithoutSeats->isNotEmpty()) {
+                    $busForBookings = null;
+                    foreach ($depart->buses as $candidateBus) {
+                        if (!$candidateBus->isClosed()
+                            && $candidateBus->getAvailableSeats()->count() >= $bookingsWithoutSeats->count()) {
+                            $busForBookings = $candidateBus;
                             break;
                         }
                     }
-                }
 
-                if ($busForBookings === null) {
-                    // not enough seats available
-                    // We notify user and a refund is made
-                    /** @var Booking $firsBooking */
-                    $firsBooking = $bookings->first();
-                    $message = "Le client ".$firsBooking?->customer->full_name
-                        ." ".$firsBooking?->customer->phone_number." vient de faire un paiement pour une réservation groupée sur le départ sans assez de places disponibles " . $depart->name."\n Pas assez de places disponibles pour le départ " .
-                        $depart->name;
-                    $this->SMSSender->sendSms(773300853, $message);
-                    $this->SMSSender->sendSms(771273535, $message);
-                    throw new Exception('No bus available for booking for multiple bookings');
-                }
-                if ($busForBookings instanceof Bus) {
-                    // we take seats the number of bookings
-                    $seats = $busForBookings->getAvailableSeats()->slice(0, $bookings->count());
-                    if (count($seats) < $bookings->count()) {
-                        // Handle the case where there are not enough seats
+                    if ($busForBookings === null) {
+                        /** @var Booking $firstBooking */
+                        $firstBooking = $bookingsWithoutSeats->first();
+                        $alertMessage = "Le client " . $firstBooking?->customer->full_name
+                            . " " . $firstBooking?->customer->phone_number
+                            . " vient de faire un paiement pour une réservation groupée sans assez de places disponibles sur le départ "
+                            . $depart->name;
+                        $this->SMSSender->sendSms(773300853, $alertMessage);
+                        $this->SMSSender->sendSms(771273535, $alertMessage);
+                        throw new Exception('No bus available for unseated bookings in group payment');
+                    }
+
+                    $availableSeats = $busForBookings->getAvailableSeats()->take($bookingsWithoutSeats->count());
+                    if ($availableSeats->count() < $bookingsWithoutSeats->count()) {
                         $logger->error('Not enough available seats for the number of bookings.');
                         throw new UnprocessableEntityHttpException('Not enough available seats for the number of bookings.');
                     }
-                    foreach ($bookings as /** @var Booking $booking */$booking) {
+
+                    foreach ($bookingsWithoutSeats as $booking) {
                         $booking->bus()->associate($busForBookings);
                         $booking->depart()->associate($busForBookings->depart);
                         $booking->save();
                         $booking->refresh();
-                        $booking = $this->assignTicketToBooking($booking, $payment_method);
+                        $this->assignTicketToBooking($booking, $payment_method, $data);
+
+                        $seat = $availableSeats->shift();
+                        $seat->book();
+                        $seat->save();
+                        $booking->seat()->associate($seat);
                         $booking->save();
-                        // take one available seat and assign it to booking, seats array is not 0 indexed
-                        if (!$booking->has_seat) {
-                            $seat = $seats->shift();
-                            if (!$seat) {
-                                $logger->error('No available seat for booking');
-                                throw new UnprocessableEntityHttpException('No available seat for booking');
-                            }
-                            if ($seat instanceof BusSeat) {
-                                $seat->book();
-                                $seat->save();
-                                $booking->seat()->associate($seat);
-                                $booking->save();
-                            }
-                        }
-
-                    }
-
-                } else {
-
-                    throw new Exception( 'Pas assez de places disponibles pour le départ ' . $depart->name);
-                }
-                // notifications sending
-                foreach ($bookings as $entity) {
-                    if ($entity instanceof Booking) {
-                        $messages[] = [
-                            'message' => "Achat de ticket réussi sur Global Transports. Date voyage " .
-                                $entity->depart->name .
-                                " RV " . $entity->formatted_schedule . " A " . $entity->point_dep->arret_bus .". " .
-                                "\n Contacts du convoyeur du bus  ".AppParams::first()->getBusAgentDefaultNumber(),
-                            'phone_number' => $entity->customer->phone_number
-                        ];
                     }
                 }
 
-                return  true;
+                foreach ($unpaidBookings as $entity) {
+                    $entity->refresh();
+                    $messages[] = [
+                        'message' => "Achat de ticket réussi sur Global Transports. Date voyage "
+                            . $entity->depart->name
+                            . " RV " . $entity->formatted_schedule
+                            . " A " . $entity->point_dep->arret_bus . ". "
+                            . "\n Contacts du convoyeur du bus  " . AppParams::first()->getBusAgentDefaultNumber(),
+                        'phone_number' => $entity->customer->phone_number
+                    ];
+                }
+
+                return true;
             });
+
             if ($result && count($messages) > 0) {
                 $messages[] = [
-                    'message' => "Un client GP vient d'acheter un ticket sur ".$depart->name."! Sa réservation doit être enregistré sur le terminal Yobuma",
+                    'message' => "Un client GP vient d'acheter un ticket sur " . $depart->name
+                        . "! Sa réservation doit être enregistré sur le terminal Yobuma",
                     'phone_number' => 771273535
                 ];
                 $this->SMSSender->sendMultipleSms($messages);
                 $bookingManager = app(BookingManager::class);
-
-                    $bookingManager->checkIfBusIsFullAndNotifyManagerIfYes($bookings[0]);
-
+                $bookingManager->checkIfBusIsFullAndNotifyManagerIfYes($bookings[0]);
             }
+
             return response()->json(['message' => 'Finished: Booking saved successfully']);
 
         } catch (Exception $e) {
-            Log:error($e->getMessage());
-            // rollback the transaction if something went wrong
             $stackTrace = __FUNCTION__ . "-- " . __CLASS__ . ' -- ' . __FILE__;
             Log::error('Saving multiple transactions failed ' . $stackTrace);
             Log::error($e->getMessage() . ' --' . $e->getTraceAsString());
-
         }
-        // send notifications to users after saving the bookings
 
-
-
-        return response()->json(['message' => ' Booking saved successfully']);
+        return response()->json(['message' => 'Booking saved successfully']);
     }
 
     /**

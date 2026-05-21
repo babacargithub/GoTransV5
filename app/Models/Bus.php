@@ -57,7 +57,8 @@ class Bus extends Model
                ->whereNotExists(function ($query) {
                    $query->select('id')
                        ->from('bookings')
-                       ->whereColumn('bookings.seat_id', 'bus_seats.id');
+                       ->whereColumn('bookings.seat_id', 'bus_seats.id')
+                       ->whereNull('bookings.deleted_at');
                })
                ->count();
 
@@ -85,12 +86,12 @@ class Bus extends Model
     }
     public function getAvailableSeats(): Collection
     {
-//        return  $this->seats()->where('booked', false)->get();
         return $this->seats()
             ->whereNotExists(function ($query) {
                 $query->select('id')
                     ->from('bookings')
-                    ->whereColumn('bookings.seat_id', 'bus_seats.id');
+                    ->whereColumn('bookings.seat_id', 'bus_seats.id')
+                    ->whereNull('bookings.deleted_at');
             })
             ->lockForUpdate()
             ->orderBy("bus_seats.seat_id","asc")->get();
