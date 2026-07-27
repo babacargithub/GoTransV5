@@ -24,84 +24,102 @@
 
     <!-- Booking Section -->
     <section class="px-4 py-12 min-h-screen flex flex-col" x-data="bookingForm()">
-        <div class="max-w-3xl mx-auto w-full flex-1 flex flex-col">
+        <div class="max-w-4xl mx-auto w-full flex-1 flex flex-col">
 
             <!-- Section Header -->
             <div class="mb-8">
-                <h2 class="text-3xl mb-2">Choisissez votre trajet</h2>
-                <p class="text-muted-foreground">Sélectionnez votre destination pour commencer</p>
+                <h2 class="text-3xl mb-2" x-text="selectedTrajet ? 'Choisissez votre départ' : 'Choisissez votre trajet'"></h2>
+                <p class="text-muted-foreground" x-text="selectedTrajet ? 'Sélectionnez une date et heure de départ' : 'Sélectionnez votre destination pour commencer'"></p>
             </div>
 
+            <!-- Back Button (shown when departs are displayed) -->
+            <template x-if="selectedTrajet">
+                <button @click="selectedTrajet = null" class="mb-6 text-primary hover:text-accent transition-colors flex items-center gap-2">
+                    <span>←</span>
+                    <span>Retour aux trajets</span>
+                </button>
+            </template>
+
             <!-- Routes List -->
-            <div class="flex flex-col gap-4 mb-8 flex-1">
+            <template x-if="!selectedTrajet">
+                <div class="flex flex-col gap-2 mb-8 flex-1">
                 @forelse($trajets as $trajet /** @var Trajet $trajet */)
                     <button
                         @click="selectTrajet({{ $trajet->id }}, '{{ $trajet->public_name ?? $trajet->name }}')"
-                        class="card-interactive p-6 text-left"
-                        :class="selectedTrajet === {{ $trajet->id }} ? 'card-selected' : ''"
+                        class="card-interactive p-4 text-left hover:bg-secondary transition-colors"
                     >
-                        <div class="flex gap-6 items-center">
+                        <div class="flex gap-4 items-center justify-between">
                             <!-- Journey Details -->
                             <div class="flex-1 min-w-0">
-                                <h3 class="text-primary mb-3">
+                                <h3 class="text-primary font-semibold mb-1 text-base">
                                     {{ $trajet->public_name ?? $trajet->name }}
                                 </h3>
 
-                                <div class="flex items-center gap-4 flex-wrap">
+                                <div class="flex items-center gap-3 text-sm flex-wrap">
                                     <div>
-                                        <div class="label-uppercase mb-1">Départ</div>
-                                        <div class="text-lg font-medium">{{ $trajet->departure_city }}</div>
+                                        <div class="label-uppercase text-xs mb-0.5">Départ</div>
+                                        <div class="font-medium">{{ $trajet->departure_city }}</div>
                                     </div>
 
                                     <div class="text-muted-foreground">→</div>
 
                                     <div>
-                                        <div class="label-uppercase mb-1">Arrivée</div>
-                                        <div class="text-lg font-medium">{{ $trajet->arrival_city }}</div>
+                                        <div class="label-uppercase text-xs mb-0.5">Arrivée</div>
+                                        <div class="font-medium">{{ $trajet->arrival_city }}</div>
                                     </div>
 
                                     @if($trajet->length)
-                                        <div class="ml-auto text-right flex flex-col items-end">
-                                            <div class="label-uppercase mb-1">Distance</div>
-                                            <div class="text-lg font-medium">{{ number_format($trajet->length) }} km</div>
+                                        <div class="text-muted-foreground ml-auto text-right">
+                                            <div class="label-uppercase text-xs mb-0.5">Distance</div>
+                                            <div class="font-medium">{{ number_format($trajet->length) }} km</div>
                                         </div>
                                     @endif
                                 </div>
                             </div>
 
-                            <!-- Selection Indicator -->
-                            <div class="flex items-center justify-center w-8 h-8 border-2 border-accent rounded-full flex-shrink-0"
-                                 :class="selectedTrajet === {{ $trajet->id }} ? 'bg-accent' : ''">
-                                <span x-show="selectedTrajet === {{ $trajet->id }}" class="text-accent-foreground font-bold text-xl">✓</span>
-                            </div>
+                            <!-- Arrow Indicator -->
+                            <div class="flex-shrink-0 text-accent text-xl font-bold">→</div>
                         </div>
                     </button>
                 @empty
-                    <div class="p-8 bg-[oklch(97%_0.02_40)] border border-accent rounded-lg text-center">
+                    <div class="p-6 bg-[oklch(97%_0.02_40)] border border-accent rounded-lg text-center">
                         <p class="font-medium">Aucun trajet disponible pour le moment</p>
                     </div>
                 @endforelse
-            </div>
-
-            <!-- Action Section -->
-            @if($trajets->count() > 0)
-                <div class="flex justify-center">
-                    <button
-                        @click="handleVoyager()"
-                        class="btn-primary"
-                        :disabled="!selectedTrajet"
-                    >
-                        Continuer
-                    </button>
-                </div>
-            @endif
-
-            <!-- Messages -->
-            <template x-if="message">
-                <div class="mt-6 p-4 bg-success/10 border border-success rounded-lg text-center">
-                    <p class="font-medium text-success" x-text="message"></p>
                 </div>
             </template>
+
+            <!-- Departs List -->
+            <template x-if="selectedTrajet">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 flex-1">
+                    <template x-for="depart in selectedTrajetDeparts" :key="depart.id">
+                        <button @click="selectDepart(depart.id, depart.name)"
+                                class="card-interactive p-5 text-left hover:shadow-md"
+                                :class="depart.closed ? 'opacity-60 cursor-not-allowed' : ''"
+                                :disabled="depart.closed">
+                            <div class="space-y-3">
+                                <div>
+                                    <div class="label-uppercase text-xs mb-1">Date et Heure</div>
+                                    <h4 class="text-lg font-semibold text-primary" x-text="formatDate(depart.date)"></h4>
+                                </div>
+
+                                <template x-if="depart.closed">
+                                    <div class="pt-2 border-t border-border">
+                                        <span class="text-xs font-semibold text-error">Complet</span>
+                                    </div>
+                                </template>
+                            </div>
+                        </button>
+                    </template>
+
+                    <template x-if="selectedTrajetDeparts.length === 0">
+                        <div class="col-span-full p-8 bg-[oklch(97%_0.02_40)] border border-accent rounded-lg text-center">
+                            <p class="font-medium">Aucun départ disponible pour ce trajet</p>
+                        </div>
+                    </template>
+                </div>
+            </template>
+
         </div>
     </section>
 </main>
@@ -118,25 +136,33 @@
 function bookingForm() {
     return {
         selectedTrajet: null,
-        selectedTrajetName: '',
-        message: '',
+        selectedTrajetDeparts: [],
+        trajetsData: @json($trajets),
 
         selectTrajet(id, name) {
             this.selectedTrajet = id;
-            this.selectedTrajetName = name;
-            this.message = '';
+            // Find departs for this trajet
+            const trajet = this.trajetsData.find(t => t.id === id);
+            this.selectedTrajetDeparts = trajet?.departs || [];
+            console.log('Trajet sélectionné:', id, name);
+            console.log('Départs:', this.selectedTrajetDeparts);
         },
 
-        handleVoyager() {
-            if (!this.selectedTrajet) {
-                this.message = 'Sélectionnez un trajet pour continuer';
-                setTimeout(() => { this.message = ''; }, 3000);
-                return;
-            }
+        selectDepart(departId, departName) {
+            console.log('Départ sélectionné:', departId, departName);
+            // TODO: Redirect to booking form with trajet and depart IDs
+            window.location.href = `/booking?trajet=${this.selectedTrajet}&depart=${departId}`;
+        },
 
-            this.message = `Trajet sélectionné: ${this.selectedTrajetName}`;
-            console.log('Trajet sélectionné:', this.selectedTrajet, this.selectedTrajetName);
-            // TODO: Redirect to booking form
+        formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('fr-FR', {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
         }
     };
 }

@@ -12,10 +12,18 @@ Route::domain(config('app.concours_domain'))->group(function () {
 });
 Route::domain(config('app.gp_domain'))->group(function () {
     Route::get('/', function () {
+        $trajets = \App\Models\Trajet::select(['id', 'name', 'public_name', 'departure_city', 'arrival_city', 'length'])
+            ->with(['departs' => function ($query) {
+                $query->where('date', '>=', now())
+                    ->where('canceled', false)
+                    ->orderBy('date')
+                    ->select(['id', 'trajet_id', 'name', 'date', 'closed', 'locked']);
+            }])
+            ->get()
+            ->map(fn($trajet) => tap($trajet, fn($t) => $t->length = (float) $t->length));
+
         return view('gp_booking.gp_booking_index', [
-            'trajets' => \App\Models\Trajet::select(['id', 'name', 'public_name', 'departure_city', 'arrival_city', 'length'])
-                ->get()
-                ->map(fn($trajet) => tap($trajet, fn($t) => $t->length = (float) $t->length)),
+            'trajets' => $trajets,
         ]);
     })->name('gp_booking');
 });

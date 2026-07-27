@@ -182,13 +182,13 @@ class TrajetController extends Controller
 //
 //            }
                 $data = collect($departs)->map(function ($depart) {
-                    $bus = $depart->getBusForBooking(climatise: true);
+                    $bus = $depart->getBusForBooking(climatise: false);
                     return [
                         'id' => $depart->id,
                         // format the departure time to be in the format of H:i
                         'departure_time' => $depart->date->format('H\hi'),
                         "departure_date" => $depart->date->format('Y-m-d'),
-                        "seats_left"=> $bus?->seatsLeft(). " ".$bus->full_name,
+                        "seats_left"=> $bus?->seatsLeft(). " ".$bus?->full_name,
                         'seats_remaining' => $bus?->seatsLeft()  > 0  &&
                         !$bus?->isClosed()
                             ? $bus?->seatsLeft() : 0,

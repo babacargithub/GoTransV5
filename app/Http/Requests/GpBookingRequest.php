@@ -26,7 +26,7 @@ class GpBookingRequest extends FormRequest
     {
         return [
             'depart_id' => 'required|integer|exists:departs,id',
-            'bus_id' => 'required|integer|exists:buses,id',
+            'bus_id' => 'nullable|integer|exists:buses,id',
             'passenger_count' => 'required|integer|min:1|max:10',
             'payment_method' => 'required|string|in:Wave,OM,Orange Money',
             'selected_seats' => 'nullable|array|max:10',
@@ -91,33 +91,32 @@ class GpBookingRequest extends FormRequest
             if (count($selectedSeats) !== count(array_unique($selectedSeats))) {
                 $validator->errors()->add('selected_seats', 'Vous ne pouvez pas sélectionner le même siège plusieurs fois.');
             }
-            $bus = Bus::findOrFail($this->bus_id);
-            if ($bus->seatsLeft() < $this->validated()["passenger_count"]){
-                $validator->errors()->add("Il n'y pas de assez de places disponible dans le bus ! Nombre de places disponibles : ".$bus->seatsLeft());
+            if ($this->bus_id !== null) {
+                $bus = Bus::findOrFail($this->bus_id);
+                if ($bus->seatsLeft() < $this->validated()["passenger_count"]){
+                    $validator->errors()->add("Il n'y pas de assez de places disponible dans le bus ! Nombre de places disponibles : ".$bus->seatsLeft());
 
-            }
-            if ($bus->isFull() || $bus->isClosed()){
-                $validator->errors()->add("Nous avons clôturé les réservations pour ce bus ! ");
-
-            }
-            $alreadyBookedSeats = [];
-            foreach ($selectedSeats as $selectedSeat) {
-                $seat = $bus->seats()
-                    ->join('seats',"seats.id","bus_seats.seat_id")
-                    ->select('bus_seats.*')
-                    ->where('seats.number', $selectedSeat)->first();
-                if ($seat == null) {
-                    return $validator->errors()->add("Le siège sélectionné n'existe pas dans le bus");
                 }
-                if ($seat->booked || Booking::where('seat_id', $seat->id)->exists()) {
-                    $alreadyBookedSeats[] = $selectedSeat;
-                }
-                // assign the seat to the booking
+                if ($bus->isFull() || $bus->isClosed()){
+                    $validator->errors()->add("Nous avons clôturé les réservations pour ce bus ! ");
 
-//            $booking->save();
-            }
-            if (count($alreadyBookedSeats) > 0) {
-                $validator->errors()->add('selected_seats', 'Les sièges  ' . implode(', ', $alreadyBookedSeats) . ' sont déjà pris par d\'autres clients.');
+                }
+                $alreadyBookedSeats = [];
+                foreach ($selectedSeats as $selectedSeat) {
+                    $seat = $bus->seats()
+                        ->join('seats',"seats.id","bus_seats.seat_id")
+                        ->select('bus_seats.*')
+                        ->where('seats.number', $selectedSeat)->first();
+                    if ($seat == null) {
+                        return $validator->errors()->add("Le siège sélectionné n'existe pas dans le bus");
+                    }
+                    if ($seat->booked || Booking::where('seat_id', $seat->id)->exists()) {
+                        $alreadyBookedSeats[] = $selectedSeat;
+                    }
+                }
+                if (count($alreadyBookedSeats) > 0) {
+                    $validator->errors()->add('selected_seats', 'Les sièges  ' . implode(', ', $alreadyBookedSeats) . ' sont déjà pris par d\'autres clients.');
+                }
             }
 
 

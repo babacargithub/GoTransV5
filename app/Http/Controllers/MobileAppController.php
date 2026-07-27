@@ -73,9 +73,19 @@ class MobileAppController extends Controller
      */
     public function handleBookingForGpMultiPassenger(GpBookingRequest $request)
     {
-        $validated = $request->validated();
-        $depart = Depart::findOrFail($validated['depart_id']);
-        $bus = $depart->getBusForBooking(climatise: true);
+        try {
+            $validated = $request->validated();
+            $depart = Depart::findOrFail($validated['depart_id']);
+
+            try {
+                $bus = $depart->getBusForBooking(climatise: true);
+            } catch (\Exception $e) {
+                return response()->json(["message" => "Aucun bus climatisé disponible pour ce départ"], 422);
+            }
+
+            if ($bus == null) {
+                return response()->json(["message" => "Aucun bus disponible pour ce départ"], 422);
+            }
         $passengers = $validated['passengers'];
         $passengers = collect($passengers)->map(function (array $passenger) {
             // Create or update the customer
@@ -90,14 +100,13 @@ class MobileAppController extends Controller
                         ->first()?->id,
                 ]);
             }else{
-                $passengerData = [
+                return [
                     "id" => $customer->id,
                     'prenom' => $passenger['first_name'],
                     'nom' => $passenger['last_name'],
                     "full_name" => $passenger['first_name']. " ". $passenger['last_name'],
                     'phone_number' => $passenger['phone_number'],
                 ];
-                return $passengerData;
             }
             return $customer;
         });
@@ -128,20 +137,26 @@ class MobileAppController extends Controller
 //            $booking->save();
             $bookings[] = $booking;
         }
-        $seats = [];
-        if (count($seats) > 0 && count($seats)!= count($bookings)) {
-        return response()->json(["message" => "Le nombre de sièges sélectionnés ne correspond pas au nombre de passagers"], 422);
-         }
         if (isset($validated['selected_seats']) && is_array($validated['selected_seats']) && count($validated['selected_seats']) > 0) {
+            if (count($validated['selected_seats']) != count($bookings)) {
+                return response()->json(["message" => "Le nombre de sièges sélectionnés ne correspond pas au nombre de passagers"], 422);
+            }
             $seats = collect($validated['selected_seats'])->map(function ($seatNumber) use ($bus) {
-                return $bus->seats()
+                $seat = $bus->seats()
                     ->join('seats', 'seats.id', '=', 'bus_seats.seat_id')
-                    ->select('bus_seats.*') // or specify exact columns like 'bus_seats.id', 'bus_seats.seat_id', etc.
+                    ->select('bus_seats.*')
+                    ->where('seats.number', $seatNumber)->first();
 
-                    ->where('seats.number', $seatNumber)->firstOrFail();
+                if ($seat == null) {
+                    throw new \RuntimeException("Le siège numéro $seatNumber n'existe pas ou n'est pas disponible");
+                }
+                return $seat;
             });
-        }else{
+        } else {
             $seats = $bus->getAvailableSeats()->take($validated["passenger_count"]);
+            if (count($seats) < count($bookings)) {
+                return response()->json(["message" => "Il n'y a pas assez de sièges disponibles pour tous les passagers"], 422);
+            }
         }
         // assigning seats to bookings
         foreach ($bookings as $index => &$booking) {
@@ -165,7 +180,9 @@ class MobileAppController extends Controller
                         $seatOfExistingBooking->freeSeat();
                         $seatOfExistingBooking->save();
                     }
-                    $existingBooking->seat()->associate($seats[$index]);
+                    if (isset($seats[$index])) {
+                        $existingBooking->seat()->associate($seats[$index]);
+                    }
                     $existingBooking->group_id = $booking->group_id;
 
                 }
@@ -180,6 +197,9 @@ class MobileAppController extends Controller
 
         }
         return  $this->processGroupBookings($depart,$request, $bookings, payment_method: $request->validated()["payment_method"]);
+        } catch (\Exception $e) {
+            return response()->json(["message" => "Une erreur s'est produite lors du traitement de la réservation: " . $e->getMessage()], 422);
+        }
     }
     public function listeDepartsForGp(\Illuminate\Http\Request $request)
     {
