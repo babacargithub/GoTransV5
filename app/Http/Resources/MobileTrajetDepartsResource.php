@@ -66,6 +66,7 @@ class MobileTrajetDepartsResource extends JsonResource
                 return $this->departResource($depart);
             }),
             'pointDeparts' => $this->pointDeps()
+                ->where('disabled', false)
                 ->where("trajet_id", "=", $this->id)
                 ->where(function($query) {
                     $query->where("visibilite", "=", Depart::VISIBILITE_ST_CUSTOMERS_ONLY)

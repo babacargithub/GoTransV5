@@ -38,9 +38,9 @@ class PointDep extends Model
 
             $builder->orderBy('position');
         });
-        static::addGlobalScope('withoutDisabled', function ($builder) {
-
-            $builder->where('disabled', false);
-        });
+//        static::addGlobalScope('withoutDisabled', function ($builder) {
+//
+//            $builder->where('disabled', false);
+//        });
     }
 }
