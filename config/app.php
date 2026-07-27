@@ -59,6 +59,9 @@ return [
 
     'asset_url' => env('ASSET_URL'),
 
+    'concours_domain' => env('DOMAIN_CONCOURS', 'concourssefsugb.app'),
+    'gp_domain' => env('DOMAIN_GP', 'globaltransports.app'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone

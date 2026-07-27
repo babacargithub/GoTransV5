@@ -5,6 +5,21 @@ use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
+Route::domain(config('app.concours_domain'))->group(function () {
+    Route::get('/', function () {
+        return view('concoursefs.concours');
+    })->name('concours');
+});
+Route::domain(config('app.gp_domain'))->group(function () {
+    Route::get('/', function () {
+        return view('gp_booking.gp_booking_index', [
+            'trajets' => \App\Models\Trajet::select(['id', 'name', 'public_name', 'departure_city', 'arrival_city', 'length'])
+                ->get()
+                ->map(fn($trajet) => tap($trajet, fn($t) => $t->length = (float) $t->length)),
+        ]);
+    })->name('gp_booking');
+});
+
 /*Route::get('/', function () {
     return Inertia::render('Welcome', [
         'canLogin' => Route::has('login'),

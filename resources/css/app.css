@@ -1,0 +1,231 @@
+@import "tailwindcss";
+
+/* Globe One Transport Design System (Tailwind v4) */
+@theme {
+  /* Semantic color tokens - OKLCH for perceptually uniform colors */
+  /* Light mode palette based on Senegal's geography */
+
+  /* Background and surfaces */
+  --color-background: oklch(97.5% 0.005 264);
+  --color-foreground: oklch(14% 0.03 264);
+  --color-card: oklch(100% 0 0);
+  --color-card-foreground: oklch(14% 0.03 264);
+
+  /* Primary - Deep ocean blue (trustworthy, journey) */
+  --color-primary: oklch(25% 0.08 264);
+  --color-primary-foreground: oklch(98% 0.01 264);
+
+  /* Secondary - Warm cream ground */
+  --color-secondary: oklch(94% 0.015 65);
+  --color-secondary-foreground: oklch(25% 0.08 264);
+
+  /* Accent - Warm orange-brown for actions */
+  --color-accent: oklch(52% 0.15 48);
+  --color-accent-foreground: oklch(100% 0 0);
+
+  /* Muted - Taupe greys */
+  --color-muted: oklch(88% 0.01 260);
+  --color-muted-foreground: oklch(48% 0.02 260);
+
+  /* Borders and dividers */
+  --color-border: oklch(90% 0.005 260);
+  --color-input: oklch(100% 0 0);
+  --color-ring: oklch(52% 0.15 48);
+  --color-ring-offset: oklch(97.5% 0.005 264);
+
+  /* Status colors */
+  --color-success: oklch(60% 0.15 140);
+  --color-success-foreground: oklch(98% 0.01 264);
+  --color-warning: oklch(70% 0.15 70);
+  --color-warning-foreground: oklch(18% 0.02 70);
+  --color-error: oklch(58% 0.2 27);
+  --color-error-foreground: oklch(98% 0.01 264);
+
+  /* Spacing scale */
+  --spacing-0: 0;
+  --spacing-1: 0.25rem;
+  --spacing-2: 0.5rem;
+  --spacing-3: 0.75rem;
+  --spacing-4: 1rem;
+  --spacing-6: 1.5rem;
+  --spacing-8: 2rem;
+  --spacing-12: 3rem;
+  --spacing-16: 4rem;
+
+  /* Border radius */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+
+  /* Typography scale */
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+  --font-size-3xl: 1.875rem;
+  --font-size-4xl: 2.25rem;
+  --font-size-5xl: 3rem;
+
+  /* Line heights */
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.6;
+  --line-height-relaxed: 1.75;
+
+  /* Letter spacing */
+  --letter-spacing-tight: -0.5px;
+  --letter-spacing-normal: -0.3px;
+  --letter-spacing-wide: 0.5px;
+
+  /* Transitions */
+  --duration-200: 200ms;
+  --duration-300: 300ms;
+  --timing-ease: ease;
+  --timing-ease-out: ease-out;
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes slide-in {
+    from {
+      transform: translateY(-0.5rem);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+}
+
+
+/* Base layer - global styles */
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    letter-spacing: var(--letter-spacing-normal);
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold leading-tight;
+    letter-spacing: var(--letter-spacing-tight);
+  }
+
+  h1 {
+    @apply text-5xl;
+  }
+
+  h2 {
+    @apply text-3xl;
+  }
+
+  h3 {
+    @apply text-lg;
+  }
+
+  p {
+    @apply leading-normal;
+  }
+
+  /* Remove default button styles for semantic resets */
+  button {
+    @apply cursor-pointer border-none;
+    font: inherit;
+  }
+}
+
+/* Component layer - reusable UI patterns */
+@layer components {
+  .btn {
+    @apply px-6 py-3 rounded-lg font-semibold transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2;
+  }
+
+  .btn-primary {
+    @apply px-6 py-3 rounded-lg font-semibold transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2 bg-accent text-accent-foreground hover:bg-[oklch(48%_0.14_48)] active:bg-[oklch(44%_0.16_48)];
+  }
+
+  .btn-secondary {
+    @apply px-6 py-3 rounded-lg font-semibold transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2 bg-secondary text-secondary-foreground hover:bg-[oklch(90%_0.01_260)];
+  }
+
+  .btn-ghost {
+    @apply px-6 py-3 rounded-lg font-semibold transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2 bg-transparent text-primary hover:bg-secondary;
+  }
+
+  .btn-small {
+    @apply px-3 py-2 text-sm;
+  }
+
+  .card {
+    @apply bg-card text-card-foreground rounded-lg border border-border transition-all duration-200;
+  }
+
+  .card-interactive {
+    @apply bg-card text-card-foreground rounded-lg border border-border transition-all duration-200 cursor-pointer hover:border-primary hover:shadow-sm active:bg-secondary;
+  }
+
+  .card-selected {
+    @apply bg-[oklch(97%_0.02_40)] border-2 border-accent;
+  }
+
+  .label-uppercase {
+    @apply text-xs font-semibold uppercase text-muted-foreground;
+    letter-spacing: var(--letter-spacing-wide);
+  }
+
+  .input-field {
+    @apply w-full px-4 py-2 rounded-lg border border-border bg-input text-foreground transition-colors;
+  }
+
+  .input-field::placeholder {
+    @apply text-muted-foreground;
+  }
+
+  .input-field:focus-visible {
+    @apply outline-2 outline-ring outline-offset-2;
+  }
+
+  .prose {
+    @apply max-w-2xl text-foreground;
+  }
+}
+
+/* Utilities for common patterns */
+@layer utilities {
+  .text-truncate {
+    @apply truncate;
+  }
+
+  .line-clamp-2 {
+    @apply line-clamp-2;
+  }
+
+  .focus-ring {
+    @apply focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2;
+  }
+
+  .container-prose {
+    @apply max-w-3xl mx-auto px-4;
+  }
+
+  .grid-cols-auto {
+    @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3;
+  }
+
+  .space-y-2xl {
+    @apply space-y-8;
+  }
+
+  .space-x-2xl {
+    @apply space-x-8;
+  }
+}
