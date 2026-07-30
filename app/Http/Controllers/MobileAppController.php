@@ -8,7 +8,6 @@ use App\Http\Resources\BookingResource;
 use App\Http\Resources\MobileTrajetDepartsResource;
 use App\Http\Resources\MobileBookingResource;
 use App\Http\Resources\MobileMultipleBookingResource;
-use App\Manager\BookingManager;
 use App\Manager\TicketManager;
 use App\Models\AppParams;
 use App\Models\Booking;
@@ -23,17 +22,21 @@ use App\Models\TicketPayment;
 use App\Models\Trajet;
 use App\Models\Vehicule;
 use App\Rules\PhoneNumber;
+use App\Services\BookingService;
 use DB;
 use GuzzleHttp\Exception\GuzzleException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
-use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 
 class MobileAppController extends Controller
 {
+    public function __construct(private readonly BookingService $bookingService)
+    {
+    }
+
     public function params()
     {
         return response()->json(AppParams::first());
@@ -73,133 +76,7 @@ class MobileAppController extends Controller
      */
     public function handleBookingForGpMultiPassenger(GpBookingRequest $request)
     {
-        try {
-            $validated = $request->validated();
-            $depart = Depart::findOrFail($validated['depart_id']);
-
-            try {
-                $bus = $depart->getBusForBooking(climatise: true);
-            } catch (\Exception $e) {
-                return response()->json(["message" => "Aucun bus climatisé disponible pour ce départ"], 422);
-            }
-
-            if ($bus == null) {
-                return response()->json(["message" => "Aucun bus disponible pour ce départ"], 422);
-            }
-        $passengers = $validated['passengers'];
-        $passengers = collect($passengers)->map(function (array $passenger) {
-            // Create or update the customer
-
-            $customer = Customer::where('phone_number', $passenger['phone_number'])->first();
-            if ($customer == null) {
-                $customer = Customer::create([
-                    'prenom' => $passenger['first_name'],
-                    'nom' => $passenger['last_name'],
-                    'phone_number' => $passenger['phone_number'],
-                    "customer_category_id" => CustomerCategory::where('abrv',"GP")
-                        ->first()?->id,
-                ]);
-            }else{
-                return [
-                    "id" => $customer->id,
-                    'prenom' => $passenger['first_name'],
-                    'nom' => $passenger['last_name'],
-                    "full_name" => $passenger['first_name']. " ". $passenger['last_name'],
-                    'phone_number' => $passenger['phone_number'],
-                ];
-            }
-            return $customer;
-        });
-        $bookings = [];
-        $groupId = BookingManager::generateBookingGroupId();
-
-        foreach ($passengers as $passenger) {
-            $booking = new Booking([
-                'payment_method' => $validated['payment_method'],
-                'referer' => $validated['referer'] ?? 0,
-                'booked_with_platform' => $validated['booked_with_platform'] ?? "web",
-
-            ]);
-            $booking->depart()->associate($depart);
-            $booking->bus()->associate($bus);
-            if ($passenger instanceof Customer) {
-                $booking->customer()->associate($passenger);
-            } else {
-                $booking->customer_id = $passenger["id"];
-                $booking->booked_for_customer = $passenger["full_name"];
-            }
-            $pointDepartAndDestination = $this->determinePointDepartAndDestinations($depart);
-            $booking->point_dep()->associate($pointDepartAndDestination["point_dep"]);
-            $booking->destination()->associate($pointDepartAndDestination["destination"]);
-            $booking->paye = false;
-            $booking->comment = is_request_for_gp_customers() ? "for_gp" : null;
-            $booking->group_id = $groupId;
-//            $booking->save();
-            $bookings[] = $booking;
-        }
-        if (isset($validated['selected_seats']) && is_array($validated['selected_seats']) && count($validated['selected_seats']) > 0) {
-            if (count($validated['selected_seats']) != count($bookings)) {
-                return response()->json(["message" => "Le nombre de sièges sélectionnés ne correspond pas au nombre de passagers"], 422);
-            }
-            $seats = collect($validated['selected_seats'])->map(function ($seatNumber) use ($bus) {
-                $seat = $bus->seats()
-                    ->join('seats', 'seats.id', '=', 'bus_seats.seat_id')
-                    ->select('bus_seats.*')
-                    ->where('seats.number', $seatNumber)->first();
-
-                if ($seat == null) {
-                    throw new \RuntimeException("Le siège numéro $seatNumber n'existe pas ou n'est pas disponible");
-                }
-                return $seat;
-            });
-        } else {
-            $seats = $bus->getAvailableSeats()->take($validated["passenger_count"]);
-            if (count($seats) < count($bookings)) {
-                return response()->json(["message" => "Il n'y a pas assez de sièges disponibles pour tous les passagers"], 422);
-            }
-        }
-        // assigning seats to bookings
-        foreach ($bookings as $index => &$booking) {
-            if (isset($seats[$index])) {
-                $booking->seat()->associate($seats[$index]);
-            }
-            // check if customer has unpaid booking in the bookings table
-            $existingBookings = Booking::where('customer_id', $booking->customer_id)
-                ->where('bus_id', $booking->bus_id)
-                ->whereNull('ticket_id')
-                ->whereNull("deleted_at")
-                ->whereNull("deletion_timestamp")
-                ->get();
-            $hasExistingBooking = $existingBookings->isNotEmpty();
-            foreach ($existingBookings as $existingBooking){
-                if ($existingBooking) {
-                    if ($existingBooking->has_seat) {
-                        $seatOfExistingBooking = $existingBooking->seat;
-                        $existingBooking->freeSeat();
-                        $existingBooking->save();
-                        $seatOfExistingBooking->freeSeat();
-                        $seatOfExistingBooking->save();
-                    }
-                    if (isset($seats[$index])) {
-                        $existingBooking->seat()->associate($seats[$index]);
-                    }
-                    $existingBooking->group_id = $booking->group_id;
-
-                }
-
-            }
-            if ($hasExistingBooking) {
-                    $bookings[$index] = $existingBookings->last();
-            } else {
-                $bookings[$index] = $booking;
-            }
-
-
-        }
-        return  $this->processGroupBookings($depart,$request, $bookings, payment_method: $request->validated()["payment_method"]);
-        } catch (\Exception $e) {
-            return response()->json(["message" => "Une erreur s'est produite lors du traitement de la réservation: " . $e->getMessage()], 422);
-        }
+        return $this->bookingService->handleGpMultiPassengerBooking($request);
     }
     public function listeDepartsForGp(\Illuminate\Http\Request $request)
     {
@@ -385,114 +262,12 @@ class MobileAppController extends Controller
      */
     public function saveMultipleBookings(Depart $depart, MobileMultipleBookingRequest $request)
     {
-            $bookings = $request->input('bookings');
+        $bookings = $request->input('bookings');
         $payment_method = $request->input("payment_method");
-        $platform = $request->headers->get('Platform')?? $request->input("booked_with_platform")?? "web";
-        return $this->processGroupBookings($depart, $request, $bookings, $payment_method, $platform);
-
-
-    } /**
-     * @throws RequestException
-     * @throws ConnectionException
-     * @throws GuzzleException
-     */
-    protected function processGroupBookings(Depart $depart, \Illuminate\Http\Request $request, array $bookings = [],
-                                         $payment_method = null, $platform ="mobile")
-    {
-
-        if (count($bookings) == 0){
-            throw new \InvalidArgumentException("Aucune réservation à enregistrer ");
-        }
-        DB::transaction(function () use ($bookings) {
-            foreach ($bookings as  $booking) {
-                $booking->save();
-                $seat = $booking->seat;
-                if ($seat != null) {
-                    $seat->book();
-                    $seat->save();
-                }
-            }
-        });
-        $ticketManager = app(TicketManager::class);
-        $waveController = app(WavePaiementController::class);
-        $omPaymentController = app(OrangeMoneyController::class);
-        $group_id = $bookings[0]->group_id;
-        $main_booking_id = $bookings[0]->id;
-            $totalTicketPrice = $ticketManager->calculatePriceForMultipleBookings($bookings, $payment_method, $platform) ['totalPrice'];
-            $payment_method = strtolower($payment_method);
-        if (strtolower($payment_method) == "wave") {
-            $metadata = [
-                "amount" => '' .$totalTicketPrice,
-                "client_reference" => [
-                    'type'=>'multiple_booking',
-                    'group_id' => $group_id,
-                    "depart_id"=>$depart->id],
-                "error_url" => WavePaiementController::getEndpointForRedirect().'/#/multiple_bookings/'.$group_id,
-                "success_url" => WavePaiementController::getEndpointForRedirect().'/#/multiple_bookings/'.$group_id,
-            ];
-
-
-            $wavePaiementResponse = $waveController->getPaymentUrl($metadata);
-            if ($wavePaiementResponse->isOK() ) {
-                $ticketPayment = new TicketPayment();
-                $ticketPayment->payement_method = "wave";
-                $ticketPayment->status = TicketPayment::STATUS_PENDING;
-                $ticketPayment->montant = $totalTicketPrice;
-                $ticketPayment->meta_data = json_encode($metadata["client_reference"]);
-                $ticketPayment->group_id = $group_id;
-                $ticketPayment->is_for_multiple_booking = true;
-                $ticketPayment->save();
-
-            }
-            $wavePaiementResponse->data['group_id'] = $group_id;
-            $wavePaiementResponse->data['main_booking_id'] = $main_booking_id;
-            $wavePaiementResponse->data['paymentMethod'] = "om";
-            return $wavePaiementResponse;
-        } else if (strtolower($payment_method) == "om") {
-            $metadata = [
-                "amount"=>$totalTicketPrice,
-                //TODO om number to be defined
-                "customer" => $request->input("om_number"),
-                "metadata" => [
-                    "group_id" => $group_id,
-                    "type" => "multiple_booking",
-                    "depart_id"=>$depart->id,
-                    "bookings" => json_encode(array_map(function (Booking $booking) {
-                        return $booking->id;
-                    }, $bookings))
-                ],
-
-            ];
-
-
-            $paymentResponse = $omPaymentController->initOMPayment($metadata);
-            if ($paymentResponse->isOK()){
-                $ticketPayment = new TicketPayment();
-                $ticketPayment->payement_method = "om";
-                $ticketPayment->montant = $totalTicketPrice;
-                $ticketPayment->status = TicketPayment::STATUS_PENDING;
-                $ticketPayment->phone_number = $request->input("om_number");
-                $ticketPayment->meta_data = json_encode($metadata["metadata"]);
-                $ticketPayment->group_id = $group_id;
-                $ticketPayment->is_for_multiple_booking = true;
-                $ticketPayment->save();
-            }else{
-                Log::log("error", "Erreur lors de l'initialisation du paiement pour le groupe $group_id");
-                return response()->json(["message" => "Erreur lors de l'initialisation du paiement "], 422);
-            }
-
-
-            $paymentResponse->data['group_id'] = $group_id;
-            $paymentResponse->data['main_booking_id'] = $main_booking_id;
-            $paymentResponse->data['paymentMethod'] = "om";
-            return $paymentResponse;
-
-        }else{
-            return response()->json(["message" => "Méthode de paiement non supportée"], 422);
-        }
-
-
+        $platform = $request->headers->get('Platform') ?? $request->input("booked_with_platform") ?? "web";
+        return $this->bookingService->processGroupBookings($depart, $request, $bookings, $payment_method, $platform);
     }
+
     public function calculatePrice(Depart $depart, MobileMultipleBookingRequest $request): JsonResponse
     {
         $bookings = $request->input('bookings');
@@ -629,6 +404,7 @@ class MobileAppController extends Controller
             $seat?->save();
             $booking->seat_id = null;
             $booking->save();
+            $this->bookingService->detachRoundTripTwin($booking);
             $booking->delete();
         });
         return response()->noContent();

@@ -1,0 +1,332 @@
+<?php
+
+namespace App\Services;
+
+use App\Manager\TicketManager;
+use App\Models\Bus;
+use App\Models\Depart;
+use App\Models\PointDep;
+use App\Models\Trajet;
+use DB;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+
+class TrajetService
+{
+    public function __construct(private readonly TicketManager $ticketManager)
+    {
+    }
+
+    public function listAll(): \Illuminate\Database\Eloquent\Collection
+    {
+        return Trajet::with('pointDeps', 'destinations', 'horaires')->get();
+    }
+
+    public function loadDetails(Trajet $trajet): Trajet
+    {
+        return $trajet->load('pointDeps', 'destinations', 'horaires');
+    }
+
+    public function createTrajet(array $data): JsonResponse
+    {
+        $pointDeparts = $data['point_departs'];
+        $destinations = $data['destinations'];
+        $horaires = $data['horaires'];
+
+        DB::transaction(function () use ($data, $pointDeparts, $destinations, $horaires) {
+            $trajet = Trajet::create([
+                'name' => $data['name'],
+                'start_point' => $data['start_point'] ?? null,
+                'end_point' => $data['end_point'] ?? null,
+                'public_name' => $data['public_name'] ?? null,
+                'departure_city' => $data['departure_city'] ?? null,
+                'arrival_city' => $data['arrival_city'] ?? null,
+                'code' => $data['code'] ?? null,
+                'length' => $data['length'] ?? null,
+            ]);
+            $trajet->pointDeps()->createMany($pointDeparts);
+            $trajet->destinations()->createMany($destinations);
+            $trajet->horaires()->createMany($horaires);
+        });
+
+        return response()->json(["message" => "Trajet créé avec succès !"], 201);
+    }
+
+    public function updateTrajet(Trajet $trajet, array $data): void
+    {
+        DB::transaction(function () use ($data, $trajet) {
+            $trajet->update([
+                'name' => $data['name'] ?? $trajet->name,
+                'public_name' => $data['public_name'] ?? $trajet->public_name,
+                'departure_city' => $data['departure_city'] ?? $trajet->departure_city,
+                'arrival_city' => $data['arrival_city'] ?? $trajet->arrival_city,
+                'code' => $data['code'] ?? $trajet->code,
+                'length' => $data['length'] ?? $trajet->length,
+            ]);
+            if (isset($data['point_departs'])) {
+                foreach ($data['point_departs'] as $pointDep) {
+                    $pointDepModel = $trajet->pointDeps()->find($pointDep['id']);
+                    if ($pointDepModel) {
+                        $pointDepModel->update($pointDep);
+                    }
+                }
+            }
+            if (isset($data['destinations'])) {
+                foreach ($data['destinations'] as $destination) {
+                    $destinationModel = $trajet->destinations()->find($destination['id']);
+                    if ($destinationModel) {
+                        $destinationModel->update($destination);
+                    }
+                }
+            }
+            if (isset($data['horaires'])) {
+                foreach ($data['horaires'] as $horaire) {
+                    $horaireModel = $trajet->horaires()->find($horaire['id']);
+                    if ($horaireModel) {
+                        $horaireModel->update($horaire);
+                    }
+                }
+            }
+        });
+    }
+
+    public function deleteTrajet(Trajet $trajet): void
+    {
+        $trajet->delete();
+    }
+
+    /**
+     * Resolves the trajet running in the opposite direction of the given trajet (arrival/departure cities swapped).
+     */
+    public function resolveReverseTrajet(Trajet $trajet): ?Trajet
+    {
+        return Trajet::where('departure_city', $trajet->arrival_city)
+            ->where('arrival_city', $trajet->departure_city)
+            ->first();
+    }
+
+    /**
+     * Finds the departs, on the reverse trajet of the given trajet, that run on the given date.
+     */
+    public function findDepartsForReverseTrajet(Trajet $trajet, string $date): Collection
+    {
+        $reverseTrajet = $this->resolveReverseTrajet($trajet);
+        if ($reverseTrajet == null) {
+            return collect();
+        }
+
+        return $reverseTrajet->departs()
+            ->notPassed()
+            ->whereDate('date', $date)
+            ->where(function ($query) {
+                $query->where('visibilite', Depart::VISIBILITE_GP_CUSTOMERS_ONLY)
+                    ->orWhere('visibilite', Depart::VISIBILITE_ALL_CUSTOMERS);
+            })
+            ->get();
+    }
+
+    /**
+     * Finds the depart, on the reverse trajet of the given outbound depart, that runs on the given return date.
+     */
+    public function findReturnDepart(Depart $outboundDepart, string $returnDate): ?Depart
+    {
+        return $this->findDepartsForReverseTrajet($outboundDepart->trajet, $returnDate)->first();
+    }
+
+    /**
+     * Search trajets by departure and arrival cities, with an optional round-trip return_date.
+     */
+    public function searchByCities(Request $request): JsonResponse
+    {
+        $data = [];
+        $returnData = [];
+        $isRoundTrip = $request->filled('return_date');
+        $cheapestReturnPrice = null;
+
+        try {
+            [$trajet, $boardingPointDep] = $this->resolveTrajetForSearch($request->departure_city, $request->arrival_city);
+
+            if ($trajet === null) {
+                throw new ModelNotFoundException();
+            }
+
+            if ($isRoundTrip) {
+                $returnDeparts = $this->findDepartsForReverseTrajet($trajet, $request->return_date);
+                if ($returnDeparts->isEmpty()) {
+                    $formattedReturnDate = \Illuminate\Support\Carbon::parse($request->return_date)->format('d/m/Y');
+                    return response()->json([
+                        'message' => "Nous n'avons pas prévu de voyage retour pour la date $formattedReturnDate de "
+                            . $request->arrival_city . " à " . $request->departure_city,
+                    ], 404);
+                }
+                $reverseTrajet = $this->resolveReverseTrajet($trajet);
+                $returnData = collect($returnDeparts)->map(function ($depart) use ($reverseTrajet) {
+                    return $this->formatDepartForSearch($depart, $reverseTrajet);
+                });
+
+            }
+
+            $departs = $trajet->departs()->where('date', '>=', now())
+                ->whereDate('date', '=', $request->travel_date)
+                ->where(function ($query) {
+                    $query->where('visibilite', Depart::VISIBILITE_GP_CUSTOMERS_ONLY)
+                        ->orWhere('visibilite', Depart::VISIBILITE_ALL_CUSTOMERS);
+                })
+                ->get();
+
+            $data = collect($departs)->map(function ($depart) use ($trajet, $boardingPointDep, $isRoundTrip, $cheapestReturnPrice) {
+                $item = $this->formatDepartForSearch($depart, $trajet, $boardingPointDep);
+                if ($isRoundTrip) {
+                    // For now price remains the same for both legs
+                    $item['one_way_price'] = $item['ticket_price'];
+                    $item['return_price'] = $item['ticket_price'];
+
+                }
+
+                return $item;
+            });
+            $message = 'Trajets found successfully';
+        } catch (ModelNotFoundException $e) {
+            $message = 'Trajets found not found';
+        }
+
+        $response = [
+            'data' => $data,
+            'message' => $message,
+        ];
+
+        if ($isRoundTrip) {
+            $response['is_round_trip'] = true;
+            $response['return_data'] = $returnData;
+            $response['round_trip_available'] = $cheapestReturnPrice !== null;
+            if ($cheapestReturnPrice === null && $message === 'Trajets found successfully') {
+                $response['message'] = "Aucun départ retour n'est disponible pour cette date, les prix affichés sont pour un aller simple.";
+            }
+        }
+
+        return response()->json($response);
+    }
+
+    /**
+     * Resolves the trajet (and, for a mid-route boarding search, the specific PointDep) matching a
+     * departure/arrival city pair.
+     *
+     * Tries an exact trajet endpoint match first (unchanged, most common case). If none exists, falls
+     * back to treating departure_city as a mid-route boarding point: a PointDep marked with that city,
+     * on a trajet whose own arrival_city is exactly the requested arrival_city. The arrival side is
+     * never resolved via mid-route stops — each trajet has, in practice, a single real destination.
+     *
+     * @return array{0: ?Trajet, 1: ?PointDep}
+     */
+    private function resolveTrajetForSearch(string $departureCity, string $arrivalCity): array
+    {
+        $trajet = Trajet::where('departure_city', $departureCity)
+            ->where('arrival_city', $arrivalCity)
+            ->first();
+
+        if ($trajet !== null) {
+            return [$trajet, null];
+        }
+
+        $boardingPointDep = PointDep::where('city', $departureCity)
+            ->where('disabled', false)
+            ->whereHas('trajet', fn(Builder $query) => $query->where('arrival_city', $arrivalCity))
+            ->with('trajet')
+            ->first();
+
+        if ($boardingPointDep !== null) {
+            return [$boardingPointDep->trajet, $boardingPointDep];
+        }
+
+        return [null, null];
+    }
+
+    /**
+     * Formats a depart for the departs/search response (id, times, seat availability, one-leg ticket price).
+     *
+     * @param Trajet|null $trajet The trajet the depart belongs to; used to resolve a default boarding point
+     *                            when $boardingPointDep isn't given. Falls back to $depart->trajet if omitted.
+     * @param PointDep|null $boardingPointDep When set (mid-route search), the actual boarding stop and
+     *                                        schedule used, instead of the trajet's default point_dep.
+     */
+    private function formatDepartForSearch(Depart $depart, ?Trajet $trajet = null, ?PointDep $boardingPointDep = null): array
+    {
+        $bus = $depart->getBusForBooking(climatise: false);
+        $trajet ??= $depart->trajet;
+        $pointDep = $boardingPointDep ?? $trajet?->pointDeps()
+            ->where('disabled', false)
+            ->orderBy('position')
+            ->first();
+
+        return [
+            'id' => $depart->id,
+            'departure_time' => $boardingPointDep !== null
+                ? $this->resolveDepartureTimeForPointDep($depart, $bus, $boardingPointDep)
+                : $depart->date->format('H\hi'),
+            "departure_date" => $depart->date->format('Y-m-d'),
+            "seats_left" => $bus?->seatsLeft() . " " . $bus?->full_name,
+            'seats_remaining' => $bus?->seatsLeft() > 0 && !$bus?->isClosed() ? $bus?->seatsLeft() : 0,
+            'ticket_price' => $bus !== null
+                ? $this->ticketManager->calculateTicketPrice($bus, $pointDep, \is_request_for_gp_customers())
+                : null,
+            'point_dep_id' => $pointDep?->id,
+            'boarding_point' => $pointDep?->name,
+        ];
+    }
+
+    /**
+     * Resolves the actual pickup time at a given point_dep for a depart/bus, falling back to the
+     * trajet's overall departure time when no specific schedule was recorded for that stop.
+     */
+    private function resolveDepartureTimeForPointDep(Depart $depart, ?Bus $bus, PointDep $pointDep): string
+    {
+        $heureDepart = $bus?->heuresDeparts()->where('point_dep_id', $pointDep->id)->where('disabled', false)->first();
+
+        if ($heureDepart === null) {
+            $heureDepart = $depart->heuresDeparts()->where('point_dep_id', $pointDep->id)->where('disabled', false)->first();
+        }
+
+        return $heureDepart !== null ? $heureDepart->heureDepart->format('H\hi') : $depart->date->format('H\hi');
+    }
+
+    public function getCities(): JsonResponse
+    {
+        $departureCities = Trajet::whereNotNull('departure_city')
+            ->distinct()
+            ->pluck('departure_city')
+            ->map(function ($city, $index) {
+                return ['id' => $index + 1, 'name' => $city];
+            });
+
+        $arrivalCities = Trajet::whereNotNull('arrival_city')
+            ->distinct()
+            ->pluck('arrival_city')
+            ->map(function ($city, $index) {
+                return ['id' => $index + 100, 'name' => $city];
+            });
+
+        // Mid-route boarding cities (e.g. Thies) — a PointDep marked with a city customers can board at.
+        $pointDepCities = PointDep::withoutGlobalScope('order')
+            ->whereNotNull('city')
+            ->where('disabled', false)
+            ->distinct()
+            ->pluck('city')
+            ->map(function ($city, $index) {
+                return ['id' => $index + 200, 'name' => $city];
+            });
+
+        $cities = $departureCities->merge($arrivalCities)
+            ->merge($pointDepCities)
+            ->unique('name')
+            ->sortBy('name')
+            ->values();
+
+        return response()->json([
+            'data' => $cities,
+            'message' => 'Cities retrieved successfully',
+        ]);
+    }
+}

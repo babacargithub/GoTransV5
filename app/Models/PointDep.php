@@ -11,6 +11,8 @@ class PointDep extends Model
     public $timestamps = false;
     protected $fillable = [
        "name",
+        "city",
+        "ticket_price",
         "trajet_id",
         "heure_point_dep",
         "heure_point_dep_soir",

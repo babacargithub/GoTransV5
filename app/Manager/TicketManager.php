@@ -9,6 +9,9 @@ use App\Http\Controllers\OrangeMoneyController;
 use App\Http\Controllers\WavePaiementController;
 use App\Http\Resources\PaymentResponseResource;
 use App\Models\Booking;
+use App\Models\Bus;
+use App\Models\PointDep;
+use App\Models\PointDepBus;
 use App\Models\Ticket;
 use App\Models\Vehicule;
 use App\Utils\NotificationSender\SMSSender\SMSSender;
@@ -24,6 +27,8 @@ class  TicketManager
 {
     // TODO: make this dynamic
     const DISCOUNT_AMOUNT = 10;
+    const WAVE_FEES = 0.01;
+    const OM_FEES = 0.01;
     private SMSSender $smsSender;
 
     public function __construct(SMSSender $smsSender)
@@ -33,7 +38,8 @@ class  TicketManager
 
     /**
      * @param Booking $booking
-     * @param $paymentMethod
+     * @param null $paymentMethod
+     * @param bool $isForCheckout
      * @return int
      */
 
@@ -41,25 +47,58 @@ class  TicketManager
     true) :
     int
     {
-        if (\is_request_for_gp_customers() || $booking->is_for_gp) {
-            $ticketPrice = ($booking->bus->gp_ticket_price ?? $booking->bus->ticket_price );
-            return   $ticketPrice + ($isForCheckout ? $ticketPrice * 0.01 : 0);
+        return $this->calculateTicketPrice(
+            $booking->bus,
+            $booking->point_dep,
+            \is_request_for_gp_customers() || $booking->is_for_gp,
+            $paymentMethod,
+            $isForCheckout,
+        );
+    }
+
+    /**
+     * Calculates the ticket price (base price + applicable fees) for a bus, optionally boarding at a
+     * specific point_dep. This is the single source of pricing logic, shared by calculateTicketPriceForBooking
+     * (a real booking) and anywhere else that needs to show a price ahead of booking (e.g. a departs search),
+     * where there is no Booking yet.
+     */
+    public function calculateTicketPrice(Bus $bus, ?PointDep $pointDep = null, bool $forGp = false, $paymentMethod = null, bool $isForCheckout = true): int
+    {
+        $price = $this->resolveBaseTicketPrice($bus, $pointDep, $forGp);
+
+        if ($forGp) {
+            return $price + ($isForCheckout ? $price * self::WAVE_FEES : 0);
         }
-        $price =   $booking->bus->ticket_price;
-        if ($paymentMethod == "wave"){
-            $price += ($price * 0.00);
-        }
-        else if ($paymentMethod == "om"){
-            $price += ($price * 0.00);
-        }
-        if ($booking->bus->vehicule !== null){
-            if ($booking->bus->climatise){
-                $price = $price + ($price * 0.00);
-            }
+        if ($paymentMethod == "wave") {
+            $price += ($price * self::WAVE_FEES);
+        } else if ($paymentMethod == "om") {
+            $price += ($price * self::OM_FEES);
         }
 
         return $price;
+    }
 
+    /**
+     * Resolves the base ticket price (before fees) for a bus, optionally boarding at a specific point_dep,
+     * checking increasingly specific overrides first: the price at the exact bus stop (bus + point_dep pair),
+     * then the point_dep's own city price, falling back to the bus's flat price when neither is set.
+     */
+    private function resolveBaseTicketPrice(Bus $bus, ?PointDep $pointDep, bool $forGp): int
+    {
+        if ($pointDep !== null) {
+            $busStopPrice = PointDepBus::where('bus_id', $bus->id)
+                ->where('point_dep_id', $pointDep->id)
+                ->value('ticket_price');
+            if ($busStopPrice !== null) {
+                return $busStopPrice;
+            }
+
+            if ($pointDep->ticket_price !== null) {
+                return $pointDep->ticket_price;
+            }
+        }
+
+        return $forGp ? ($bus->gp_ticket_price ?? $bus->ticket_price) : $bus->ticket_price;
     }
 
     /**
@@ -83,8 +122,6 @@ class  TicketManager
             // Calculate discount based on value "booked_with_platform"
             // If booked with mobile app, discount is 10%
             // If booked with web platform, discount is 0%
-
-
             if ($platform == "iphone" || $platform == "android") {
                 if ($ticketPrice >= 3550) {
                     $ticketPrice -= self::DISCOUNT_AMOUNT;
@@ -125,7 +162,7 @@ class  TicketManager
     public function provideOneForBooking($price): Ticket
     {
 
-        return $this->provideOne($price- ($price * 0.01));
+        return $this->provideOne($price);
     }
 
     /**

@@ -12,6 +12,7 @@ class PointDepBus extends Model
         'point_dep_id',
         'bus_id',
         "arret_bus",
+        "ticket_price",
         "disabled"
     ];
     protected $casts = [

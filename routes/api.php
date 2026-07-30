@@ -130,6 +130,7 @@ Route::post("bookings/{booking}/send_schedule_notification", [BookingController:
 Route::post("bookings/{booking}/refund", [BookingController::class, 'refundTicket']);
 
 Route::resource('bookings', BookingController::class)->only(['index', 'store', 'update', 'destroy']);
+Route::put("point_departs/reorder", [PointDepController::class, 'reorder']);
 Route::resource("point_departs", PointDepController::class);
 Route::resource("customers", CustomerController::class);
 Route::get("events/{event}/departs", [EventController::class, 'departs']);

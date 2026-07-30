@@ -16,6 +16,9 @@ class Booking extends Model
     //
     use SoftDeletes;
 
+    const TRIP_LEG_OUTBOUND = "outbound";
+    const TRIP_LEG_RETURN = "return";
+
     protected $fillable = [
         "online",
     "customer_id",
@@ -38,6 +41,8 @@ class Booking extends Model
     "group_id",
     "referer_id",
         "booked_for_customer",
+        "round_trip_id",
+        "trip_leg",
 
     ];
 
@@ -147,6 +152,11 @@ class Booking extends Model
     public function belongsToAGroup(): bool
     {
         return $this->group_id !== null;
+    }
+
+    public function isRoundTrip(): bool
+    {
+        return $this->round_trip_id !== null;
     }
     public function isPaid() : bool
     {

@@ -32,13 +32,32 @@ class PointDepController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string',
-            'heurePointDep' => 'required|string',
-            'heurePointDepSoir' => 'required|string',
+            'heurePointDep' => 'required|date_format:H:i',
+            'heurePointDepSoir' => 'required|date_format:H:i',
             'arretBus' => 'required|string',
             'disabled' => 'boolean',
+            'trajet_id' => 'required|exists:trajets,id',
+            'city' => 'nullable|string',
+            'ticket_price' => 'nullable|numeric',
         ]);
-        $pointDep = new PointDep($validated);
-        $pointDep->save();
+
+        $position = (PointDep::withoutGlobalScope('order')
+            ->where('trajet_id', $validated['trajet_id'])
+            ->max('position') ?? 0) + 1;
+
+        $pointDep = PointDep::create([
+            'name' => $validated['name'],
+            'heure_point_dep' => $validated['heurePointDep'],
+            'heure_point_dep_soir' => $validated['heurePointDepSoir'],
+            'arret_bus' => $validated['arretBus'],
+            'disabled' => $validated['disabled'] ?? false,
+            'trajet_id' => $validated['trajet_id'],
+            'city' => $validated['city'] ?? null,
+            'ticket_price' => $validated['ticket_price'] ?? null,
+            'position' => $position,
+        ]);
+
+        return response()->json($pointDep, 201);
     }
 
     /**
@@ -63,6 +82,8 @@ class PointDepController extends Controller
             'heurePointDepSoir' => 'date_format:H:i',
             'arretBus' => 'string',
             'disabled' => 'boolean',
+            'city' => 'nullable|string',
+            'ticket_price' => 'nullable|numeric',
         ]);
         // map $validated
        $data = [
@@ -70,7 +91,9 @@ class PointDepController extends Controller
            'heure_point_dep' => $validated['heurePointDep'] ?? $pointDepart->heure_point_dep,
            'heure_point_dep_soir' => $validated['heurePointDepSoir'] ?? $pointDepart->heure_point_dep_soir,
            'arret_bus' => $validated['arretBus']?? $pointDepart->arret_bus,
-           'disabled' => $validated['disabled']?? $pointDepart->disabled];
+           'disabled' => $validated['disabled']?? $pointDepart->disabled,
+           'city' => $validated['city'] ?? $pointDepart->city,
+           'ticket_price' => $validated['ticket_price'] ?? $pointDepart->ticket_price];
 
         $pointDepart->update($data);
         return response()->json($pointDepart);
@@ -92,5 +115,29 @@ class PointDepController extends Controller
         $pointDep->save();
         return response()->json($pointDep);
 
+    }
+
+    /**
+     * Persist a new display order for the point deps of a trajet (drag-and-drop reordering).
+     */
+    public function reorder(Request $request)
+    {
+        $validated = $request->validate([
+            'trajet_id' => 'required|exists:trajets,id',
+            'point_dep_ids' => 'required|array|min:1',
+            'point_dep_ids.*' => 'integer|exists:point_deps,id',
+        ]);
+
+        $pointDeps = PointDep::withoutGlobalScope('order')
+            ->whereIn('id', $validated['point_dep_ids'])
+            ->where('trajet_id', $validated['trajet_id'])
+            ->get()
+            ->keyBy('id');
+
+        foreach ($validated['point_dep_ids'] as $index => $id) {
+            $pointDeps->get($id)?->update(['position' => $index + 1]);
+        }
+
+        return response()->json(['message' => "Ordre mis à jour avec succès"]);
     }
 }

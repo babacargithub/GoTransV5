@@ -2,23 +2,22 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Depart;
 use App\Models\Trajet;
-use App\Models\Vehicule;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
+use App\Services\TrajetService;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rules\Unique;
 
 class TrajetController extends Controller
 {
+    public function __construct(private readonly TrajetService $trajetService)
+    {
+    }
+
     /**
      * Display a listing of the resource.
      */
     public function index()
     {
-        //
-        return Trajet::with('pointDeps', 'destinations', 'horaires')->get();
+        return $this->trajetService->listAll();
     }
 
     /**
@@ -35,9 +34,13 @@ class TrajetController extends Controller
      */
     public function store(Request $request)
     {
-        //
         $data = $request->validate([
             'name' => 'required|string|unique:trajets',
+            'public_name' => 'nullable|string',
+            'departure_city' => 'nullable|string',
+            'arrival_city' => 'nullable|string',
+            'code' => 'nullable|string|unique:trajets,code',
+            'length' => 'nullable|numeric',
             "start_point" => 'required|string',
             "end_point" => 'required|string',
             "point_departs" => 'required|array',
@@ -49,27 +52,11 @@ class TrajetController extends Controller
             "horaires" => 'required|array',
             "horaires.*.name" => 'required|string',
             "horaires.*.bus_leave_time" => 'required|date_format:H:i',
-        ],[
+        ], [
             'name.unique' => 'Ce trajet existe déjà'
         ]);
 
-
-
-        $point_departs = $data['point_departs'];
-        $destinations = $data['destinations'];
-        $horaires = $data['horaires'];
-        \DB::transaction(function () use ($data, $point_departs, $destinations, $horaires) {
-            $trajet = Trajet::create([
-                'name' => $data['name'],
-                'start_point' => $data['start_point']??null,
-                'end_point' => $data['end_point'] ?? null
-            ]);
-            $trajet->pointDeps()->createMany($point_departs);
-            $trajet->destinations()->createMany($destinations);
-            $trajet->horaires()->createMany($horaires);
-        });
-
-        return response()->json(["message"=>"Depart crée avec succès !"], 201);
+        return $this->trajetService->createTrajet($data);
     }
 
     /**
@@ -77,9 +64,7 @@ class TrajetController extends Controller
      */
     public function show(Trajet $trajet)
     {
-        //
-        $trajet->load('pointDeps', 'destinations', 'horaires');
-        return $trajet;
+        return $this->trajetService->loadDetails($trajet);
     }
 
     /**
@@ -95,9 +80,13 @@ class TrajetController extends Controller
      */
     public function update(Request $request, Trajet $trajet)
     {
-        //
         $data = $request->validate([
             'name' => 'string',
+            'public_name' => 'nullable|string',
+            'departure_city' => 'nullable|string',
+            'arrival_city' => 'nullable|string',
+            'code' => 'nullable|string|unique:trajets,code,' . $trajet->id,
+            'length' => 'nullable|numeric',
             "point_departs" => 'array',
             "point_departs.*.name" => 'string',
             "point_departs.*.heure_depart" => 'date_format:H:i',
@@ -108,36 +97,8 @@ class TrajetController extends Controller
             "horaires.*.heure_depart" => 'date_format:H:i',
             "horaires.*.name" => 'string',
         ]);
-        // update the trajet along with its point de departs, destinations and horaires
-        \DB::transaction(function () use ($data, $trajet) {
-            $trajet->update([
-                'name' => $data['name'] ?? $trajet->name
-            ]);
-            if (isset($data['point_departs'])) {
-                foreach ($data['point_departs'] as $pointDep) {
-                    $pointDepModel = $trajet->pointDeps()->find($pointDep['id']);
-                    if ($pointDepModel) {
-                        $pointDepModel->update($pointDep);
-                    }
-                }
-            }
-            if (isset($data['destinations'])) {
-                foreach ($data['destinations'] as $destination) {
-                    $destinationModel = $trajet->destinations()->find($destination['id']);
-                    if ($destinationModel) {
-                        $destinationModel->update($destination);
-                    }
-                }
-            }
-            if (isset($data['horaires'])) {
-                foreach ($data['horaires'] as $horaire) {
-                    $horaireModel = $trajet->horaires()->find($horaire['id']);
-                    if ($horaireModel) {
-                        $horaireModel->update($horaire);
-                    }
-                }
-            }
-        });
+
+        $this->trajetService->updateTrajet($trajet, $data);
     }
 
     /**
@@ -145,10 +106,8 @@ class TrajetController extends Controller
      */
     public function destroy(Trajet $trajet)
     {
-        //
-        $trajet->delete();
+        $this->trajetService->deleteTrajet($trajet);
         return response()->noContent();
-
     }
 
     /**
@@ -160,52 +119,13 @@ class TrajetController extends Controller
             'departure_city' => 'required|string',
             'arrival_city' => 'required|string',
             "travel_date" => 'required|date',
+            "return_date" => 'nullable|date|after_or_equal:travel_date',
+        ], [
+            'return_date.date' => 'La date de retour est invalide.',
+            'return_date.after_or_equal' => 'La date de retour doit être après ou égale à la date de départ.',
         ]);
-        $data = [];
 
-        try {
-            $trajet = Trajet::where('departure_city', $request->departure_city)
-                ->where('arrival_city', $request->arrival_city)
-                ->firstOrFail();
-            $departs = $trajet->departs()->where('date', '>=', now())
-                ->whereDate('date', '=', $request->travel_date)
-                ->where(function ($query) {
-                    $query->where('visibilite', Depart::VISIBILITE_GP_CUSTOMERS_ONLY)
-                        ->orWhere('visibilite', Depart::VISIBILITE_ALL_CUSTOMERS);
-                })
-                ->get();
-//            foreach ($departs as $depart) {
-//                $bus = $depart->getBusForBooking(climatise: true);
-//                    if ($bus?->climatise) {
-//                            $data[] = $depart;
-//                    }
-//
-//            }
-                $data = collect($departs)->map(function ($depart) {
-                    $bus = $depart->getBusForBooking(climatise: false);
-                    return [
-                        'id' => $depart->id,
-                        // format the departure time to be in the format of H:i
-                        'departure_time' => $depart->date->format('H\hi'),
-                        "departure_date" => $depart->date->format('Y-m-d'),
-                        "seats_left"=> $bus?->seatsLeft(). " ".$bus?->full_name,
-                        'seats_remaining' => $bus?->seatsLeft()  > 0  &&
-                        !$bus?->isClosed()
-                            ? $bus?->seatsLeft() : 0,
-                        'ticket_price' => $bus?->ticket_price,
-                    ];
-                });
-            $message =  'Trajets found successfully';
-        }
-        catch (ModelNotFoundException $e) {
-            $message = 'Trajets found not found';
-
-        }
-
-        return response()->json([
-            'data' => $data,
-            'message' => $message
-        ]);
+        return $this->trajetService->searchByCities($request);
     }
 
     /**
@@ -221,28 +141,6 @@ class TrajetController extends Controller
      */
     public function getCities()
     {
-        $departureCities = Trajet::whereNotNull('departure_city')
-            ->distinct()
-            ->pluck('departure_city')
-            ->map(function($city, $index) {
-                return ['id' => $index + 1, 'name' => $city];
-            });
-
-        $arrivalCities = Trajet::whereNotNull('arrival_city')
-            ->distinct()
-            ->pluck('arrival_city')
-            ->map(function($city, $index) {
-                return ['id' => $index + 100, 'name' => $city];
-            });
-
-        $cities = $departureCities->merge($arrivalCities)
-            ->unique('name')
-            ->sortBy('name')
-            ->values();
-
-        return response()->json([
-            'data' => $cities,
-            'message' => 'Cities retrieved successfully'
-        ]);
+        return $this->trajetService->getCities();
     }
 }
