@@ -52,6 +52,7 @@ class TrajetController extends Controller
             "horaires" => 'required|array',
             "horaires.*.name" => 'required|string',
             "horaires.*.bus_leave_time" => 'required|date_format:H:i',
+            "horaires.*.periode" => 'required|string',
         ], [
             'name.unique' => 'Ce trajet existe déjà'
         ]);

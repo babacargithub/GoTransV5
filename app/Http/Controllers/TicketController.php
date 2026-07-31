@@ -86,6 +86,28 @@ class TicketController extends Controller
     {
         //
     }
+    /**
+     * Public ticket download page for a booking group: renders every ticketed booking in the group
+     * as a printable/downloadable ticket card. Unauthenticated by design (see routes/web.php) so
+     * customers can open it straight from an SMS/WhatsApp link using only their group_id.
+     */
+    public function showGroupTickets(string $groupId)
+    {
+        $bookings = Booking::where('group_id', $groupId)
+            ->whereNotNull('ticket_id')
+            ->with(['customer', 'seat.seat', 'depart.trajet', 'point_dep', 'destination', 'ticket', 'bus'])
+            ->get();
+
+        if ($bookings->isEmpty()) {
+            abort(404, "Aucun billet trouvé pour ce groupe de réservations.");
+        }
+
+        return view('tickets.group', [
+            'bookings' => $bookings,
+            'groupId' => $groupId,
+        ]);
+    }
+
     public function discounts()
     {
         return response()->json([

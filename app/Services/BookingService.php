@@ -15,6 +15,7 @@ use App\Models\Depart;
 use App\Models\Destination;
 use App\Models\PointDep;
 use App\Models\TicketPayment;
+use App\Models\Trajet;
 use DB;
 use GuzzleHttp\Exception\GuzzleException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -72,6 +73,7 @@ class BookingService
                 roundTripId: $roundTripId,
                 tripLeg: $isRoundTrip ? Booking::TRIP_LEG_OUTBOUND : null,
                 selectedSeatNumbers: $validated['selected_seats'] ?? null,
+                pointDepId: $validated['point_dep_id'] ?? null,
             );
 
             if ($outboundLegResult instanceof JsonResponse) {
@@ -105,6 +107,7 @@ class BookingService
                     roundTripId: $roundTripId,
                     tripLeg: Booking::TRIP_LEG_RETURN,
                     selectedSeatNumbers: null, // the return leg is always auto-assigned
+                    pointDepId: null, // the return leg always boards at the trajet's default GP pickup point
                 );
 
                 if ($returnLegResult instanceof JsonResponse) {
@@ -145,6 +148,8 @@ class BookingService
      * resolving seats and reusing any already-existing unpaid booking for the same customer/bus.
      *
      * @param Collection $passengers Customer models, or arrays with id/full_name for passengers booked under an existing customer's name.
+     * @param int|null $pointDepId Traveller-chosen boarding point (possibly a mid-route city), resolved by the
+     *                             search endpoint. Null falls back to the trajet's default GP pickup point.
      * @return Booking[]|JsonResponse
      */
     private function buildBookingsForLeg(
@@ -156,13 +161,13 @@ class BookingService
         ?string $roundTripId,
         ?string $tripLeg,
         ?array $selectedSeatNumbers,
+        ?int $pointDepId = null,
     ): array|JsonResponse {
         $bookings = [];
 
         foreach ($passengers as $passenger) {
             $booking = new Booking([
-                'payment_method' => $validated['payment_method'],
-                'referer' => $validated['referer'] ?? 0,
+                'referer_id' => $validated['referer'] ?? 0,
                 'booked_with_platform' => $validated['booked_with_platform'] ?? "web",
             ]);
             $booking->depart()->associate($depart);
@@ -173,7 +178,7 @@ class BookingService
                 $booking->customer_id = $passenger["id"];
                 $booking->booked_for_customer = $passenger["full_name"];
             }
-            $pointDepartAndDestination = $this->determinePointDepartAndDestinations($depart);
+            $pointDepartAndDestination = $this->determinePointDepartAndDestinations($depart, $pointDepId);
             $booking->point_dep()->associate($pointDepartAndDestination["point_dep"]);
             $booking->destination()->associate($pointDepartAndDestination["destination"]);
             $booking->paye = false;
@@ -367,21 +372,55 @@ class BookingService
     }
 
     /**
-     * Resolves the default point de départ / destination used for GP customer bookings.
+     * Resolves the point de départ / destination used for a GP customer booking.
+     *
+     * When the traveller chose a specific boarding point (possibly a mid-route city like Thies on the
+     * Dakar-Saint-Louis trajet), $pointDepId is the id the search endpoint resolved for that city
+     * (see TrajetService::resolveTrajetForSearch) and is used directly. Otherwise this falls back to
+     * the trajet's designated default GP pickup point.
      */
-    private function determinePointDepartAndDestinations(Depart $depart): array
+    public function determinePointDepartAndDestinations(Depart $depart, ?int $pointDepId = null): array
     {
+        $defaultPointDep = $pointDepId !== null
+            ? $this->resolveChosenPointDepForTrajet($pointDepId, $depart->trajet_id)
+            : $this->resolveDefaultGpPointDep($depart->trajet_id);
+
         //TODO change this later
-        if ($depart->trajet->id == 1) {
-            $defaultPointDep = PointDep::findOrFail(40);
-        } else if ($depart->trajet->id == 2) {
-            $defaultPointDep = PointDep::findOrFail(2);
-        } else {
-            $defaultPointDep = PointDep::where("trajet_id", $depart->trajet_id)->first();
-        }
-        $defaultDestination = Destination::where("id", ($depart->trajet->id == 1 ? 34 : 36))
+        $defaultDestination = Destination::where("id", ($depart->trajet_id == Trajet::UGB_DAKAR ? 2 : 3))
             ->firstOrFail();
 
         return ["point_dep" => $defaultPointDep, "destination" => $defaultDestination];
+    }
+
+    /**
+     * Resolves a traveller-chosen boarding point, making sure it actually belongs to the depart's own
+     * trajet — a point_dep_id valid on another trajet (e.g. the reverse trajet used by a round trip's
+     * return leg) must never be silently accepted.
+     */
+    private function resolveChosenPointDepForTrajet(int $pointDepId, int $trajetId): PointDep
+    {
+        $pointDep = PointDep::where("id", $pointDepId)
+            ->where("trajet_id", $trajetId)
+            ->first();
+
+        if ($pointDep === null) {
+            throw new \RuntimeException("Le point de départ sélectionné ne correspond pas à ce trajet");
+        }
+
+        return $pointDep;
+    }
+
+    /**
+     * Falls back to the trajet's designated GP pickup point when the traveller didn't choose a
+     * specific (possibly mid-route) boarding city.
+     */
+    private function resolveDefaultGpPointDep(int $trajetId): PointDep
+    {
+        //TODO change this later
+        return match ($trajetId) {
+            Trajet::UGB_DAKAR => PointDep::findOrFail(40),
+            Trajet::DAKAR_UGB => PointDep::findOrFail(2),
+            default => PointDep::where("trajet_id", $trajetId)->firstOrFail(),
+        };
     }
 }

@@ -25,6 +25,55 @@ class TrajetService
         return Trajet::with('pointDeps', 'destinations', 'horaires')->get();
     }
 
+    /**
+     * Lists departs available to GP customers.
+     *
+     * When the traveller has picked a departure/arrival city pair (the common case, letting them
+     * board at a mid-route city like Thiès), this delegates to the same city-based search used
+     * everywhere else: it resolves the exact boarding PointDep and returns its id (point_dep_id)
+     * alongside the correctly computed ticket price, so the front end just forwards that
+     * point_dep_id back when creating the booking — no separate boarding-point step needed.
+     * Falls back to the old unfiltered trajet/depart listing when no city pair is given.
+     */
+    public function listDepartsForGp(Request $request): JsonResponse
+    {
+        if ($request->filled('departure_city') && $request->filled('arrival_city') && $request->filled('travel_date')) {
+            $request->validate([
+                'departure_city' => 'required|string',
+                'arrival_city' => 'required|string',
+                'travel_date' => 'required|date',
+                'return_date' => 'nullable|date|after_or_equal:travel_date',
+            ]);
+
+            return $this->searchByCities($request);
+        }
+
+        $trajets = Trajet::all()->map(function (Trajet $trajet) {
+            return [
+                'id' => $trajet->id,
+                'name' => $trajet->name,
+                'departs' => $trajet->departs()
+                    ->where('date', '>=', now())
+                    ->where(function ($query) {
+                        $query->where('visibilite', Depart::VISIBILITE_GP_CUSTOMERS_ONLY)
+                            ->orWhere('visibilite', Depart::VISIBILITE_ALL_CUSTOMERS);
+                    })
+                    ->orderBy('date')
+                    ->get()
+                    ->map(function (Depart $depart) {
+                        return [
+                            'id' => $depart->id,
+                            'name' => $depart->name,
+                            'ticket_price' => $depart->getBusForBooking(climatise: true)?->ticket_price,
+                            'is_closed' => $depart->closed,
+                        ];
+                    }),
+            ];
+        });
+
+        return response()->json($trajets);
+    }
+
     public function loadDetails(Trajet $trajet): Trajet
     {
         return $trajet->load('pointDeps', 'destinations', 'horaires');
@@ -166,6 +215,10 @@ class TrajetService
                 $returnData = collect($returnDeparts)->map(function ($depart) use ($reverseTrajet) {
                     return $this->formatDepartForSearch($depart, $reverseTrajet);
                 });
+                // The return leg never inherits the outbound's (possibly mid-route-discounted) boarding
+                // point, so its fare can genuinely differ — use the cheapest actual return fare found,
+                // not the outbound price, to avoid under-quoting the round-trip total at checkout.
+                $cheapestReturnPrice = $returnData->pluck('ticket_price')->filter(fn($price) => $price !== null)->min();
 
             }
 
@@ -180,10 +233,8 @@ class TrajetService
             $data = collect($departs)->map(function ($depart) use ($trajet, $boardingPointDep, $isRoundTrip, $cheapestReturnPrice) {
                 $item = $this->formatDepartForSearch($depart, $trajet, $boardingPointDep);
                 if ($isRoundTrip) {
-                    // For now price remains the same for both legs
                     $item['one_way_price'] = $item['ticket_price'];
-                    $item['return_price'] = $item['ticket_price'];
-
+                    $item['return_price'] = $cheapestReturnPrice;
                 }
 
                 return $item;

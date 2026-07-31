@@ -123,6 +123,7 @@ Route::resource('buses', BusController::class);
 Route::get("finance/caisses", [TicketController::class, 'index']);
 
 // Bookings
+Route::get("bookings/group/{groupId}", [BookingController::class, 'bookingsOfGroup']);
 Route::get("bookings/{booking}/trigger_payment_request/{paymentMethod}", [BookingController::class, 'triggerPaymentRequestForPaymentMethod']);
 Route::put("bookings/{booking}/save_ticket_payment", [BookingController::class, 'saveTicketPayment']);
 Route::put("bookings/{booking}/transfer/target_bus/{targetBus}", [BookingController::class, 'transferBooking']);

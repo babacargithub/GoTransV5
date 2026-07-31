@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Http\Resources\BookingForExportResource;
-use App\Http\Resources\BookingResource;
 use App\Manager\BusManager;
 use App\Models\Booking;
 use App\Models\Bus;
@@ -120,7 +119,7 @@ class BusController extends Controller
 
     public function bookings(Bus $bus)
     {
-        return response()->json(BookingResource::collection($bus->bookings));
+        return $this->bookingsResponse($bus->bookings);
     }
 
     public function busTicketSales(Bus $bus)

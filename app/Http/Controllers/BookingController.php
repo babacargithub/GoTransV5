@@ -35,6 +35,15 @@ class BookingController extends Controller
     }
 
     /**
+     * Lists every booking that shares the given group_id (e.g. a multi-passenger or round-trip
+     * booking group), in the same shape as BusController::bookings.
+     */
+    public function bookingsOfGroup(string $groupId)
+    {
+        return $this->bookingsResponse(Booking::where('group_id', $groupId)->get());
+    }
+
+    /**
      * Store a newly created resource in storage.
      * @throws Exception
      */

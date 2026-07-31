@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\DepartController;
+use App\Http\Controllers\TicketController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -52,6 +53,9 @@ Route::get('/', function () {
         "departs" => $messages->departs,
     ]);
 });
+
+// Public, unauthenticated ticket download page: anyone with the group_id can view/download the tickets.
+Route::get('/tickets/group/{groupId}', [TicketController::class, 'showGroupTickets'])->name('tickets.group.show');
 
 Route::middleware([
     'auth:sanctum',

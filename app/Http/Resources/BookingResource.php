@@ -32,6 +32,7 @@ class BookingResource extends JsonResource
             "group_id" => $this->group_id,
             "isForGp" => $this->is_for_gp,
             "belongsToGroup" => $this->group_id != null,
+            "isRoundTrip" => $this->isRoundTrip(),
 //            "groupMembersCount" => $this->getOtherBookingsOfSameGroup()->count(),
             'client' => [
                 "fullName" =>  $fullName,

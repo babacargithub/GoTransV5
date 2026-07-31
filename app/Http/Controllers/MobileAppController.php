@@ -23,6 +23,7 @@ use App\Models\Trajet;
 use App\Models\Vehicule;
 use App\Rules\PhoneNumber;
 use App\Services\BookingService;
+use App\Services\TrajetService;
 use DB;
 use GuzzleHttp\Exception\GuzzleException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -80,40 +81,7 @@ class MobileAppController extends Controller
     }
     public function listeDepartsForGp(\Illuminate\Http\Request $request)
     {
-
-        $trajets = Trajet::all()->map(function (Trajet $trajet){
-            return [
-                'id' => $trajet->id,
-                'name' => $trajet->name,
-                'departs' => $trajet->departs()
-                    ->where("date", ">=", now())
-                    ->where(function($query) {
-                        $query->where("visibilite", "=", Depart::VISIBILITE_GP_CUSTOMERS_ONLY)
-                            ->orWhere("visibilite", "=", Depart::VISIBILITE_ALL_CUSTOMERS);
-                    })
-                    ->orderBy('date')
-                    ->get()
-//                    ->filter(function (Depart $depart) {
-//                        return !$depart->isPassed() && $depart->buses()
-//                                ->join('vehicules', 'vehicule_id', '=', 'vehicules.id')
-//                            ->where('vehicules.vehicule_type', Vehicule::VEHICULE_TYPE_CLIMATISE)
-//                            ->exists();
-//                    })
-                    ->map(function (Depart $depart) {
-                    return [
-                            'id' => $depart->id,
-                        // the name should be the date expressed in French like this mercredi 21 mai
-                            'name' => $depart->name,
-                            'ticket_price' => $depart->getBusForBooking(climatise: true)?->ticket_price,
-                            'is_closed' => $depart->closed,
-                            ];
-                    }),
-            ];
-        });
-
-        return response()->json($trajets);
-
-
+        return app(TrajetService::class)->listDepartsForGp($request);
     }
 
     /**
@@ -142,7 +110,8 @@ class MobileAppController extends Controller
                 "bus_id" => "exists:buses,id",
             ]));
         }else{
-            $validated = $this->determinePointDepartAndDestinations($depart, $validated);
+            $validated = array_merge($validated, app(BookingService::class)->determinePointDepartAndDestinations
+            ($depart, $validated['point_dep_id'] ?? null    ));
         }
 
         // if customer_id is not provided, we will create a new customer
@@ -538,26 +507,6 @@ class MobileAppController extends Controller
         return $ticketManager->calculatePriceForMultipleBookings($bookings, $validated['payment_method'], $platform);
     }
 
-    /**
-     * @param Depart $depart
-     * @param array $validated
-     * @return array
-     */
-    public function determinePointDepartAndDestinations(Depart $depart): array
-    {
-//TODO change this later
-        if ($depart->trajet->id == 1) {
-            $defaultPointDep = PointDep::findOrFail(40);
-        } else if ($depart->trajet->id == 2) {
-            $defaultPointDep = PointDep::findOrFail(2);
-        } else {
-            $defaultPointDep = PointDep::where("trajet_id", $depart->trajet_id)->first();
-        }
-        $defaultDestination = Destination::where("id", ($depart->trajet->id == 1 ? 34 : 36))
-            ->firstOrFail();
-
-        return ["point_dep"=>$defaultPointDep,"destination"=>$defaultDestination];
-    }
 
 
 }

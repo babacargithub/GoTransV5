@@ -33,6 +33,7 @@ class GpBookingRequest extends FormRequest
         return [
             'depart_id' => 'required|integer|exists:departs,id',
             'bus_id' => 'nullable|integer|exists:buses,id',
+            'point_dep_id' => 'nullable|integer|exists:point_deps,id',
             'passenger_count' => 'required|integer|min:1|max:10',
             'payment_method' => 'required|string|in:Wave,OM,Orange Money',
             'is_round_trip' => 'nullable|boolean',
@@ -178,7 +179,7 @@ class GpBookingRequest extends FormRequest
         }
 
         if ($returnBus === null) {
-            $validator->errors()->add('return_date', "Il n'y a pas de bus disponible pour le voyage retour. Merci de choisir une autre date.");
+            $validator->errors()->add('return_date', "Il n'y a pas de bus disponible pour le voyage retour choisi. Merci de choisir une autre date.");
             return;
         }
 
@@ -188,7 +189,7 @@ class GpBookingRequest extends FormRequest
         }
 
         if ($returnBus->isFull()) {
-            $validator->errors()->add('return_date', 'Le bus du voyage retour est déjà complet, il ne reste plus de place. Merci de choisir une autre date.');
+            $validator->errors()->add('return_date', 'Le bus du voyage retour est déjà plein, il ne reste plus de place. Merci de choisir une autre date.');
             return;
         }
 
@@ -205,6 +206,7 @@ class GpBookingRequest extends FormRequest
         return [
             'depart_id' => 'départ',
             'bus_id' => 'bus',
+            'point_dep_id' => 'point de départ',
             'passenger_count' => 'nombre de passagers',
             'payment_method' => 'méthode de paiement',
             'selected_seats' => 'sièges sélectionnés',

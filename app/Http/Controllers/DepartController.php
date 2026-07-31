@@ -57,7 +57,7 @@ class DepartController extends Controller
             'departs.*.bus.ticket_price' => 'required|numeric',
             'departs.*.bus.gp_ticket_price' => 'required|numeric',
             'departs.*.bus.nombre_place' => 'required|integer',
-            'departs.*.bus.vehicule_id' => 'nullable|integer|exists:vehicules,id',
+            'departs.*.bus.vehicule_id' => 'required|integer|exists:vehicules,id',
             'departs.*.horaire_id' => 'required|integer|exists:horaires,id',
         ]);
         $departs = [];
@@ -145,7 +145,7 @@ class DepartController extends Controller
             "name" => "required|string",
             "ticket_price" => "required|numeric",
             "nombre_place" => "required|integer",
-            "vehicule_id" => "nullable|integer",
+            "vehicule_id" => "required|integer|exists:vehicules,id",
             "gp_ticket_price" => "numeric",
             "itinerary_id" => "nullable|integer",
         ]);
@@ -158,9 +158,6 @@ class DepartController extends Controller
 
 
         $bus = new Bus($validated);
-        if (!isset($validated['vehicule_id'])) {
-            $bus->vehicule_id = Vehicule::where("default",true)->firstOrFail()->id;
-        }
        DB::transaction(function () use ($depart, $validated, $bus)
         {
 
@@ -382,7 +379,7 @@ class DepartController extends Controller
                 ];
             }
             $data[] = [
-                'depart' => $depart->name,
+                'depart' => $depart->trajet->code.'-'. $depart->name,
                 'buses' => $busData,
             ];
         }
