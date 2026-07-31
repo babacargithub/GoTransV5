@@ -139,8 +139,14 @@ class MobileAppController extends Controller
                 "bus_id" => "exists:buses,id",
             ]));
         }else{
-            $validated = array_merge($validated, app(BookingService::class)->determinePointDepartAndDestinations
-            ($depart, $validated['point_dep_id'] ?? null    ));
+            $gpValidated = $request->validate([
+                "point_dep_id" => "nullable|integer|exists:point_deps,id",
+            ]);
+            $pointDepartAndDestination = $this->bookingService->determinePointDepartAndDestinations(
+                $depart, $gpValidated['point_dep_id'] ?? null
+            );
+            $validated['point_dep_id'] = $pointDepartAndDestination['point_dep']->id;
+            $validated['destination_id'] = $pointDepartAndDestination['destination']->id;
         }
 
         // if customer_id is not provided, we will create a new customer
