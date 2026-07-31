@@ -56,6 +56,7 @@ class DepartResource extends JsonResource
                 "numberOfTicketSold" => $bus->numberOfTicketsSold(),
                 "numberOfBookings" => $bus->bookings->count(),
                 "itinerary_id" => $bus->itinerary_id,
+                "agent_numbers" => $bus->agent_numbers,
 
             ]),
         ];

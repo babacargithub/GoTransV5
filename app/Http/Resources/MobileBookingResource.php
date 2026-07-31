@@ -33,7 +33,7 @@ class MobileBookingResource extends JsonResource
             "belongsToGroup" => $this->group_id != null,
             'pointDep' => $this->point_dep->name,
             'destination' => $this->destination->name,
-            "agentNumber"=>is_request_for_gp_customers()? 777794818 : AppParams::first()?->getBusAgentDefaultNumber()
+            "agentNumber"=>$this->bus->resolveAgentContactNumber(is_request_for_gp_customers() ? 777794818 : AppParams::first()?->getBusAgentDefaultNumber())
 //
         ];
         $data["total_ticket_price"] = (int)TicketPayment::where("group_id", $this->group_id)

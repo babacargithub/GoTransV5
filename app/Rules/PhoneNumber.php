@@ -15,8 +15,8 @@ class PhoneNumber implements ValidationRule
      */
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
-        // the value should be of nine digits, it starts with (77, 78, 76, 70,75)
-        if (!preg_match('/^(77|78|76|70|75)[0-9]{7}$/', $value)) {
+        // the value should be of nine digits, it starts with (77, 78, 76, 70,75, 71)
+        if (!preg_match('/^(77|78|76|70|75|71)[0-9]{7}$/', $value)) {
             $fail("Le numéro téléphone $value n'est pas valide.");
         }
     }

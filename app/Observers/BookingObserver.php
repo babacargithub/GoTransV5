@@ -3,7 +3,7 @@
 namespace App\Observers;
 
 use App\Models\Booking;
-use App\Utils\NotificationSender\SMSSender\SMSSender;
+use App\Services\NotificationService;
 
 class BookingObserver
 {
@@ -76,9 +76,9 @@ class BookingObserver
     public function checkIfBusIsFullAndClosesItIfYes(Booking $booking): void
     {
         if (($booking->bus->nombre_place - $booking->bus->numberOfTicketsSold()) == 1) {
-            $smsSender = app(SMSSender::class);
-            $smsSender->sendSms(773333333, "Le bus " . $booking->bus->full_name . " est arrivé à "
-                . $booking->bus->numberOfTicketsSold());
+            app(NotificationService::class)->notifyDispatchOfBusAlmostFull(
+                "Le bus " . $booking->bus->full_name . " est arrivé à " . $booking->bus->numberOfTicketsSold()
+            );
         }
         if ($booking->bus->nombre_place == $booking->bus->numberOfTicketsSold()) {
             $bus = $booking->bus;

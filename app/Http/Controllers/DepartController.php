@@ -58,6 +58,7 @@ class DepartController extends Controller
             'departs.*.bus.gp_ticket_price' => 'required|numeric',
             'departs.*.bus.nombre_place' => 'required|integer',
             'departs.*.bus.vehicule_id' => 'required|integer|exists:vehicules,id',
+            'departs.*.bus.agent_numbers' => 'nullable|string',
             'departs.*.horaire_id' => 'required|integer|exists:horaires,id',
         ]);
         $departs = [];
@@ -148,6 +149,7 @@ class DepartController extends Controller
             "vehicule_id" => "required|integer|exists:vehicules,id",
             "gp_ticket_price" => "numeric",
             "itinerary_id" => "nullable|integer",
+            "agent_numbers" => "nullable|string",
         ]);
         // validate name bus is unique for depart
         if ($depart->buses()->where('name', $validated['name'])->exists()) {
@@ -437,6 +439,21 @@ class DepartController extends Controller
         return response()->json($customers);
 
     }
+
+    /**
+     * Lists a depart's trajet's point deps and destinations (id + name), used by the admin
+     * "edit booking" form to populate the point de départ / destination dropdowns with real ids.
+     */
+    public function pointDepsAndDestinations(Depart $depart)
+    {
+        $trajet = $depart->trajet;
+
+        return response()->json([
+            'point_deps' => $trajet->pointDeps()->get(['id', 'name']),
+            'destinations' => $trajet->destinations()->get(['id', 'name']),
+        ]);
+    }
+
     private function  generateDefaultBusStopSchedules(Depart $depart, Bus $bus, Horaire $horaire)
     {
         $busStopSchedules = [];

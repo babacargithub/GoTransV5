@@ -11,7 +11,7 @@ use App\Models\Depart;
 use App\Models\Itinerary;
 use App\Models\Seat;
 use App\Models\Vehicule;
-use App\Utils\NotificationSender\SMSSender\SMSSender;
+use App\Services\NotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -94,6 +94,7 @@ class BusController extends Controller
             'gp_ticket_price' => 'numeric',
             'visibilite' => 'integer',
             "itinerary_id" => "required|integer",
+            "agent_numbers" => "nullable|string",
         ]);
         $bus->update($validated);
         return response()->json($bus);
@@ -145,9 +146,7 @@ class BusController extends Controller
         $bus->refresh();
         try {
             if ($bus->closed){
-                $smsSender = new SmsSender();
-                $response = $smsSender->sendSms(773300853, "Bus ".${$bus->full_name} ." a été cloturé par currentUser");
-
+                app(NotificationService::class)->notifyManagerOfBusEvent("Bus " . $bus->full_name . " a été cloturé par currentUser");
             }
         }catch (\Exception $e){
         }

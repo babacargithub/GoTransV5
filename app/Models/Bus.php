@@ -24,7 +24,8 @@ class Bus extends Model
         "gp_ticket_price",
         "vehicule_id",
         "visibilite",
-        "itinerary_id"
+        "itinerary_id",
+        "agent_numbers",
 
 
     ];
@@ -117,6 +118,30 @@ class Bus extends Model
 
         return $this->depart->identifier(with_trajet_prefix: true) . ' - ' . $this->name;
 
+    }
+
+    /**
+     * Parses agent_numbers (numbers separated by "/", e.g. "77xxxxxxx/78xxxxxxx") into individual
+     * phone numbers. Empty when no field agent contact is set for this bus.
+     *
+     * @return string[]
+     */
+    public function getAgentNumbersList(): array
+    {
+        if (empty($this->agent_numbers)) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map('trim', explode('/', $this->agent_numbers))));
+    }
+
+    /**
+     * The number(s) customers should call for info about this bus: this bus's own field agent
+     * (agent_numbers) when set, otherwise the given fallback (typically an app-wide default).
+     */
+    public function resolveAgentContactNumber(string|int|null $fallback = null): string
+    {
+        return $this->agent_numbers ?: (string) $fallback;
     }
     // add global scope filter buses for departs that are not cancelled
     protected static function boot(): void
