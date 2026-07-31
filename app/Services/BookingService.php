@@ -102,7 +102,7 @@ class BookingService
                     validated: $validated,
                     roundTripId: $roundTripId,
                     tripLeg: Booking::TRIP_LEG_RETURN,
-                    selectedSeatNumbers: null, // the return leg is always auto-assigned
+                    selectedSeatNumbers: null, // the return leg never has customer-chosen seats; assignment is deferred to payment confirmation, same as any unseated leg
                     pointDepId: null, // the return leg always boards at the trajet's default GP pickup point
                 );
 
@@ -263,10 +263,11 @@ class BookingService
                 return $seat;
             });
         } else {
-            $seats = $bus->getAvailableSeats()->take($validated["passenger_count"]);
-            if (count($seats) < count($bookings)) {
-                return response()->json(["message" => "Il n'y a pas assez de sièges disponibles pour tous les passagers"], 422);
-            }
+            // No seat chosen (seat picking wasn't available/used for this bus): don't reserve seats
+            // now — just confirm the bus has enough capacity. Actual seat assignment happens later,
+            // when the payment is confirmed (see BookingManager::assignBusAndSeatsForUnseatedBookings).
+
+            $seats = collect();
         }
 
         foreach ($bookings as $index => &$booking) {

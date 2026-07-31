@@ -18,3 +18,4 @@ yarn-error.log
 /.idea
 /.vscode
 !/.env.example
+app/Utils/NotificationSender/SMSSender/tokens/orange_sms_token.json
