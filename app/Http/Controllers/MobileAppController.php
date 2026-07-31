@@ -85,6 +85,34 @@ class MobileAppController extends Controller
     }
 
     /**
+     * Calculates the exact ticket prices (outbound/return/total) for a GP booking, so the frontend's
+     * payment/summary step can display the price the backend will actually charge instead of
+     * computing it locally.
+     */
+    public function calculatePriceForGpBooking(\Illuminate\Http\Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'depart_id' => 'required|integer|exists:departs,id',
+            'passenger_count' => 'required|integer|min:1|max:10',
+            'is_round_trip' => 'nullable|boolean',
+            'return_depart_id' => 'nullable|integer|exists:departs,id',
+        ]);
+
+        try {
+            $prices = $this->bookingService->calculatePriceForGpBooking(
+                departId: $validated['depart_id'],
+                passengerCount: $validated['passenger_count'],
+                isRoundTrip: (bool)($validated['is_round_trip'] ?? false),
+                returnDepartId: $validated['return_depart_id'] ?? null,
+            );
+        } catch (\RuntimeException $e) {
+            return response()->json(["message" => $e->getMessage()], 422);
+        }
+
+        return response()->json($prices);
+    }
+
+    /**
      * @throws ConnectionException
      * @throws GuzzleException
      */

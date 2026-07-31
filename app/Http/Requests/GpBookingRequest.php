@@ -10,7 +10,6 @@ use App\Models\Depart;
 use App\Rules\PhoneNumber;
 use App\Services\BookingService;
 use App\Services\TrajetService;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -38,6 +37,7 @@ class GpBookingRequest extends FormRequest
             'payment_method' => 'required|string|in:Wave,OM,Orange Money',
             'is_round_trip' => 'nullable|boolean',
             'return_date' => 'nullable|date|required_if:is_round_trip,1,true',
+            'return_depart_id' => 'nullable|integer|exists:departs,id',
             'selected_seats' => 'nullable|array|max:10',
             'selected_seats.*' => 'nullable|integer|max:200',
             'passengers' => 'required|array|min:1|max:100',
@@ -148,53 +148,28 @@ class GpBookingRequest extends FormRequest
             return;
         }
 
-        $returnDate = Carbon::parse($this->return_date)->startOfDay();
-        if ($returnDate->lt($outboundDepart->date->copy()->startOfDay())) {
+        $trajetService = app(TrajetService::class);
+        $returnDepartId = $this->return_depart_id !== null ? (int)$this->return_depart_id : null;
+        $returnDepart = $trajetService->resolveReturnDepart($outboundDepart, $returnDepartId, $this->return_date);
+        if ($returnDepart === null) {
+            if ($returnDepartId !== null) {
+                $validator->errors()->add('return_depart_id', "Le départ retour sélectionné n'est plus disponible. Merci de choisir un autre départ.");
+            } else {
+                $returnDate = Carbon::parse($this->return_date)->format('d/m/Y');
+                $validator->errors()->add('return_date', "Nous n'avons pas prévu de voyage retour pour la date du $returnDate. Merci de choisir une autre date.");
+            }
+            return;
+        }
+
+        if ($returnDepart->date->copy()->startOfDay()->lt($outboundDepart->date->copy()->startOfDay())) {
             $validator->errors()->add('return_date', 'La date de retour doit être après la date de départ.');
             return;
         }
 
-        $returnDepart = app(TrajetService::class)->findReturnDepart($outboundDepart, $this->return_date);
-        if ($returnDepart === null) {
-            $validator->errors()->add('return_date', "Nous n'avons pas prévu de voyage retour pour la date du ".
-                $returnDate->format('d/m/Y').". Merci de choisir une autre date.");
-            return;
-        }
-
-        if ($returnDepart->isPassed()) {
-            $validator->errors()->add('return_date', 'Le voyage retour pour cette date est déjà passé. Merci de choisir une autre date.');
-            return;
-        }
-
-        if ($returnDepart->isClosed() || $returnDepart->isFull()) {
-            $validator->errors()->add('return_date', 'Les réservations pour le voyage retour sont fermées. Merci de choisir une autre date.');
-            return;
-        }
-
         try {
-            $returnBus = $returnDepart->getBusForBooking(climatise: true);
-        } catch (ModelNotFoundException ) {
-            $validator->errors()->add('return_date', "Il n'y a pas de bus  disponible pour le voyage retour. Merci de choisir une autre date.");
-            return;
-        }
-
-        if ($returnBus === null) {
-            $validator->errors()->add('return_date', "Il n'y a pas de bus disponible pour le voyage retour choisi. Merci de choisir une autre date.");
-            return;
-        }
-
-        if ($returnBus->isClosed()) {
-            $validator->errors()->add('return_date', 'Les réservations pour le voyage retour sont fermées. Merci de choisir une autre date.');
-            return;
-        }
-
-        if ($returnBus->isFull()) {
-            $validator->errors()->add('return_date', 'Le bus du voyage retour est déjà plein, il ne reste plus de place. Merci de choisir une autre date.');
-            return;
-        }
-
-        if ($returnBus->seatsLeft() < ((int)$this->passenger_count)) {
-            $validator->errors()->add('return_date', 'Il ne reste que ' . $returnBus->seatsLeft() . ' place(s) disponible(s) pour le voyage retour, ce qui n\'est pas suffisant pour ' . $this->passenger_count . ' passager(s).');
+            $trajetService->assertReturnDepartBookable($returnDepart, (int)$this->passenger_count);
+        } catch (\RuntimeException $e) {
+            $validator->errors()->add('return_date', $e->getMessage());
         }
     }
 
@@ -213,6 +188,7 @@ class GpBookingRequest extends FormRequest
             'passengers' => 'passagers',
             'is_round_trip' => 'aller-retour',
             'return_date' => 'date de retour',
+            'return_depart_id' => 'départ retour',
         ];
     }
     protected function passedValidation(): void

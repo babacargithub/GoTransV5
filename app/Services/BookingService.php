@@ -83,19 +83,15 @@ class BookingService
             $allBookings = $outboundLegResult;
 
             if ($isRoundTrip) {
-                $returnDepart = $this->trajetService->findReturnDepart($outboundDepart, $validated['return_date']);
+                $returnDepart = $this->trajetService->resolveReturnDepart($outboundDepart, $validated['return_depart_id'] ?? null, $validated['return_date']);
                 if ($returnDepart == null) {
                     return response()->json(["message" => "Aucun départ retour trouvé pour cette date"], 422);
                 }
 
                 try {
-                    $returnBus = $returnDepart->getBusForBooking(climatise: true);
-                } catch (\Exception $e) {
-                    return response()->json(["message" => "Aucun bus climatisé disponible pour le retour"], 422);
-                }
-
-                if ($returnBus == null) {
-                    return response()->json(["message" => "Aucun bus disponible pour le retour"], 422);
+                    $returnBus = $this->trajetService->assertReturnDepartBookable($returnDepart, (int)$validated['passenger_count']);
+                } catch (\RuntimeException $e) {
+                    return response()->json(["message" => $e->getMessage()], 422);
                 }
 
                 $returnLegResult = $this->buildBookingsForLeg(
@@ -123,6 +119,68 @@ class BookingService
         }
     }
 
+
+    /**
+     * Calculates the exact per-leg and total ticket prices for a (potential) GP round-trip booking,
+     * before any Booking rows exist — used by the payment/summary step so the frontend can display
+     * the same numbers the actual booking will charge instead of estimating locally.
+     *
+     * Deliberately reuses the same building blocks as handleGpMultiPassengerBooking /
+     * TrajetService::searchByCities, rather than re-deriving price/boarding-point logic:
+     * TicketManager::calculateTicketPrice (single source of pricing truth),
+     * determinePointDepartAndDestinations (boarding-point resolution) and
+     * TrajetService::resolveReturnDepart (return-depart resolution, already scoped to the outbound
+     * trajet's reverse trajet).
+     *
+     * @throws \RuntimeException When a depart has no bookable bus, or return_depart_id doesn't
+     *                            belong to the outbound trajet's reverse trajet.
+     */
+    public function calculatePriceForGpBooking(int $departId, int $passengerCount, bool $isRoundTrip, ?int $returnDepartId): array
+    {
+        $outboundDepart = Depart::findOrFail($departId);
+        $outboundBus = $this->resolveBusForPricing($outboundDepart, 'départ');
+        $outboundPointDep = $this->determinePointDepartAndDestinations($outboundDepart)['point_dep'];
+        $outboundTicketPrice = $this->ticketManager->calculateTicketPrice($outboundBus, $outboundPointDep, forGp: true) * $passengerCount;
+
+        $returnTicketPrice = 0;
+        if ($isRoundTrip && $returnDepartId !== null) {
+            // returnDate is only consulted by resolveReturnDepart's date-based fallback, which never
+            // runs when a return_depart_id is given — so it's irrelevant here.
+            $returnDepart = $this->trajetService->resolveReturnDepart($outboundDepart, $returnDepartId, returnDate: '');
+            if ($returnDepart === null) {
+                throw new \RuntimeException("Le départ retour sélectionné n'est pas valide pour ce trajet.");
+            }
+
+            $returnBus = $this->resolveBusForPricing($returnDepart, 'retour');
+            $returnPointDep = $this->determinePointDepartAndDestinations($returnDepart)['point_dep'];
+            $returnTicketPrice = $this->ticketManager->calculateTicketPrice($returnBus, $returnPointDep, forGp: true) * $passengerCount;
+        }
+
+        return [
+            'outbound_ticket_price' => $outboundTicketPrice,
+            'return_ticket_price' => $returnTicketPrice,
+            'total_ticket_price' => $outboundTicketPrice + $returnTicketPrice,
+        ];
+    }
+
+    /**
+     * Fetches the bookable bus for a depart, throwing a RuntimeException with a leg-specific message
+     * when none is available. Mirrors the outbound-bus resolution in handleGpMultiPassengerBooking.
+     */
+    private function resolveBusForPricing(Depart $depart, string $legLabel): Bus
+    {
+        try {
+            $bus = $depart->getBusForBooking(climatise: true);
+        } catch (ModelNotFoundException) {
+            $bus = null;
+        }
+
+        if ($bus === null) {
+            throw new \RuntimeException("Aucun bus disponible pour le $legLabel");
+        }
+
+        return $bus;
+    }
 
     /**
      * When one leg of a round-trip booking is cancelled, the remaining leg (for the same customer) is no

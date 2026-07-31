@@ -251,7 +251,7 @@ class WavePaiementController extends Controller
 
     public static function getEndpointForRedirect()
     {
-        return is_request_for_gp_customers() ? 'https://globaltransports.sn' : 'https://globeone.site';
+        return is_request_for_gp_customers() ? 'https://globaltransports.app' : 'https://globeone.site';
 
     }
 

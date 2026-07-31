@@ -186,6 +186,69 @@ class TrajetService
     }
 
     /**
+     * Resolves the return-leg depart for a round trip: the explicitly chosen return_depart_id when
+     * given (validated to actually be on the outbound trajet's reverse trajet), otherwise falls back
+     * to auto-picking a depart running on the return date (legacy behavior for older clients).
+     */
+    public function resolveReturnDepart(Depart $outboundDepart, ?int $returnDepartId, string $returnDate): ?Depart
+    {
+        if ($returnDepartId !== null) {
+            $reverseTrajet = $this->resolveReverseTrajet($outboundDepart->trajet);
+            if ($reverseTrajet === null) {
+                return null;
+            }
+
+            return Depart::where('id', $returnDepartId)
+                ->whereNull('canceled_at')
+                ->where('trajet_id', $reverseTrajet->id)
+                ->first();
+        }
+
+        return $this->findReturnDepart($outboundDepart, $returnDate);
+    }
+
+    /**
+     * Asserts that a return-leg depart is actually bookable: not passed, not closed/full at the
+     * depart or bus level, and has enough seats for the given passenger count. Returns the bus to
+     * book on success; throws a RuntimeException with a translated message otherwise. Shared by
+     * GpBookingRequest (validation) and BookingService (booking creation) so both stay in sync.
+     */
+    public function assertReturnDepartBookable(Depart $returnDepart, int $passengerCount): Bus
+    {
+        if ($returnDepart->isPassed()) {
+            throw new \RuntimeException('Le voyage retour pour cette date est déjà passé. Merci de choisir une autre date.');
+        }
+
+        if ($returnDepart->isClosed() || $returnDepart->isFull()) {
+            throw new \RuntimeException('Les réservations pour le voyage retour sont fermées. Merci de choisir une autre date.');
+        }
+
+        try {
+            $returnBus = $returnDepart->getBusForBooking(climatise: true);
+        } catch (ModelNotFoundException) {
+            throw new \RuntimeException("Il n'y a pas de bus disponible pour le voyage retour. Merci de choisir une autre date.");
+        }
+
+        if ($returnBus === null) {
+            throw new \RuntimeException("Il n'y a pas de bus disponible pour le voyage retour choisi. Merci de choisir une autre date.");
+        }
+
+        if ($returnBus->isClosed()) {
+            throw new \RuntimeException('Les réservations pour le voyage retour sont fermées. Merci de choisir une autre date.');
+        }
+
+        if ($returnBus->isFull()) {
+            throw new \RuntimeException('Le bus du voyage retour est déjà plein, il ne reste plus de place. Merci de choisir une autre date.');
+        }
+
+        if ($returnBus->seatsLeft() < $passengerCount) {
+            throw new \RuntimeException('Il ne reste que ' . $returnBus->seatsLeft() . ' place(s) disponible(s) pour le voyage retour, ce qui n\'est pas suffisant pour ' . $passengerCount . ' passager(s).');
+        }
+
+        return $returnBus;
+    }
+
+    /**
      * Search trajets by departure and arrival cities, with an optional round-trip return_date.
      */
     public function searchByCities(Request $request): JsonResponse
