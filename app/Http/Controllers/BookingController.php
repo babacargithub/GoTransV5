@@ -9,7 +9,7 @@ use App\Models\Bus;
 use App\Models\Customer;
 use App\Models\Depart;
 use App\Models\User;
-use App\Utils\NotificationSender\SMSSender\SMSSender;
+use App\Services\NotificationService;
 use DB;
 use Exception;
 use Illuminate\Http\Request;
@@ -184,8 +184,8 @@ class BookingController extends Controller
                 $booking->paye = true;
                 $booking->save();
             });
+            app(NotificationService::class)->notifyCustomerOfTicketPayment($booking, true);
             $bookingManager = app(BookingManager::class);
-            $bookingManager->sendNotificationOfTicketPaymentToCustomer($booking, true);
             $bookingManager->checkIfBusIsFullAndNotifyManagerIfYes($booking);
 
             return response()->json("Paiement effectué avec succès !");
@@ -233,10 +233,7 @@ class BookingController extends Controller
 
         });
         $booking->refresh();
-        $smsSender = app(SMSSender::class);
-        $smsSender->sendSms(substr($booking->customer->phone_number, -9, 9),
-            "Votre réservation a été transférée sur le départ " . $targetBus->depart->name. " sur le bus ".
-            $targetBus->name. " Nouveau Nº de siège ". $targetSeat->number." Contact 771273535/771163003");
+        app(NotificationService::class)->notifyCustomerOfBookingTransfer($booking, $targetBus, $targetSeat);
         $bookingManager = app(BookingManager::class);
         $bookingManager->checkIfBusIsFullAndNotifyManagerIfYes($booking);
         return response()->json('Réservation transférée avec succès');
@@ -249,8 +246,7 @@ class BookingController extends Controller
         $data = $request->validate([
             'message' => 'required|string',
         ]);
-        $smsSender = app(SMSSender::class);
-        $response = $smsSender->sendSms(substr($booking->customer->phone_number, -9, 9), $data['message']);
+        $response = app(NotificationService::class)->sendCustomMessageToCustomer($booking, $data['message']);
         return response()->json(["sent"=>$response, "message"=>$data['message']]);
 
 

@@ -34,7 +34,7 @@ class MobileMultipleBookingResource extends JsonResource
             'destination' => $this->destination->name,
             "groupHasTicket" => $this->hasTicket(),
 
-            "agentNumber"=>AppParams::first()?->getBusAgentDefaultNumber(),
+            "agentNumber"=>$this->bus->resolveAgentContactNumber(AppParams::first()?->getBusAgentDefaultNumber()),
 //
         ];
     }

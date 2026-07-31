@@ -23,6 +23,7 @@ use App\Models\Trajet;
 use App\Models\Vehicule;
 use App\Rules\PhoneNumber;
 use App\Services\BookingService;
+use App\Services\NotificationService;
 use App\Services\TrajetService;
 use DB;
 use GuzzleHttp\Exception\GuzzleException;
@@ -395,6 +396,7 @@ class MobileAppController extends Controller
         if ($booking->hasTicket()) {
             return response()->json(["message" => "Impossible d'annuler une réservation déjà payée"], 422);
         }
+        $wasPartOfRoundTrip = $booking->round_trip_id !== null;
         DB::transaction(function () use ($booking) {
             $seat = $booking->seat;
             $seat?->free();
@@ -404,6 +406,7 @@ class MobileAppController extends Controller
             $this->bookingService->detachRoundTripTwin($booking);
             $booking->delete();
         });
+        app(NotificationService::class)->notifyCustomerOfBookingCancellation($booking, otherLegStillActive: $wasPartOfRoundTrip);
         return response()->noContent();
 
     }

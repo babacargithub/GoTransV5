@@ -14,7 +14,7 @@ use App\Models\PointDep;
 use App\Models\PointDepBus;
 use App\Models\Ticket;
 use App\Models\Vehicule;
-use App\Utils\NotificationSender\SMSSender\SMSSender;
+use App\Services\NotificationService;
 use Exception;
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\Exception\InvalidArgumentException;
@@ -29,11 +29,11 @@ class  TicketManager
     const DISCOUNT_AMOUNT = 10;
     const WAVE_FEES = 0.01;
     const OM_FEES = 0.01;
-    private SMSSender $smsSender;
+    private NotificationService $notificationService;
 
-    public function __construct(SMSSender $smsSender)
+    public function __construct(NotificationService $notificationService)
     {
-        $this->smsSender = $smsSender;
+        $this->notificationService = $notificationService;
     }
 
     /**
@@ -174,8 +174,7 @@ class  TicketManager
         $wavePaymentController = app(WavePaiementController::class);
         $wavePaiementResponse =  $wavePaymentController->getWavePaymentUrlForBooking($booking, app(TicketManager::class));
         $paiementUrl = $wavePaiementResponse->waveLaunchUrl();
-        $message = "Bnjr. Payez votre réservation Globe Transport sur le départ ". $booking->depart->name."  sur ce lien : $paiementUrl";
-        $this->smsSender->sendSms(substr($booking->customer->phone_number,-9,9),$message);
+        $this->notificationService->notifyCustomerOfPaymentLink($booking, $paiementUrl);
 
         return  $wavePaiementResponse;
     }
