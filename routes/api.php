@@ -103,6 +103,7 @@ Route::get("departs/{depart}/bookings_for_export", [DepartController::class, 'bo
 Route::get("departs/data_for_creation", [DepartController::class, 'getDataForDepartCreation']);
 Route::get("departs/current_events/departs", [DepartController::class, 'getAutresDeparts']);
 Route::get("departs/{depart}/waiting_customers", [DepartController::class, 'waitingCustomers']);
+Route::get("departs/{depart}/point_deps_and_destinations", [DepartController::class, 'pointDepsAndDestinations'])->name('point_deps_and_destinations');
 
 
 Route::resource('departs', DepartController::class)->only(['index', 'store', 'update', 'destroy']);;

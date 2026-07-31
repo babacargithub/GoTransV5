@@ -439,6 +439,21 @@ class DepartController extends Controller
         return response()->json($customers);
 
     }
+
+    /**
+     * Lists a depart's trajet's point deps and destinations (id + name), used by the admin
+     * "edit booking" form to populate the point de départ / destination dropdowns with real ids.
+     */
+    public function pointDepsAndDestinations(Depart $depart)
+    {
+        $trajet = $depart->trajet;
+
+        return response()->json([
+            'point_deps' => $trajet->pointDeps()->get(['id', 'name']),
+            'destinations' => $trajet->destinations()->get(['id', 'name']),
+        ]);
+    }
+
     private function  generateDefaultBusStopSchedules(Depart $depart, Bus $bus, Horaire $horaire)
     {
         $busStopSchedules = [];

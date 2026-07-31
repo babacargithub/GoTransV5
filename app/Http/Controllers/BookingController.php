@@ -137,6 +137,11 @@ class BookingController extends Controller
     public function update(Request $request, Booking $booking)
     {
         //
+        $validated = $request->validate([
+            "point_dep_id" => 'required|exists:point_deps,id',
+            "destination_id" => 'required|exists:destinations,id',
+        ]);
+        $booking->update($validated);
     }
 
     /**
