@@ -10,6 +10,7 @@ use App\Http\Controllers\ItineraryController;
 use App\Http\Controllers\MessengerController;
 use App\Http\Controllers\MobileAppController;
 use App\Http\Controllers\OrangeMoneyController;
+use App\Http\Controllers\OrangeSmsController;
 use App\Http\Controllers\PointDepController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\TrajetController;
@@ -206,5 +207,6 @@ Route::group(['prefix' => 'mobile'], function () {
     });
     Route::post("payment/om/success",[OrangeMoneyController::class,"orangeMoneyPaymentSuccessCallBack"]);
     Route::post("payment/wave/success",[WavePaiementController::class,"wavePaymentSuccessCallBack"]);
+    Route::post("sms/orange/delivery_receipt", [OrangeSmsController::class, 'deliveryReceipt']);
 
 });
