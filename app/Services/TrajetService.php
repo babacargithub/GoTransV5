@@ -389,8 +389,12 @@ class TrajetService
 
         $result = [
             'id' => $depart->id,
-            'departure_time' => $boardingPointDep !== null
-                ? $this->resolveDepartureTimeForPointDep($depart, $bus, $boardingPointDep)
+            // $depart->date is a nominal/reference timestamp, not the actual pickup time at any given
+            // stop — that lives per point_dep in heure_departs (see resolveDepartureTimeForPointDep).
+            // Always resolve it from the (mid-route or default) point_dep when one is available; only
+            // fall back to the raw depart date when the trajet has no usable point_dep at all.
+            'departure_time' => $pointDep !== null
+                ? $this->resolveDepartureTimeForPointDep($depart, $bus, $pointDep)
                 : $depart->date->format('H\hi'),
             "departure_date" => $depart->date->format('Y-m-d'),
             "seats_left" => $bus?->seatsLeft() . " " . $bus?->full_name,
@@ -424,10 +428,19 @@ class TrajetService
      */
     private function resolveDepartureTimeForPointDep(Depart $depart, ?Bus $bus, PointDep $pointDep): string
     {
-        $heureDepart = $bus?->heuresDeparts()->where('point_dep_id', $pointDep->id)->where('disabled', false)->first();
+        $heureDepart = $bus?->heuresDeparts()
+            ->join('point_deps', 'point_deps.id', '=', 'point_dep_id')
+            ->where('point_dep_id', $pointDep->id)
+            ->where('point_deps.disabled', false)
+            ->orderBy('position')
+            ->first();
 
         if ($heureDepart === null) {
-            $heureDepart = $depart->heuresDeparts()->where('point_dep_id', $pointDep->id)->where('disabled', false)->first();
+            $heureDepart = $depart->heuresDeparts()->where('point_dep_id', $pointDep->id)
+                ->join('point_deps', 'point_deps.id', '=', 'point_dep_id')
+                ->where('point_deps.disabled', false)
+                ->orderBy('position')
+                ->first();
         }
 
         return $heureDepart !== null ? $heureDepart->heureDepart->format('H\hi') : $depart->date->format('H\hi');
