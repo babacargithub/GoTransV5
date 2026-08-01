@@ -48,6 +48,7 @@ class GpBookingRequest extends FormRequest
                 'required',
                 new PhoneNumber()// Senegalese phone format
             ],
+            'passengers.*.point_dep_id' => 'nullable|integer|exists:point_deps,id',
         ];
     }
 
@@ -80,6 +81,7 @@ class GpBookingRequest extends FormRequest
             'passengers.*.last_name.required' => 'Le nom de famille est requis pour chaque passager.',
             'passengers.*.last_name.max' => 'Le nom de famille ne peut pas dépasser 100 caractères.',
             'passengers.*.phone_number.required' => 'Le numéro de téléphone est requis pour chaque passager.',
+            'passengers.*.point_dep_id.exists' => 'Le point de départ sélectionné pour un passager n\'existe pas.',
         ];
     }
 
