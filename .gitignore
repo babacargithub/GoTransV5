@@ -19,3 +19,4 @@ yarn-error.log
 /.vscode
 !/.env.example
 app/Utils/NotificationSender/SMSSender/tokens/orange_sms_token.json
+/deploy.sh

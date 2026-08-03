@@ -84,6 +84,7 @@ class PointDepController extends Controller
             'disabled' => 'boolean',
             'city' => 'nullable|string',
             'ticket_price' => 'nullable|numeric',
+            'visibilite' => 'nullable|numeric',
         ]);
         // map $validated
        $data = [
@@ -93,6 +94,7 @@ class PointDepController extends Controller
            'arret_bus' => $validated['arretBus']?? $pointDepart->arret_bus,
            'disabled' => $validated['disabled']?? $pointDepart->disabled,
            'city' => $validated['city'] ?? $pointDepart->city,
+           'visibilite'=> $validated['visibilite']?? $pointDepart->visibilite,
            'ticket_price' => $validated['ticket_price'] ?? $pointDepart->ticket_price];
 
         $pointDepart->update($data);

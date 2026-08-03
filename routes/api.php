@@ -119,6 +119,8 @@ Route::get("buses/vehicules", [BusController::class, 'vehicules']);
 Route::post("buses/{bus}/add_missing_point_dep_heures", [DepartController::class, 'addPointDepsSchedulesForBus']);
 Route::post("buses/{bus}/import_yobuma_passengers", [BusController::class, 'importPassengersFromYobuma']);
 Route::put("buses/{sourceBus}/transfer_bookings", [BusController::class, 'transferBookings']);
+Route::post("buses/free_seats", [BusController::class, 'freeSeats']);
+Route::post("buses/{bus}/free_seats", [BusController::class, 'freeSeatsOfBus']);
 Route::resource('buses', BusController::class);
 
 // Finances

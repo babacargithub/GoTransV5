@@ -347,6 +347,10 @@ class TrajetService
 
         $boardingPointDep = PointDep::where('city', $departureCity)
             ->where('disabled', false)
+            ->where(function (Builder $query) {
+                $query->where('visibilite', Depart::VISIBILITE_GP_CUSTOMERS_ONLY)
+                    ->orWhere('visibilite', Depart::VISIBILITE_ALL_CUSTOMERS);
+            })
             ->whereHas('trajet', fn(Builder $query) => $query->where('arrival_city', $arrivalCity))
             ->with('trajet')
             ->first();

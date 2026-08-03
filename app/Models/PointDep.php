@@ -20,7 +20,8 @@ class PointDep extends Model
         "position",
         "disabled",
         "disabled_at",
-        "disabled_by"
+        "disabled_by",
+        "visibilite"
     ];
     protected $casts = [
         'disabled' => 'boolean',
