@@ -347,6 +347,10 @@ class TrajetService
 
         $boardingPointDep = PointDep::where('city', $departureCity)
             ->where('disabled', false)
+            ->where(function (Builder $query) {
+                $query->where('visibilite', Depart::VISIBILITE_GP_CUSTOMERS_ONLY)
+                    ->orWhere('visibilite', Depart::VISIBILITE_ALL_CUSTOMERS);
+            })
             ->whereHas('trajet', fn(Builder $query) => $query->where('arrival_city', $arrivalCity))
             ->with('trajet')
             ->first();
@@ -370,15 +374,31 @@ class TrajetService
     {
         $bus = $depart->getBusForBooking(climatise: false);
         $trajet ??= $depart->trajet;
-        $pointDep = $boardingPointDep ?? $trajet?->pointDeps()
-            ->where('disabled', false)
-            ->orderBy('position')
-            ->first();
 
-        return [
+        // Origin-city search (no mid-route boarding point resolved): fetch every GP-visible boarding
+        // point on the trajet up front, so the same, correctly filtered/ordered list can both price the
+        // depart (using its first entry as the default) and be returned to let the customer pick one.
+        $originPointDeps = $boardingPointDep === null
+            ? ($trajet?->pointDeps()
+                ->where('disabled', false)
+                ->where(function ($query) {
+                    $query->where('visibilite', Depart::VISIBILITE_GP_CUSTOMERS_ONLY)
+                        ->orWhere('visibilite', Depart::VISIBILITE_ALL_CUSTOMERS);
+                })
+                ->orderBy('position')
+                ->get(['id', 'name', 'arret_bus']) ?? collect())
+            : null;
+
+        $pointDep = $boardingPointDep ?? $originPointDeps->first();
+
+        $result = [
             'id' => $depart->id,
-            'departure_time' => $boardingPointDep !== null
-                ? $this->resolveDepartureTimeForPointDep($depart, $bus, $boardingPointDep)
+            // $depart->date is a nominal/reference timestamp, not the actual pickup time at any given
+            // stop — that lives per point_dep in heure_departs (see resolveDepartureTimeForPointDep).
+            // Always resolve it from the (mid-route or default) point_dep when one is available; only
+            // fall back to the raw depart date when the trajet has no usable point_dep at all.
+            'departure_time' => $pointDep !== null
+                ? $this->resolveDepartureTimeForPointDep($depart, $bus, $pointDep)
                 : $depart->date->format('H\hi'),
             "departure_date" => $depart->date->format('Y-m-d'),
             "seats_left" => $bus?->seatsLeft() . " " . $bus?->full_name,
@@ -386,9 +406,24 @@ class TrajetService
             'ticket_price' => $bus !== null
                 ? $this->ticketManager->calculateTicketPrice($bus, $pointDep, \is_request_for_gp_customers())
                 : null,
-            'point_dep_id' => $pointDep?->id,
             'boarding_point' => $pointDep?->name,
         ];
+
+        if ($boardingPointDep !== null) {
+            // Mid-route boarding city: a single, exact PointDep was already resolved, so tell the
+            // customer precisely where in that city the bus will pick them up.
+            $result['point_dep_id'] = $pointDep?->id;
+            $result['arret_bus'] = $pointDep?->arret_bus;
+        } else {
+            // Origin-city search: several boarding points may exist within the trajet's own departure
+            // city. 'boarding_point' above is just the default (first) one, for a quick preview label
+            // (e.g. "Premier point de départ: {boarding_point}") — the frontend must still let the
+            // customer pick the exact one from 'point_deps' before booking, since no point_dep_id is
+            // returned here.
+            $result['point_deps'] = $originPointDeps;
+        }
+
+        return $result;
     }
 
     /**
@@ -397,10 +432,19 @@ class TrajetService
      */
     private function resolveDepartureTimeForPointDep(Depart $depart, ?Bus $bus, PointDep $pointDep): string
     {
-        $heureDepart = $bus?->heuresDeparts()->where('point_dep_id', $pointDep->id)->where('disabled', false)->first();
+        $heureDepart = $bus?->heuresDeparts()
+            ->join('point_deps', 'point_deps.id', '=', 'point_dep_id')
+            ->where('point_dep_id', $pointDep->id)
+            ->where('point_deps.disabled', false)
+            ->orderBy('position')
+            ->first();
 
         if ($heureDepart === null) {
-            $heureDepart = $depart->heuresDeparts()->where('point_dep_id', $pointDep->id)->where('disabled', false)->first();
+            $heureDepart = $depart->heuresDeparts()->where('point_dep_id', $pointDep->id)
+                ->join('point_deps', 'point_deps.id', '=', 'point_dep_id')
+                ->where('point_deps.disabled', false)
+                ->orderBy('position')
+                ->first();
         }
 
         return $heureDepart !== null ? $heureDepart->heureDepart->format('H\hi') : $depart->date->format('H\hi');

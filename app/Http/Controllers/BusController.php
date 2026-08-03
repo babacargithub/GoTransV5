@@ -11,12 +11,14 @@ use App\Models\Depart;
 use App\Models\Itinerary;
 use App\Models\Seat;
 use App\Models\Vehicule;
+use App\Services\BusService;
 use App\Services\NotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response as ResponseAlias;
+use Throwable;
 
 class BusController extends Controller
 {
@@ -186,6 +188,23 @@ class BusController extends Controller
         }
 
         return response()->json(['message' => 'Les réservations ont été transférées avec succès']);
+    }
+
+    /**
+     * @throws Throwable
+     */
+    public function freeSeats(BusService $busService): JsonResponse
+    {
+        $busService->freeAllBusSeatsRegardlessOfBus();
+
+        return response()->json(['message' => 'Les sièges ont été libérés avec succès']);
+    }
+
+    public function freeSeatsOfBus(Bus $bus, BusService $busService): JsonResponse
+    {
+        $busService->freeBusSeats($bus);
+
+        return response()->json(['message' => 'Les sièges ont été libérés avec succès']);
     }
 
     public function bookingsForExport(Bus $bus)

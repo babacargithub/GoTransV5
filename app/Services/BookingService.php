@@ -60,6 +60,11 @@ class BookingService
             }
 
             $passengers = $this->resolveOrCreatePassengerCustomers($validated['passengers']);
+            // Per-passenger boarding point (falls back to the leg-wide point_dep_id, then to the
+            // trajet's default) — lets travellers in the same origin city board at different stops.
+            $passengerPointDepIds = collect($validated['passengers'])
+                ->map(fn(array $passenger) => isset($passenger['point_dep_id']) ? (int)$passenger['point_dep_id'] : null)
+                ->values();
             $isRoundTrip = (bool)($validated['is_round_trip'] ?? false);
             $sharedGroupId = BookingManager::generateBookingGroupId();
             $roundTripId = $isRoundTrip ? (string)Str::uuid() : null;
@@ -74,6 +79,7 @@ class BookingService
                 tripLeg: $isRoundTrip ? Booking::TRIP_LEG_OUTBOUND : null,
                 selectedSeatNumbers: $validated['selected_seats'] ?? null,
                 pointDepId: $validated['point_dep_id'] ?? null,
+                passengerPointDepIds: $passengerPointDepIds,
             );
 
             if ($outboundLegResult instanceof JsonResponse) {
@@ -102,8 +108,10 @@ class BookingService
                     validated: $validated,
                     roundTripId: $roundTripId,
                     tripLeg: Booking::TRIP_LEG_RETURN,
-                    selectedSeatNumbers: null, // the return leg is always auto-assigned
+                    selectedSeatNumbers: null, // the return leg never has customer-chosen seats; assignment is deferred to payment confirmation, same as any unseated leg
                     pointDepId: null, // the return leg always boards at the trajet's default GP pickup point
+                    // no passengerPointDepIds: the outbound point_dep_id choices belong to the outbound
+                    // trajet's point_deps and would fail trajet-ownership validation on the reverse trajet
                 );
 
                 if ($returnLegResult instanceof JsonResponse) {
@@ -208,6 +216,10 @@ class BookingService
      * @param Collection $passengers Customer models, or arrays with id/full_name for passengers booked under an existing customer's name.
      * @param int|null $pointDepId Traveller-chosen boarding point (possibly a mid-route city), resolved by the
      *                             search endpoint. Null falls back to the trajet's default GP pickup point.
+     *                             Used for any passenger that doesn't have its own entry in $passengerPointDepIds.
+     * @param Collection|null $passengerPointDepIds Per-passenger boarding point overrides, aligned by index with
+     *                                               $passengers — lets travellers sharing an origin city board
+     *                                               at different stops. A null entry falls back to $pointDepId.
      * @return Booking[]|JsonResponse
      */
     private function buildBookingsForLeg(
@@ -220,10 +232,11 @@ class BookingService
         ?string $tripLeg,
         ?array $selectedSeatNumbers,
         ?int $pointDepId = null,
+        ?Collection $passengerPointDepIds = null,
     ): array|JsonResponse {
         $bookings = [];
 
-        foreach ($passengers as $passenger) {
+        foreach ($passengers as $index => $passenger) {
             $booking = new Booking([
                 'referer_id' => $validated['referer'] ?? 0,
                 'booked_with_platform' => $validated['booked_with_platform'] ?? "web",
@@ -236,7 +249,8 @@ class BookingService
                 $booking->customer_id = $passenger["id"];
                 $booking->booked_for_customer = $passenger["full_name"];
             }
-            $pointDepartAndDestination = $this->determinePointDepartAndDestinations($depart, $pointDepId);
+            $resolvedPointDepId = $passengerPointDepIds?->get($index) ?? $pointDepId;
+            $pointDepartAndDestination = $this->determinePointDepartAndDestinations($depart, $resolvedPointDepId);
             $booking->point_dep()->associate($pointDepartAndDestination["point_dep"]);
             $booking->destination()->associate($pointDepartAndDestination["destination"]);
             $booking->paye = false;
@@ -263,10 +277,11 @@ class BookingService
                 return $seat;
             });
         } else {
-            $seats = $bus->getAvailableSeats()->take($validated["passenger_count"]);
-            if (count($seats) < count($bookings)) {
-                return response()->json(["message" => "Il n'y a pas assez de sièges disponibles pour tous les passagers"], 422);
-            }
+            // No seat chosen (seat picking wasn't available/used for this bus): don't reserve seats
+            // now — just confirm the bus has enough capacity. Actual seat assignment happens later,
+            // when the payment is confirmed (see BookingManager::assignBusAndSeatsForUnseatedBookings).
+
+            $seats = collect();
         }
 
         foreach ($bookings as $index => &$booking) {
@@ -296,6 +311,11 @@ class BookingService
                     $existingBooking->group_id = $booking->group_id;
                     $existingBooking->round_trip_id = $booking->round_trip_id;
                     $existingBooking->trip_leg = $booking->trip_leg;
+                    // The customer may have re-submitted with a different chosen boarding point since
+                    // this stale unpaid booking was first created — always take the freshly resolved
+                    // point_dep/destination, otherwise pricing silently reverts to the old boarding point.
+                    $existingBooking->point_dep_id = $booking->point_dep_id;
+                    $existingBooking->destination_id = $booking->destination_id;
                 }
             }
             if ($hasExistingBooking) {

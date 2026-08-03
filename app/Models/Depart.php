@@ -119,6 +119,8 @@ class Depart extends Model
 
     public function getBusForBooking(bool $climatise = false) : ?Bus
     {
+        //TODO make this dynamic later
+        $gpCanBookOnNonClimatise = true;
         if (!$climatise) {
             $openedBuses = $this->buses->filter(fn(Bus $bus) => !$bus->isFull() && !$bus->isClosed());
             if (!$openedBuses->isEmpty()) {
@@ -126,7 +128,8 @@ class Depart extends Model
             }
             return $this->buses()->latest()->firstOrFail();
         } else {
-            $openedBuses = $this->buses->filter(fn(Bus $bus) => !$bus->isFull() && !$bus->isClosed() && $bus->climatise);
+            $openedBuses = $this->buses->filter(fn(Bus $bus) => !$bus->isFull() && !$bus->isClosed() &&
+                $bus->climatise || $gpCanBookOnNonClimatise);
             if (!$openedBuses->isEmpty()) {
                 return $openedBuses->first();
             }
