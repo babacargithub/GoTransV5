@@ -104,14 +104,32 @@ class GpBookingRequest extends FormRequest
             if (count($selectedSeats) !== count(array_unique($selectedSeats))) {
                 $validator->errors()->add('selected_seats', 'Vous ne pouvez pas sélectionner le même siège plusieurs fois.');
             }
+            $bus = null;
             if ($this->bus_id !== null) {
                 $bus = Bus::findOrFail($this->bus_id);
+            } elseif ($this->depart_id !== null) {
+                // No bus_id sent: resolve the bus the same way BookingService does at booking time,
+                // so validation checks the bus that will actually be used.
+                $depart = Depart::find($this->depart_id);
+                if ($depart !== null) {
+                    try {
+                        $bus = $depart->getBusForBooking(climatise: true);
+                    } catch (\Illuminate\Database\Eloquent\ModelNotFoundException) {
+                        $bus = null;
+                    }
+                    if ($bus === null) {
+                        $validator->errors()->add('bus_id', "Aucun bus n'est disponible pour ce départ.");
+                    }
+                }
+            }
+
+            if ($bus !== null) {
                 if ($bus->seatsLeft() < $this->validated()["passenger_count"]){
-                    $validator->errors()->add("Il n'y pas de assez de places disponible dans le bus ! Nombre de places disponibles : ".$bus->seatsLeft());
+                    $validator->errors()->add('bus_id', "Il n'y pas de assez de places disponible dans le bus ! Nombre de places disponibles : ".$bus->seatsLeft());
 
                 }
                 if ($bus->isFull() || $bus->isClosed()){
-                    $validator->errors()->add("Nous avons clôturé les réservations pour ce bus ! ");
+                    $validator->errors()->add('bus_id', "Nous avons clôturé les réservations pour ce bus ! ");
 
                 }
                 $alreadyBookedSeats = [];
@@ -121,7 +139,8 @@ class GpBookingRequest extends FormRequest
                         ->select('bus_seats.*')
                         ->where('seats.number', $selectedSeat)->first();
                     if ($seat == null) {
-                        return $validator->errors()->add("Le siège sélectionné n'existe pas dans le bus");
+                        $validator->errors()->add('selected_seats', "Le siège sélectionné n'existe pas dans le bus");
+                        break;
                     }
                     if ($seat->booked || Booking::where('seat_id', $seat->id)->exists()) {
                         $alreadyBookedSeats[] = $selectedSeat;
