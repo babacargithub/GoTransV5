@@ -34,9 +34,24 @@ class BookingManager
         $this->notificationService = $notificationService;
     }
 
+    /**
+     * Generates an id shared by every Booking row created together in one multi-passenger/round-trip
+     * request (see BookingService::buildBookingsForLeg and MobileMultipleBookingRequest::normalizeBookings).
+     *
+     * Deliberately NOT derived from "the next booking id" or the current time: predicting the next
+     * autoincrement id via Booking::latest() is a read-then-write race — two unrelated requests can read
+     * the same "latest id" before either has inserted, and (combined with the old minute-only timestamp
+     * suffix) end up with the exact same group_id, silently merging two strangers' bookings into one
+     * "group" on their tickets. Drawing from a large random space and checking for a clash instead removes
+     * the dependency on other rows' state entirely.
+     */
     public static function generateBookingGroupId(): string
     {
-        return (Booking::latest()->first()?->id+1).now()->format("dHi");
+        do {
+            $candidate = (string) random_int(100_000_000_000, 999_999_999_999);
+        } while (Booking::where('group_id', $candidate)->exists());
+
+        return $candidate;
     }
 
     /**
