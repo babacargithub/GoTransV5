@@ -2,7 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Resources\CustomerBookingsResource;
+use App\Http\Resources\BookingResource;
+use App\Models\Booking;
 use App\Models\Customer;
 use Illuminate\Http\Request;
 
@@ -59,15 +60,26 @@ class CustomerController extends Controller
         //
         return response()->json($customer);
     }
-    public function findByPhoneNumber(int $phone_number)
+    public function findByPhoneNumber(string $phone_number)
     {
         $customer = Customer::where('phone_number', $phone_number)->first();
         if (!$customer) {
             return response()->json(['message' => 'Customer not found'], 404);
         }
-        $customer->load('bookings');
-        $customer->bookings = CustomerBookingsResource::collection($customer->bookings);
-        return response()->json($customer);
+        return response()->json([
+            'id' => $customer->id,
+            'name' => $customer->nom,
+            'full_name' => $customer->full_name,
+            'phone_number' => $customer->phone_number,
+            'email' => $customer->email,
+            'created_at' => $customer->created_at?->format('d-m-Y H:i:s'),
+            'bookings' => BookingResource::collection(Booking::with(['seat', 'ticket', 'depart', 'bus', 'point_dep', 'destination', 'customer'])
+                ->where('customer_id', $customer->id)
+                ->whereDoesntHave('depart', function ($query) {
+                    $query->withoutGlobalScope('notCanceled')->where('canceled', true);
+                })
+                ->get())
+        ]);
     }
 
 
