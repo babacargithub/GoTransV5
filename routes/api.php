@@ -137,6 +137,7 @@ Route::post("bookings/{booking}/refund", [BookingController::class, 'refundTicke
 Route::resource('bookings', BookingController::class)->only(['index', 'store', 'update', 'destroy']);
 Route::put("point_departs/reorder", [PointDepController::class, 'reorder']);
 Route::resource("point_departs", PointDepController::class);
+Route::get("clients/phone_number/{phone_number}", [CustomerController::class, 'findByPhoneNumber']);
 Route::resource("customers", CustomerController::class);
 Route::get("events/{event}/departs", [EventController::class, 'departs']);
 Route::get("events/{event}/ticket_sales", [EventController::class, 'ticketSales']);

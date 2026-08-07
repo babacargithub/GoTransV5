@@ -330,8 +330,13 @@ class TrajetService
      *
      * Tries an exact trajet endpoint match first (unchanged, most common case). If none exists, falls
      * back to treating departure_city as a mid-route boarding point: a PointDep marked with that city,
-     * on a trajet whose own arrival_city is exactly the requested arrival_city. The arrival side is
-     * never resolved via mid-route stops — each trajet has, in practice, a single real destination.
+     * on a trajet whose own arrival_city is exactly the requested arrival_city.
+     *
+     * If that still finds nothing, tries a second fallback for the swapped case: arrival_city as a
+     * mid-route point on the trajet running the opposite direction. E.g. THIES is a mid-route PointDep
+     * on DAKAR->SAINT-LOUIS; searching SAINT-LOUIS -> THIES won't match either check above (SAINT-LOUIS
+     * isn't a mid-route city and THIES isn't a trajet endpoint), but the SAINT-LOUIS->DAKAR trajet's bus
+     * physically passes through THIES too, so it's the trajet the traveller actually wants.
      *
      * @return array{0: ?Trajet, 1: ?PointDep}
      */
@@ -357,6 +362,24 @@ class TrajetService
 
         if ($boardingPointDep !== null) {
             return [$boardingPointDep->trajet, $boardingPointDep];
+        }
+
+        $trajetWithMatchingMidRouteDestination = Trajet::where('arrival_city', $departureCity)
+            ->whereHas('pointDeps', function (Builder $query) use ($arrivalCity) {
+                $query->where('city', $arrivalCity)
+                    ->where('disabled', false)
+                    ->where(function (Builder $query) {
+                        $query->where('visibilite', Depart::VISIBILITE_GP_CUSTOMERS_ONLY)
+                            ->orWhere('visibilite', Depart::VISIBILITE_ALL_CUSTOMERS);
+                    });
+            })
+            ->first();
+
+        if ($trajetWithMatchingMidRouteDestination !== null) {
+            $reverseTrajet = $this->resolveReverseTrajet($trajetWithMatchingMidRouteDestination);
+            if ($reverseTrajet !== null) {
+                return [$reverseTrajet, null];
+            }
         }
 
         return [null, null];

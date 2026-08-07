@@ -112,7 +112,9 @@ class Depart extends Model
     protected static function booted(): void
     {
         static::addGlobalScope('notCanceled', function ($builder) {
-            $builder->where('canceled', false);
+            $builder->where(function ($query) {
+                $query->where('canceled', false)->orWhereNull('canceled');
+            });
             $builder->orderBy('date');
         });
     }
@@ -129,7 +131,7 @@ class Depart extends Model
             return $this->buses()->latest()->firstOrFail();
         } else {
             $openedBuses = $this->buses->filter(fn(Bus $bus) => !$bus->isFull() && !$bus->isClosed() &&
-                $bus->climatise || $gpCanBookOnNonClimatise);
+                ($bus->climatise || $gpCanBookOnNonClimatise));
             if (!$openedBuses->isEmpty()) {
                 return $openedBuses->first();
             }
