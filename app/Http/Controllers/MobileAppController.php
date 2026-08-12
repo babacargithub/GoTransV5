@@ -95,10 +95,20 @@ class MobileAppController extends Controller
     {
         $validated = $request->validate([
             'depart_id' => 'required|integer|exists:departs,id',
+            'point_dep_id' => 'nullable|integer|exists:point_deps,id',
             'passenger_count' => 'required|integer|min:1|max:10',
             'is_round_trip' => 'nullable|boolean',
             'return_depart_id' => 'nullable|integer|exists:departs,id',
+            'passengers' => 'nullable|array',
+            'passengers.*.point_dep_id' => 'nullable|integer|exists:point_deps,id',
         ]);
+
+        // Per-passenger boarding point (falls back to the leg-wide point_dep_id, then to the trajet's
+        // default) — must mirror handleGpMultiPassengerBooking's resolution so the preview matches the
+        // price the actual booking will charge.
+        $passengerPointDepIds = collect($validated['passengers'] ?? [])
+            ->map(fn(array $passenger) => isset($passenger['point_dep_id']) ? (int)$passenger['point_dep_id'] : null)
+            ->values();
 
         try {
             $prices = $this->bookingService->calculatePriceForGpBooking(
@@ -106,6 +116,8 @@ class MobileAppController extends Controller
                 passengerCount: $validated['passenger_count'],
                 isRoundTrip: (bool)($validated['is_round_trip'] ?? false),
                 returnDepartId: $validated['return_depart_id'] ?? null,
+                pointDepId: $validated['point_dep_id'] ?? null,
+                passengerPointDepIds: $passengerPointDepIds->isEmpty() ? null : $passengerPointDepIds,
             );
         } catch (\RuntimeException $e) {
             return response()->json(["message" => $e->getMessage()], 422);

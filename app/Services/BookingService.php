@@ -140,15 +140,25 @@ class BookingService
      * TrajetService::resolveReturnDepart (return-depart resolution, already scoped to the outbound
      * trajet's reverse trajet).
      *
+     * $pointDepId/$passengerPointDepIds mirror buildBookingsForLeg's boarding-point resolution — when
+     * omitted, this prices the trajet's default GP pickup point, which overstates the price for any
+     * traveller who actually chose a (typically cheaper) mid-route boarding point.
+     *
      * @throws \RuntimeException When a depart has no bookable bus, or return_depart_id doesn't
      *                            belong to the outbound trajet's reverse trajet.
      */
-    public function calculatePriceForGpBooking(int $departId, int $passengerCount, bool $isRoundTrip, ?int $returnDepartId): array
+    public function calculatePriceForGpBooking(
+        int $departId,
+        int $passengerCount,
+        bool $isRoundTrip,
+        ?int $returnDepartId,
+        ?int $pointDepId = null,
+        ?Collection $passengerPointDepIds = null,
+    ): array
     {
         $outboundDepart = Depart::findOrFail($departId);
         $outboundBus = $this->resolveBusForPricing($outboundDepart, 'départ');
-        $outboundPointDep = $this->determinePointDepartAndDestinations($outboundDepart)['point_dep'];
-        $outboundTicketPrice = $this->ticketManager->calculateTicketPrice($outboundBus, $outboundPointDep, forGp: true) * $passengerCount;
+        $outboundTicketPrice = $this->calculateGpLegTicketPrice($outboundDepart, $outboundBus, $passengerCount, $pointDepId, $passengerPointDepIds);
 
         $returnTicketPrice = 0;
         if ($isRoundTrip && $returnDepartId !== null) {
@@ -160,8 +170,8 @@ class BookingService
             }
 
             $returnBus = $this->resolveBusForPricing($returnDepart, 'retour');
-            $returnPointDep = $this->determinePointDepartAndDestinations($returnDepart)['point_dep'];
-            $returnTicketPrice = $this->ticketManager->calculateTicketPrice($returnBus, $returnPointDep, forGp: true) * $passengerCount;
+            // The return leg always boards at the trajet's default GP pickup point (see buildBookingsForLeg).
+            $returnTicketPrice = $this->calculateGpLegTicketPrice($returnDepart, $returnBus, $passengerCount, pointDepId: null, passengerPointDepIds: null);
         }
 
         return [
@@ -169,6 +179,22 @@ class BookingService
             'return_ticket_price' => $returnTicketPrice,
             'total_ticket_price' => $outboundTicketPrice + $returnTicketPrice,
         ];
+    }
+
+    /**
+     * Sums the per-passenger ticket price for one leg, resolving each passenger's boarding point the
+     * same way buildBookingsForLeg does (per-passenger point_dep_id, falling back to the leg-wide one,
+     * then the trajet default) so the preview matches what the actual booking will charge.
+     */
+    private function calculateGpLegTicketPrice(Depart $depart, Bus $bus, int $passengerCount, ?int $pointDepId, ?Collection $passengerPointDepIds): int
+    {
+        $total = 0;
+        for ($index = 0; $index < $passengerCount; $index++) {
+            $resolvedPointDepId = $passengerPointDepIds?->get($index) ?? $pointDepId;
+            $pointDep = $this->determinePointDepartAndDestinations($depart, $resolvedPointDepId)['point_dep'];
+            $total += $this->ticketManager->calculateTicketPrice($bus, $pointDep, forGp: true);
+        }
+        return $total;
     }
 
     /**
@@ -254,7 +280,11 @@ class BookingService
             $booking->point_dep()->associate($pointDepartAndDestination["point_dep"]);
             $booking->destination()->associate($pointDepartAndDestination["destination"]);
             $booking->paye = false;
-            $booking->comment = is_request_for_gp_customers() ? "for_gp" : null;
+            // buildBookingsForLeg is only ever called from handleGpMultiPassengerBooking (the dedicated
+            // GP booking flow) — always mark it "for_gp" rather than trusting the client to send the
+            // 'source: gp' header on this request too, otherwise the booking silently prices at the
+            // regular (non-GP) rate while calculatePriceForGpBooking's preview always shows the GP rate.
+            $booking->comment = "for_gp";
             $booking->group_id = $groupId;
             $booking->round_trip_id = $roundTripId;
             $booking->trip_leg = $tripLeg;
@@ -316,6 +346,9 @@ class BookingService
                     // point_dep/destination, otherwise pricing silently reverts to the old boarding point.
                     $existingBooking->point_dep_id = $booking->point_dep_id;
                     $existingBooking->destination_id = $booking->destination_id;
+                    // Likewise, a stale booking may predate this GP resubmission and not be marked
+                    // "for_gp" yet, which would silently price it at the regular (non-GP) rate.
+                    $existingBooking->comment = $booking->comment;
                 }
             }
             if ($hasExistingBooking) {
