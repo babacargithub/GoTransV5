@@ -10,6 +10,7 @@ use App\Models\Customer;
 use App\Models\Depart;
 use App\Models\User;
 use App\Services\NotificationService;
+use App\Services\WaitingCustomerService;
 use DB;
 use Exception;
 use Illuminate\Http\Request;
@@ -59,11 +60,23 @@ class BookingController extends Controller
             'ticket_paid' => 'boolean',
         ]);
         if ($depart->isFull()) {
+            $customer = Customer::find($validated['customer_id']);
+            if ($customer != null) {
+                app(WaitingCustomerService::class)->recordFailedBooking(
+                    $customer, $depart, null, WaitingCustomerService::REASON_BUS_FULL, $validated
+                );
+            }
             return response()->json(['message' => "Il n'y a pas de place disponible pour ce depart !"], 422);
         }
         $busForBooking = $validated['bus_id']??0 ? $depart->buses()->find($validated['bus_id']) :
             $depart->getBusForBooking();
         if ($busForBooking == null) {
+            $customer = Customer::find($validated['customer_id']);
+            if ($customer != null) {
+                app(WaitingCustomerService::class)->recordFailedBooking(
+                    $customer, $depart, null, WaitingCustomerService::REASON_NO_BUS_AVAILABLE, $validated
+                );
+            }
             return response()->json(['message' => "Il n'y a pas de place disponible pour ce bus !"], 422);
         }
         // check if customer has already booked for this depart

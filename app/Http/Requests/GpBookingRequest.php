@@ -10,6 +10,7 @@ use App\Models\Depart;
 use App\Rules\PhoneNumber;
 use App\Services\BookingService;
 use App\Services\TrajetService;
+use App\Services\WaitingCustomerService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -105,8 +106,10 @@ class GpBookingRequest extends FormRequest
                 $validator->errors()->add('selected_seats', 'Vous ne pouvez pas sélectionner le même siège plusieurs fois.');
             }
             $bus = null;
+            $depart = null;
             if ($this->bus_id !== null) {
                 $bus = Bus::findOrFail($this->bus_id);
+                $depart = $bus->depart;
             } elseif ($this->depart_id !== null) {
                 // No bus_id sent: resolve the bus the same way BookingService does at booking time,
                 // so validation checks the bus that will actually be used.
@@ -119,6 +122,7 @@ class GpBookingRequest extends FormRequest
                     }
                     if ($bus === null) {
                         $validator->errors()->add('bus_id', "Aucun bus n'est disponible pour ce départ.");
+                        $this->recordWaitingCustomers($depart, null, WaitingCustomerService::REASON_NO_BUS_AVAILABLE);
                     }
                 }
             }
@@ -126,10 +130,12 @@ class GpBookingRequest extends FormRequest
             if ($bus !== null) {
                 if ($bus->seatsLeft() < $this->validated()["passenger_count"]){
                     $validator->errors()->add('bus_id', "Il n'y pas de assez de places disponible dans le bus ! Nombre de places disponibles : ".$bus->seatsLeft());
+                    $this->recordWaitingCustomers($depart, $bus, WaitingCustomerService::REASON_BUS_FULL);
 
                 }
                 if ($bus->isFull() || $bus->isClosed()){
                     $validator->errors()->add('bus_id', "Nous avons clôturé les réservations pour ce bus ! ");
+                    $this->recordWaitingCustomers($depart, $bus, $bus->isClosed() ? WaitingCustomerService::REASON_BUS_CLOSED : WaitingCustomerService::REASON_BUS_FULL);
 
                 }
                 $alreadyBookedSeats = [];
@@ -191,6 +197,36 @@ class GpBookingRequest extends FormRequest
             $trajetService->assertReturnDepartBookable($returnDepart, (int)$this->passenger_count);
         } catch (\RuntimeException $e) {
             $validator->errors()->add('return_date', $e->getMessage());
+        }
+    }
+
+    /**
+     * Finds or creates a Customer for every passenger in the request and records them as waiting
+     * customers for the given depart, so failed GP bookings (bus full/closed, no bus available)
+     * aren't lost.
+     */
+    protected function recordWaitingCustomers(?Depart $depart, ?Bus $bus, string $reason): void
+    {
+        if ($depart === null) {
+            return;
+        }
+        $data = $this->validated();
+        $passengers = $data['passengers'] ?? [];
+        if (empty($passengers)) {
+            return;
+        }
+        $waitingCustomerService = app(WaitingCustomerService::class);
+        foreach ($passengers as $passenger) {
+            $customer = Customer::where('phone_number', $passenger['phone_number'])->first();
+            if ($customer === null) {
+                $customer = Customer::create([
+                    'prenom' => $passenger['first_name'],
+                    'nom' => $passenger['last_name'],
+                    'phone_number' => $passenger['phone_number'],
+                    'customer_category_id' => CustomerCategory::where('abrv', 'GP')->first()?->id,
+                ]);
+            }
+            $waitingCustomerService->recordFailedBooking($customer, $depart, $bus, $reason, $data);
         }
     }
 
