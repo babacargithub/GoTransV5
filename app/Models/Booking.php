@@ -44,7 +44,7 @@ class Booking extends Model
         "round_trip_id",
         "trip_leg",
 
-        'referer',
+        'referer_id',
     ];
 
     // create relations

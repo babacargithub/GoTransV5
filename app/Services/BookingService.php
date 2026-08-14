@@ -264,7 +264,7 @@ class BookingService
 
         foreach ($passengers as $index => $passenger) {
             $booking = new Booking([
-                'referer_id' => $validated['referer'] ?? 0,
+                'referer_id' => $validated['referer_id'] ?? 0,
                 'booked_with_platform' => $validated['booked_with_platform'] ?? "web",
             ]);
             $booking->depart()->associate($depart);

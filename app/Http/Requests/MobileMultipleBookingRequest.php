@@ -51,7 +51,7 @@ class MobileMultipleBookingRequest extends FormRequest
             "bookings.*.destination_id" => "required|integer|exists:destinations,id",
             "bookings.*.phone_number" => ["required", "numeric", new PhoneNumber()],
 
-            "bookings.*.referer" => "nullable|integer",
+            "bookings.*.referer_id" => "nullable|integer",
             "booked_with_platform" => "nullable|string",
             "bus_id" => "integer|exists:buses,id",
             "payment_method" => "required|string",
