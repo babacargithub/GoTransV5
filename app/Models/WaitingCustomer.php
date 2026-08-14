@@ -7,7 +7,16 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class WaitingCustomer extends Model
 {
-    //
+    protected $fillable = [
+        "customer_id",
+        "depart_id",
+        "bus_id",
+        "data",
+    ];
+
+    protected $casts = [
+        "data" => "array",
+    ];
 
     public function customer(): BelongsTo
     {

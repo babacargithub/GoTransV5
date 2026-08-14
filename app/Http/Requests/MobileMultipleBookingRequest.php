@@ -8,6 +8,7 @@ use App\Models\Bus;
 use App\Models\Customer;
 use App\Models\Depart;
 use App\Rules\PhoneNumber;
+use App\Services\WaitingCustomerService;
 use http\Exception\InvalidArgumentException;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -50,7 +51,7 @@ class MobileMultipleBookingRequest extends FormRequest
             "bookings.*.destination_id" => "required|integer|exists:destinations,id",
             "bookings.*.phone_number" => ["required", "numeric", new PhoneNumber()],
 
-            "bookings.*.referer" => "nullable|integer",
+            "bookings.*.referer_id" => "nullable|integer",
             "booked_with_platform" => "nullable|string",
             "bus_id" => "integer|exists:buses,id",
             "payment_method" => "required|string",
@@ -97,6 +98,8 @@ class MobileMultipleBookingRequest extends FormRequest
                             "closest_next_depart" => $closestNextDepart != null ? $closestNextDepart->identifier() :
                                 null];
                         $validator->errors()->add('bus_id', "Désolé, le bus est plein, il n'y a plus de place !");
+                        $this->recordWaitingCustomers($bookings, $depart, $bus,
+                            $bus->isClosed() ? WaitingCustomerService::REASON_BUS_CLOSED : WaitingCustomerService::REASON_BUS_FULL);
                     }
 
                 }else{
@@ -104,6 +107,7 @@ class MobileMultipleBookingRequest extends FormRequest
                     if ($depart->isClosed()){
                         $this->error_code = self::ERROR_DEPART_CLOSED;
                         $validator->errors()->add('depart', "Désolé, nous avons cloturé pour ce départ est  !");
+                        $this->recordWaitingCustomers($bookings, $depart, $bus, WaitingCustomerService::REASON_DEPART_CLOSED);
 
                     }
                     if ($bus->seatsLeft() < $numberOfBookings || $bus->isClosed() || $bus->isFull() ) {
@@ -117,6 +121,9 @@ class MobileMultipleBookingRequest extends FormRequest
                                 'bus_id',
                                 "Désolé, tous nos bus sont pleins !"
                             );
+                            if (!$depart->isClosed()) {
+                                $this->recordWaitingCustomers($bookings, $depart, $bus, WaitingCustomerService::REASON_NO_BUS_AVAILABLE);
+                            }
                         }else{
                             $validated["bus_id"] = $busesHavingEnoughSeats->first()->id;
                         }
@@ -181,6 +188,22 @@ class MobileMultipleBookingRequest extends FormRequest
     protected function passedValidation(): void
     {
         $this->merge(["bookings" => $this->normalizeBookings()]);
+    }
+
+    /**
+     * @param Booking[] $bookings
+     */
+    protected function recordWaitingCustomers(array $bookings, Depart $depart, ?Bus $bus, string $reason): void
+    {
+        $waitingCustomerService = app(WaitingCustomerService::class);
+        $data = $this->validated();
+        foreach ($bookings as $booking) {
+            $customer = Customer::find($booking->customer_id);
+            if ($customer == null) {
+                continue;
+            }
+            $waitingCustomerService->recordFailedBooking($customer, $depart, $bus, $reason, $data);
+        }
     }
     public function normalizeBookings(): array
     {

@@ -25,6 +25,7 @@ use App\Rules\PhoneNumber;
 use App\Services\BookingService;
 use App\Services\NotificationService;
 use App\Services\TrajetService;
+use App\Services\WaitingCustomerService;
 use DB;
 use GuzzleHttp\Exception\GuzzleException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -94,10 +95,20 @@ class MobileAppController extends Controller
     {
         $validated = $request->validate([
             'depart_id' => 'required|integer|exists:departs,id',
+            'point_dep_id' => 'nullable|integer|exists:point_deps,id',
             'passenger_count' => 'required|integer|min:1|max:10',
             'is_round_trip' => 'nullable|boolean',
             'return_depart_id' => 'nullable|integer|exists:departs,id',
+            'passengers' => 'nullable|array',
+            'passengers.*.point_dep_id' => 'nullable|integer|exists:point_deps,id',
         ]);
+
+        // Per-passenger boarding point (falls back to the leg-wide point_dep_id, then to the trajet's
+        // default) — must mirror handleGpMultiPassengerBooking's resolution so the preview matches the
+        // price the actual booking will charge.
+        $passengerPointDepIds = collect($validated['passengers'] ?? [])
+            ->map(fn(array $passenger) => isset($passenger['point_dep_id']) ? (int)$passenger['point_dep_id'] : null)
+            ->values();
 
         try {
             $prices = $this->bookingService->calculatePriceForGpBooking(
@@ -105,6 +116,8 @@ class MobileAppController extends Controller
                 passengerCount: $validated['passenger_count'],
                 isRoundTrip: (bool)($validated['is_round_trip'] ?? false),
                 returnDepartId: $validated['return_depart_id'] ?? null,
+                pointDepId: $validated['point_dep_id'] ?? null,
+                passengerPointDepIds: $passengerPointDepIds->isEmpty() ? null : $passengerPointDepIds,
             );
         } catch (\RuntimeException $e) {
             return response()->json(["message" => $e->getMessage()], 422);
@@ -224,7 +237,14 @@ class MobileAppController extends Controller
             if ($busOfSameVehicleType != null && !$busOfSameVehicleType->isFull()) {
                 $bus = $busOfSameVehicleType;
             } else {
-                // check if customer is not already in the waiting list
+                // record the customer in the waiting list so we can contact them later
+                app(WaitingCustomerService::class)->recordFailedBooking(
+                    $customer,
+                    $depart,
+                    $bus,
+                    $bus->isClosed() ? WaitingCustomerService::REASON_BUS_CLOSED : WaitingCustomerService::REASON_BUS_FULL,
+                    $validated
+                );
                 $closestDepart = $depart->getClosestNextDepart();
                 return response()->json([
                     'message' => "Désolé, le bus choisi est plein, il n'y a plus de place",
