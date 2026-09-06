@@ -4,7 +4,6 @@ use App\Http\Controllers\DepartController;
 use App\Http\Controllers\TicketController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 
 Route::domain(config('app.concours_domain'))->group(function () {
     Route::get('/', function () {
@@ -29,17 +28,6 @@ Route::domain(config('app.gp_domain'))->group(function () {
     })->name('gp_booking');
 });
 
-/*Route::get('/', function () {
-    return Inertia::render('Welcome', [
-        'canLogin' => Route::has('login'),
-        'canRegister' => Route::has('register'),
-        'laravelVersion' => Application::VERSION,
-        'phpVersion' => PHP_VERSION,
-        "messages"=> \App\Models\Depart::notPassed()->get()->map(function ($point){
-            return $point->name;
-        })
-    ]);
-});*/
 Route::get('/', function () {
     $trajet = \App\Models\Trajet::first();
     $messages = app(\App\Http\Controllers\MobileAppController::class)->listeDepartsTrajet($trajet)->getData();
@@ -57,12 +45,10 @@ Route::get('/', function () {
 // Public, unauthenticated ticket download page: anyone with the group_id can view/download the tickets.
 Route::get('/tickets/group/{groupId}', [TicketController::class, 'showGroupTickets'])->name('tickets.group.show');
 
-Route::middleware([
-    'auth:sanctum',
-    config('jetstream.auth_session'),
-    'verified',
-])->group(function () {
+Route::middleware(['auth:sanctum', 'verified'])->group(function () {
     Route::get('/dashboard', function () {
-        return Inertia::render('Dashboard');
+        return view('dashboard');
     })->name('dashboard');
+
+    Route::get('/profile', \App\Livewire\Profile\Edit::class)->name('profile.edit');
 });

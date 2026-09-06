@@ -9,7 +9,6 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use InvalidArgumentException;
 use Laravel\Fortify\TwoFactorAuthenticatable;
-use Laravel\Jetstream\HasProfilePhoto;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
@@ -29,7 +28,6 @@ class User extends Authenticatable
 
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory;
-    use HasProfilePhoto;
     use Notifiable;
     use TwoFactorAuthenticatable;
 
@@ -54,15 +52,6 @@ class User extends Authenticatable
         'remember_token',
         'two_factor_recovery_codes',
         'two_factor_secret',
-    ];
-
-    /**
-     * The accessors to append to the model's array form.
-     *
-     * @var array<int, string>
-     */
-    protected $appends = [
-        'profile_photo_url',
     ];
 
     public static function requireMobileAppUser(): User
@@ -91,31 +80,34 @@ class User extends Authenticatable
         ];
     }
 
-    public static function resolveRoles($role): array
+    /**
+     * Expand a list of roles to include every parent role in the hierarchy.
+     *
+     * @param  array<int, string>  $roles
+     * @return array<int, string>
+     */
+    public static function resolveRoles(array $roles): array
     {
-        function resolveRoles($role): array
-        {
-            $hierarchy = User::ROLE_HIERARCHY;
-            $allRoles = [$role];
+        $allRoles = [];
 
-            if (isset($hierarchy[$role])) {
-                foreach ($hierarchy[$role] as $parentRole) {
-                    $allRoles = array_merge($allRoles, resolveRoles($parentRole, $hierarchy));
-                }
-            }
-
-            return array_unique($allRoles);
+        foreach ($roles as $role) {
+            $allRoles = array_merge($allRoles, self::expandRole($role));
         }
 
-// Example usage:
-        $userRoles = $role;
-        $allUserRoles = [];
+        return array_values(array_unique($allRoles));
+    }
 
-        foreach ($userRoles as $userRole) {
-            $allUserRoles = array_merge($allUserRoles, resolveRoles($userRole));
+    /**
+     * @return array<int, string>
+     */
+    private static function expandRole(string $role): array
+    {
+        $allRoles = [$role];
+
+        foreach (self::ROLE_HIERARCHY[$role] ?? [] as $parentRole) {
+            $allRoles = array_merge($allRoles, self::expandRole($parentRole));
         }
 
-        return $allUserRoles;
-
+        return $allRoles;
     }
 }
