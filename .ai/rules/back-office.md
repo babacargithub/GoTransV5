@@ -33,3 +33,16 @@ App\Livewire\BackOffice\EditDepart + resources/views/livewire/back-office/edit-d
 Mirrors legacy Vue DepartureEdit.vue + DepartForm.vue (isEditing mode) but FIXES its bug: the legacy edit form hid the date field (only time was editable). Here both date + time are editable and recombined into the single `date` column via Carbon::parse(date)->setTimeFromTimeString(time).
 
 Editable fields: name, date, time, horaire_id, visibilite — exactly the fields DepartController@update whitelists. Trajet is shown read-only (legacy exposed a trajet picker but update() never persisted it). On save: request()->merge([...]) then app(DepartController::class)->update(request(), $depart), check HTTP 200, flash session('status') + redirectRoute('back-office.departs.index', navigate:true). Controller untouched (update() already had a routeIs-free JSON-only path).
+
+## DepartList bus "3 dots" menu — every bus action lives here
+Each bus row of DepartList has an ellipsis dropdown (partial resources/views/livewire/back-office/partials/bus-actions-menu.blade.php) rebuilding legacy BusActions.vue. All actions reuse an untouched controller method via app(BusController::class)->x($bus, request()) / app(DepartController::class):
+- Chiffres → openBusTicketSales($busId): shares the ONE ventes-de-billets modal with the départ card. ticketSalesBusId set → BusController@busTicketSales, else DepartController@ticketSales.
+- Itinéraire / rendez-vous → openScheduleManagement($departId, $busId): existing RV dialog pre-scoped to bus:{id}. Legacy "Itinéraire" + "Gérer les RV" are merged into this one item. Empty bus scope shows "Ajouter tous les arrêts" (addAllBusStopSchedules → DepartController@addPointDepsSchedulesForBus).
+- Répartition des clients → openBookingsRepartition($departId, $busId): passes bus_id to bookingGroupingsCount; dialog has a running "Cumul" column.
+- Sièges du bus → openBusSeats: BusController@seatsForAdmin grid + performBulkAction (needs request()->query->set('action',...), NOT merge) + freeSeatsOfBus.
+- Clôturer/Réouvrir → toggleBusClosed → BusController@toggleClose (request()->merge(['closed'=>!closed])).
+- Modifier infos bus → route back-office.buses.edit (App\Livewire\BackOffice\EditBus, mirrors EditBus.vue/BusForm.vue; fields = BusController@update whitelist; véhicule read-only).
+- Transférer les réservations → openBusBookingsTransfer → BusController@transferBookings (BusManager); transferType 3 forces count -1.
+- Supprimer le bus → askToDeleteBus → BusController@destroy (422 when bookings exist).
+- Exports: 4 filtered links (paye=1|0 & format=pdf|text) + "Toutes (PDF)" via Controller::filteredBookingsExportResponse; also added to the départ menu.
+Menu item icon colours: [&_[data-flux-menu-item-icon]]:!text-<color>-500. Seat icon fetched via php artisan flux:icon armchair.
