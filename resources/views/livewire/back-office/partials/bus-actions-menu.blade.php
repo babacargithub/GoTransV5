@@ -63,11 +63,11 @@
         </flux:menu.item>
 
         <flux:menu.item
-            icon="lock-closed"
-            class="py-2 [&_[data-flux-menu-item-icon]]:!text-amber-500"
-            disabled
+            :icon="$bus['closed'] ? 'lock-open' : 'lock-closed'"
+            class="py-2 {{ $bus['closed'] ? '[&_[data-flux-menu-item-icon]]:!text-emerald-500' : '[&_[data-flux-menu-item-icon]]:!text-amber-500' }}"
+            wire:click="toggleBusClosed({{ $bus['id'] }})"
         >
-            Clôturer les réservations
+            {{ $bus['closed'] ? 'Réouvrir les réservations' : 'Clôturer les réservations' }}
         </flux:menu.item>
 
         <flux:menu.item

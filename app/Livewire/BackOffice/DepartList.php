@@ -107,6 +107,31 @@ class DepartList extends Component
         $this->bookingsRepartitionBusId = null;
     }
 
+    /**
+     * Open or close a bus's bookings through BusController@toggleClose (the legacy
+     * "Clôturer réservations" switch); the list re-renders with the new state.
+     */
+    public function toggleBusClosed(int $busId): void
+    {
+        $bus = Bus::findOrFail($busId);
+
+        request()->merge(['closed' => ! $bus->closed]);
+
+        try {
+            app(BusController::class)->toggleClose($bus, request());
+        } catch (\Throwable $exception) {
+            session()->flash('error', $exception->getMessage());
+
+            return;
+        }
+
+        unset($this->departRows);
+
+        session()->flash('status', $bus->fresh()->closed
+            ? 'Les réservations du bus '.$bus->name.' ont été clôturées.'
+            : 'Les réservations du bus '.$bus->name.' ont été réouvertes.');
+    }
+
     public function openBusTicketSales(int $busId): void
     {
         $this->busTicketSalesBusId = $busId;

@@ -412,6 +412,38 @@ class DepartListPageTest extends TestCase
         $response->assertSee('openBookingsRepartition('.$depart->id.', '.$bus->id.')', false);
     }
 
+    public function test_the_cloturer_reouvrir_switch_toggles_the_bus_closed_state(): void
+    {
+        $depart = $this->createUpcomingDepartWithBus();
+        $bus = $depart->buses()->firstOrFail();
+        $this->assertFalse((bool) $bus->closed);
+
+        Livewire::actingAs(User::factory()->create())
+            ->test(DepartList::class)
+            ->call('toggleBusClosed', $bus->id)
+            ->assertSee('ont été clôturées');
+
+        $this->assertTrue((bool) $bus->fresh()->closed);
+
+        Livewire::actingAs(User::factory()->create())
+            ->test(DepartList::class)
+            ->call('toggleBusClosed', $bus->id)
+            ->assertSee('ont été réouvertes');
+
+        $this->assertFalse((bool) $bus->fresh()->closed);
+    }
+
+    public function test_the_cloturer_reouvrir_action_is_wired_on_the_bus_menu(): void
+    {
+        $depart = $this->createUpcomingDepartWithBus();
+        $bus = $depart->buses()->firstOrFail();
+
+        $this->actingAs(User::factory()->create())
+            ->get(route('back-office.departs.index'))
+            ->assertSee('toggleBusClosed('.$bus->id.')', false)
+            ->assertSee('Clôturer les réservations');
+    }
+
     public function test_the_chiffres_dialog_shows_bus_ticket_sales_grouped_by_seller(): void
     {
         ['bus' => $bus, 'ticket' => $ticket] = $this->createUpcomingDepartWithOnePaidSeatedPassenger();
