@@ -1,9 +1,12 @@
 <?php
 
 use App\Http\Controllers\BookingController;
+use App\Http\Controllers\BusController;
 use App\Http\Controllers\DepartController;
 use App\Http\Controllers\TicketController;
+use App\Livewire\BackOffice\AddBusToDepart;
 use App\Livewire\BackOffice\BusBookings;
+use App\Livewire\BackOffice\DepartList;
 use App\Livewire\Profile\Edit;
 use App\Models\Trajet;
 use Illuminate\Support\Facades\Route;
@@ -51,8 +54,14 @@ Route::middleware(['auth:sanctum', 'verified'])->group(function () {
  * these routes reuse the same controllers and render the data into Flux pages instead.
  */
 Route::prefix('back-office')->name('back-office.')->group(function () {
-    Route::get('departs', [DepartController::class, 'index'])->name('departs.index');
+    Route::get('departs', DepartList::class)->name('departs.index');
+    Route::get('departs/{depart}/add-bus', AddBusToDepart::class)->name('departs.add-bus');
+    Route::get('departs/{depart}/bookings-export', [DepartController::class, 'bookingsForExport'])
+        ->name('departs.bookings-export');
+
     Route::get('buses/{bus}/bookings', BusBookings::class)->name('buses.bookings');
+    Route::get('buses/{bus}/bookings-export', [BusController::class, 'bookingsForExport'])
+        ->name('buses.bookings-export');
 
     Route::get('bookings/{booking}/ticket', [TicketController::class, 'showBookingTicket'])
         ->name('bookings.ticket');

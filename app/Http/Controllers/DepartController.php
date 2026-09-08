@@ -28,24 +28,16 @@ use Symfony\Component\HttpFoundation\Response;
 class DepartController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * Display a listing of the resource for the legacy JSON API.
      *
-     * Serves both the legacy JSON API consumers and the Livewire/Flux back office.
-     * The underlying data is identical; only the response envelope differs.
+     * The Livewire/Flux back office renders the same resource through the
+     * App\Livewire\BackOffice\DepartList full-page component instead.
      */
-    public function index(Request $request)
+    public function index()
     {
         $upcomingDeparts = Depart::where('date', '>', now())->get();
 
-        $upcomingDepartsResource = DepartResource::collection($upcomingDeparts);
-
-        if ($request->routeIs('back-office.*')) {
-            return view('back-office.departs.index', [
-                'departs' => $upcomingDepartsResource->resolve($request),
-            ]);
-        }
-
-        return $upcomingDepartsResource;
+        return DepartResource::collection($upcomingDeparts);
     }
 
     /**
@@ -158,9 +150,10 @@ class DepartController extends Controller
             'ticket_price' => 'required|numeric',
             'nombre_place' => 'required|integer',
             'vehicule_id' => 'required|integer|exists:vehicules,id',
-            'gp_ticket_price' => 'numeric',
+            'gp_ticket_price' => 'nullable|numeric',
             'itinerary_id' => 'nullable|integer',
             'agent_numbers' => 'nullable|string',
+            'visibilite' => 'nullable|integer',
         ]);
         // validate name bus is unique for depart
         if ($depart->buses()->where('name', $validated['name'])->exists()) {
@@ -404,12 +397,25 @@ class DepartController extends Controller
 
     }
 
-    public function bookingsForExport(Depart $depart)
+    public function bookingsForExport(Depart $depart, Request $request)
     {
         $query = $depart->bookings()->getQuery();
         $query = Booking::bookingsOrdererByTrajet($depart->trajet, $query);
+        $bookings = $query->with(['seat.seat', 'customer', 'point_dep', 'ticket'])->get();
 
-        return response()->json(BookingForExportResource::collection($query->get()));
+        if ($request->routeIs('back-office.*')) {
+            return $this->bookingsExportDocumentResponse(
+                $bookings,
+                'Réservations — '.$depart->identifier(with_trajet_prefix: true),
+                [
+                    'Départ : '.$depart->identifier(with_trajet_prefix: true),
+                    'Date : '.$depart->date->translatedFormat('d F Y à H:i'),
+                ],
+                'reservations-depart-'.$depart->identifier(with_trajet_prefix: true),
+            );
+        }
+
+        return response()->json(BookingForExportResource::collection($bookings));
 
     }
 

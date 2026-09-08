@@ -216,17 +216,30 @@ class BusController extends Controller
         return response()->json(['message' => 'Les sièges ont été libérés avec succès']);
     }
 
-    public function bookingsForExport(Bus $bus)
+    public function bookingsForExport(Bus $bus, Request $request)
     {
         //  order bookings by seat number or by pointDep.position according to trajet id
         // if trajet id is 1, order by seat number, if trajet id is 2, order by pointDep.position
         $query = $bus->bookings()->getQuery();
         $query = Booking::bookingsOrdererByTrajet($bus->depart->trajet, $query);
-        $bookings = $query->get();
+        $bookings = $query->with(['seat.seat', 'customer', 'point_dep', 'ticket'])->get();
 
-        $response = BookingForExportResource::collection($bookings);
+        if ($request->routeIs('back-office.*')) {
+            $departLabel = $bus->depart->identifier(with_trajet_prefix: true);
 
-        return response()->json($response);
+            return $this->bookingsExportDocumentResponse(
+                $bookings,
+                'Réservations — '.$bus->name,
+                [
+                    'Départ : '.$departLabel,
+                    'Bus : '.$bus->name,
+                    'Date : '.$bus->depart->date->translatedFormat('d F Y à H:i'),
+                ],
+                'reservations-'.$departLabel.'-'.$bus->name,
+            );
+        }
+
+        return response()->json(BookingForExportResource::collection($bookings));
     }
 
     public function vehicules()
