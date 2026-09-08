@@ -9,6 +9,7 @@ use App\Livewire\BackOffice\BusBookings;
 use App\Livewire\BackOffice\CreateDepart;
 use App\Livewire\BackOffice\DepartList;
 use App\Livewire\BackOffice\DepartScheduleNotifications;
+use App\Livewire\BackOffice\EditDepart;
 use App\Livewire\Profile\Edit;
 use App\Models\Trajet;
 use Illuminate\Support\Facades\Route;
@@ -58,6 +59,7 @@ Route::middleware(['auth:sanctum', 'verified'])->group(function () {
 Route::middleware('auth')->prefix('back-office')->name('back-office.')->group(function () {
     Route::get('departs', DepartList::class)->name('departs.index');
     Route::get('departs/create', CreateDepart::class)->name('departs.create');
+    Route::get('departs/{depart}/edit', EditDepart::class)->name('departs.edit');
     Route::get('departs/{depart}/add-bus', AddBusToDepart::class)->name('departs.add-bus');
     Route::get('departs/{depart}/schedule-notifications', DepartScheduleNotifications::class)
         ->name('departs.schedule-notifications');

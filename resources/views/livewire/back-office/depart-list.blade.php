@@ -61,7 +61,14 @@
                         </flux:tooltip>
 
                         <flux:tooltip content="Modifier le départ">
-                            <flux:button size="sm" icon="pencil-square" variant="filled" aria-label="Modifier le départ" />
+                            <flux:button
+                                :href="route('back-office.departs.edit', $depart['id'])"
+                                wire:navigate
+                                size="sm"
+                                icon="pencil-square"
+                                variant="filled"
+                                aria-label="Modifier le départ"
+                            />
                         </flux:tooltip>
 
                         <flux:tooltip content="Exporter les réservations (PDF)">
