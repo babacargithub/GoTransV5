@@ -57,6 +57,7 @@
                 <flux:navbar.item icon="cog-6-tooth" icon:trailing="chevron-down">Admin</flux:navbar.item>
                 <flux:navmenu>
                     <flux:navmenu.item icon="users" :href="route('back-office.employes.index')" :current="request()->routeIs('back-office.employes.*')">Employés</flux:navmenu.item>
+                    <flux:navmenu.item icon="shield-check" :href="route('back-office.users.index')" :current="request()->routeIs('back-office.users.*')">Gestion des utilisateurs</flux:navmenu.item>
                     <flux:navmenu.item icon="arrows-right-left" :href="route('back-office.trajets.index')" :current="request()->routeIs('back-office.trajets.*')">Trajets</flux:navmenu.item>
                     <flux:navmenu.item icon="truck" :href="route('back-office.vehicules.index')" :current="request()->routeIs('back-office.vehicules.*')">Véhicules</flux:navmenu.item>
                     <flux:navmenu.item icon="adjustments-horizontal" :href="route('back-office.parametres.index')" :current="request()->routeIs('back-office.parametres.*')">Paramètres</flux:navmenu.item>
@@ -97,6 +98,7 @@
 
                 <flux:menu.group heading="Admin">
                     <flux:menu.item icon="users" :href="route('back-office.employes.index')">Employés</flux:menu.item>
+                    <flux:menu.item icon="shield-check" :href="route('back-office.users.index')">Gestion des utilisateurs</flux:menu.item>
                     <flux:menu.item icon="arrows-right-left" :href="route('back-office.trajets.index')">Trajets</flux:menu.item>
                     <flux:menu.item icon="truck" :href="route('back-office.vehicules.index')">Véhicules</flux:menu.item>
                     <flux:menu.item icon="adjustments-horizontal" :href="route('back-office.parametres.index')">Paramètres</flux:menu.item>

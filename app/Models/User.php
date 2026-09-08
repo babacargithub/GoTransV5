@@ -3,6 +3,8 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Enums\PermissionName;
+use Database\Factories\UserFactory;
 use Exception;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -10,10 +12,14 @@ use Illuminate\Notifications\Notifiable;
 use InvalidArgumentException;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use Laravel\Sanctum\HasApiTokens;
+use Spatie\Permission\Exceptions\PermissionDoesNotExist;
+use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
 {
     use HasApiTokens;
+    use HasRoles;
+
     const ROLE_HIERARCHY = [
         'ROLE_AMBASSADOR' => ['ROLE_USER'],
         'ROLE_API' => ['ROLE_USER'],
@@ -26,8 +32,9 @@ class User extends Authenticatable
         'ROLE_OWNER' => ['ROLE_CEO'],
     ];
 
-    /** @use HasFactory<\Database\Factories\UserFactory> */
+    /** @use HasFactory<UserFactory> */
     use HasFactory;
+
     use Notifiable;
     use TwoFactorAuthenticatable;
 
@@ -64,7 +71,23 @@ class User extends Authenticatable
      */
     public static function requiredLoggedInUser(): User
     {
-        return auth()->user() ?? throw new InvalidArgumentException("User not logged in");
+        return auth()->user() ?? throw new InvalidArgumentException('User not logged in');
+    }
+
+    /**
+     * Whether this user holds the super-admin "full access" permission.
+     *
+     * A `Gate::before` hook grants every ability to users for whom this is true,
+     * so a `full-access` holder passes every permission check without each guard
+     * having to name the permission explicitly.
+     */
+    public function hasFullAccess(): bool
+    {
+        try {
+            return $this->hasPermissionTo(PermissionName::FullAccess->value);
+        } catch (PermissionDoesNotExist) {
+            return false;
+        }
     }
 
     /**

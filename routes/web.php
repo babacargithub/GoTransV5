@@ -19,6 +19,7 @@ use App\Livewire\BackOffice\ItineraireList;
 use App\Livewire\BackOffice\OrangeMoneyPage;
 use App\Livewire\BackOffice\PointDepList;
 use App\Livewire\BackOffice\TrajetList;
+use App\Livewire\BackOffice\UserAccessManagement;
 use App\Livewire\BackOffice\VehiculeList;
 use App\Livewire\BackOffice\WavePaymentsPage;
 use App\Livewire\Profile\Edit;
@@ -82,6 +83,7 @@ Route::middleware('auth')->prefix('back-office')->name('back-office.')->group(fu
     Route::get('horaires', HoraireList::class)->name('horaires.index');
     Route::get('trajets', TrajetList::class)->name('trajets.index');
     Route::get('employes', EmployeList::class)->name('employes.index');
+    Route::get('users', UserAccessManagement::class)->name('users.index');
     Route::get('vehicules', VehiculeList::class)->name('vehicules.index');
     Route::get('parametres', AppParamsPage::class)->name('parametres.index');
 
