@@ -110,15 +110,12 @@
         </flux:dropdown>
     </flux:header>
 
-    {{-- Sidebar: booking stats for the current départs (not implemented yet). Visible but empty for now. --}}
-    <flux:sidebar sticky stashable class="border-e border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900">
+    {{-- Sidebar: booking-count stats for the current départs. Wider on desktop; a
+         self-contained Livewire component (own poll / refresh). --}}
+    <flux:sidebar sticky stashable class="border-e border-zinc-200 bg-zinc-50 lg:w-96 dark:border-zinc-700 dark:bg-zinc-900">
         <flux:sidebar.toggle class="lg:hidden" icon="x-mark" />
 
-        <flux:heading size="sm" class="px-1">Statistiques des départs</flux:heading>
-
-        <flux:text class="px-1 text-sm text-zinc-400 dark:text-zinc-500">
-            Les statistiques de réservation des départs en cours s'afficheront ici.
-        </flux:text>
+        <livewire:back-office.depart-stats-sidebar />
     </flux:sidebar>
 
     <flux:main>
