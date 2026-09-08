@@ -7,6 +7,7 @@ use App\Http\Controllers\DepartController;
 use App\Http\Resources\DepartResource;
 use App\Models\Bus;
 use App\Models\Depart;
+use App\Services\BusService;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
@@ -41,6 +42,19 @@ class DepartList extends Component
     public bool $showBusTicketSalesModal = false;
 
     public ?int $busTicketSalesBusId = null;
+
+    public bool $showBusSeatsModal = false;
+
+    public ?int $busSeatsBusId = null;
+
+    /**
+     * Bus seat ids currently selected in the "Gestion des sièges" grid.
+     *
+     * @var array<int, int>
+     */
+    public array $selectedBusSeatIds = [];
+
+    public ?string $busSeatsFlashMessage = null;
 
     public bool $showScheduleManagementModal = false;
 
@@ -136,6 +150,129 @@ class DepartList extends Component
     {
         $this->busTicketSalesBusId = $busId;
         $this->showBusTicketSalesModal = true;
+    }
+
+    public function openBusSeats(int $busId): void
+    {
+        $this->busSeatsBusId = $busId;
+        $this->selectedBusSeatIds = [];
+        $this->busSeatsFlashMessage = null;
+        $this->showBusSeatsModal = true;
+    }
+
+    public function closeBusSeats(): void
+    {
+        $this->showBusSeatsModal = false;
+        $this->busSeatsBusId = null;
+        $this->selectedBusSeatIds = [];
+        $this->busSeatsFlashMessage = null;
+    }
+
+    public function busSeatsBusLabel(): ?string
+    {
+        if ($this->busSeatsBusId === null) {
+            return null;
+        }
+
+        return Bus::findOrFail($this->busSeatsBusId)->full_name;
+    }
+
+    public function toggleBusSeatSelection(int $seatId): void
+    {
+        if (in_array($seatId, $this->selectedBusSeatIds, true)) {
+            $this->selectedBusSeatIds = array_values(array_diff($this->selectedBusSeatIds, [$seatId]));
+
+            return;
+        }
+
+        $this->selectedBusSeatIds[] = $seatId;
+    }
+
+    public function clearBusSeatSelection(): void
+    {
+        $this->selectedBusSeatIds = [];
+    }
+
+    /**
+     * Editable seat rows for the "Gestion des sièges" grid, straight from
+     * BusController@seatsForAdmin.
+     *
+     * @return array<int, array{id: int, name: string, booked: bool, locked: bool}>
+     */
+    #[Computed]
+    public function busSeatRows(): array
+    {
+        if ($this->busSeatsBusId === null) {
+            return [];
+        }
+
+        $bus = Bus::findOrFail($this->busSeatsBusId);
+
+        return collect(app(BusController::class)->seatsForAdmin($bus))
+            ->map(fn (array $row): array => [
+                'id' => (int) $row['id'],
+                'name' => (string) $row['name'],
+                'booked' => (bool) $row['booked'],
+                'locked' => (bool) $row['locked'],
+            ])
+            ->all();
+    }
+
+    /**
+     * @return array{free: int, booked: int, locked: int, total: int}
+     */
+    public function busSeatStatistics(): array
+    {
+        $rows = collect($this->busSeatRows);
+
+        return [
+            'free' => $rows->filter(fn (array $row): bool => ! $row['booked'] && ! $row['locked'])->count(),
+            'booked' => $rows->where('booked', true)->count(),
+            'locked' => $rows->where('locked', true)->count(),
+            'total' => $rows->count(),
+        ];
+    }
+
+    /**
+     * Apply a bulk action (lock / unlock / book / unbook) to the selected seats
+     * through BusController@performBulkAction (the legacy bulk-action endpoint).
+     */
+    public function performBusSeatsBulkAction(string $busSeatsBulkAction): void
+    {
+        if ($this->busSeatsBusId === null || $this->selectedBusSeatIds === []) {
+            return;
+        }
+
+        $bus = Bus::findOrFail($this->busSeatsBusId);
+
+        request()->merge(['seat_ids' => $this->selectedBusSeatIds]);
+        request()->query->set('action', $busSeatsBulkAction);
+
+        $bulkActionResponse = app(BusController::class)->performBulkAction($bus, request());
+        $bulkActionPayload = $bulkActionResponse->getData(true);
+
+        $this->busSeatsFlashMessage = $bulkActionPayload['message'] ?? 'Action effectuée.';
+        $this->selectedBusSeatIds = [];
+        unset($this->busSeatRows, $this->departRows);
+    }
+
+    /**
+     * Free seats stuck as booked without an active booking, through
+     * BusController@freeSeatsOfBus (the legacy "Libérer les sièges bloqués").
+     */
+    public function freeStuckBusSeats(): void
+    {
+        if ($this->busSeatsBusId === null) {
+            return;
+        }
+
+        $bus = Bus::findOrFail($this->busSeatsBusId);
+
+        $freeSeatsResponse = app(BusController::class)->freeSeatsOfBus($bus, app(BusService::class));
+
+        $this->busSeatsFlashMessage = $freeSeatsResponse->getData(true)['message'] ?? 'Sièges libérés.';
+        $this->selectedBusSeatIds = [];
+        unset($this->busSeatRows, $this->departRows);
     }
 
     public function closeBusTicketSales(): void

@@ -4,6 +4,7 @@ namespace Tests\Feature\BackOffice;
 
 use App\Livewire\BackOffice\DepartList;
 use App\Models\Bus;
+use App\Models\BusSeat;
 use App\Models\Customer;
 use App\Models\Depart;
 use App\Models\HeureDepart;
@@ -12,6 +13,7 @@ use App\Models\Ticket;
 use App\Models\Trajet;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Collection;
 use Laravel\Sanctum\Sanctum;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -410,6 +412,68 @@ class DepartListPageTest extends TestCase
         $response->assertSee('openBusTicketSales('.$bus->id.')', false);
         $response->assertSee('openScheduleManagement('.$depart->id.', '.$bus->id.')', false);
         $response->assertSee('openBookingsRepartition('.$depart->id.', '.$bus->id.')', false);
+    }
+
+    /**
+     * @return array{depart: Depart, bus: Bus, seats: Collection<int, BusSeat>}
+     */
+    private function createUpcomingDepartWithBusSeats(int $numberOfSeats = 4): array
+    {
+        $depart = $this->createUpcomingDepartWithBus();
+        $bus = $depart->buses()->firstOrFail();
+
+        $seats = Seat::query()->orderBy('number')->take($numberOfSeats)->get()
+            ->map(fn (Seat $seat) => $bus->seats()->create([
+                'seat_id' => $seat->id,
+                'booked' => false,
+                'price' => 3550,
+            ]));
+
+        return ['depart' => $depart->fresh(), 'bus' => $bus->fresh(), 'seats' => $seats];
+    }
+
+    public function test_the_gestion_des_sieges_dialog_lists_the_bus_seats_with_their_state(): void
+    {
+        ['bus' => $bus, 'seats' => $seats] = $this->createUpcomingDepartWithBusSeats();
+        $seats[0]->update(['booked' => true]);
+
+        Livewire::actingAs(User::factory()->create())
+            ->test(DepartList::class)
+            ->call('openBusSeats', $bus->id)
+            ->assertSet('showBusSeatsModal', true)
+            ->assertSee($bus->full_name)
+            ->assertCount('busSeatRows', 4)
+            ->assertSee('Réservé : 1')
+            ->assertSee('Libre : 3');
+    }
+
+    public function test_the_gestion_des_sieges_bulk_action_locks_the_selected_seats(): void
+    {
+        ['bus' => $bus, 'seats' => $seats] = $this->createUpcomingDepartWithBusSeats();
+
+        Livewire::actingAs(User::factory()->create())
+            ->test(DepartList::class)
+            ->call('openBusSeats', $bus->id)
+            ->call('toggleBusSeatSelection', $seats[0]->id)
+            ->call('toggleBusSeatSelection', $seats[1]->id)
+            ->assertCount('selectedBusSeatIds', 2)
+            ->call('performBusSeatsBulkAction', 'lock')
+            ->assertCount('selectedBusSeatIds', 0)
+            ->assertSee('siège(s) verrouillé(s)');
+
+        $this->assertEquals(1, $seats[0]->fresh()->locked);
+        $this->assertEquals(1, $seats[1]->fresh()->locked);
+    }
+
+    public function test_the_gestion_des_sieges_action_is_wired_on_the_bus_menu(): void
+    {
+        $depart = $this->createUpcomingDepartWithBus();
+        $bus = $depart->buses()->firstOrFail();
+
+        $this->actingAs(User::factory()->create())
+            ->get(route('back-office.departs.index'))
+            ->assertSee('openBusSeats('.$bus->id.')', false)
+            ->assertSee('Sièges du bus');
     }
 
     public function test_the_cloturer_reouvrir_switch_toggles_the_bus_closed_state(): void

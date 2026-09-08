@@ -57,7 +57,7 @@
         <flux:menu.item
             icon="armchair"
             class="py-2 [&_[data-flux-menu-item-icon]]:!text-violet-500"
-            disabled
+            wire:click="openBusSeats({{ $bus['id'] }})"
         >
             Sièges du bus
         </flux:menu.item>

@@ -285,6 +285,86 @@
         </div>
     </flux:modal>
 
+    {{-- Gestion des sièges --}}
+    <flux:modal wire:model.self="showBusSeatsModal" wire:key="bus-seats-modal" class="w-full max-w-2xl">
+        <div class="space-y-6">
+            <div>
+                <flux:heading size="lg">Gestion des sièges</flux:heading>
+                <flux:text class="mt-1">{{ $this->busSeatsBusLabel() }}</flux:text>
+            </div>
+
+            @php($busSeatStatistics = $this->busSeatStatistics())
+
+            <div class="flex flex-wrap gap-2">
+                <flux:badge color="green" icon="check-circle">Libre : {{ $busSeatStatistics['free'] }}</flux:badge>
+                <flux:badge color="amber" icon="user">Réservé : {{ $busSeatStatistics['booked'] }}</flux:badge>
+                <flux:badge color="red" icon="lock-closed">Verrouillé : {{ $busSeatStatistics['locked'] }}</flux:badge>
+                <flux:badge color="zinc">Total : {{ $busSeatStatistics['total'] }}</flux:badge>
+            </div>
+
+            @if ($busSeatsFlashMessage)
+                <flux:callout variant="success" icon="check-circle">
+                    <flux:callout.text>{{ $busSeatsFlashMessage }}</flux:callout.text>
+                </flux:callout>
+            @endif
+
+            <div class="flex flex-wrap items-center gap-2">
+                <flux:button
+                    size="sm"
+                    variant="filled"
+                    icon="lock-open"
+                    wire:click="freeStuckBusSeats"
+                    wire:loading.attr="disabled"
+                    wire:target="freeStuckBusSeats"
+                >
+                    Libérer les sièges bloqués
+                </flux:button>
+
+                @if (count($selectedBusSeatIds) > 0)
+                    <flux:badge color="blue">{{ count($selectedBusSeatIds) }} sélectionné(s)</flux:badge>
+                    <flux:button size="sm" variant="primary" wire:click="performBusSeatsBulkAction('book')">Réserver</flux:button>
+                    <flux:button size="sm" variant="filled" wire:click="performBusSeatsBulkAction('unbook')">Libérer</flux:button>
+                    <flux:button size="sm" variant="danger" wire:click="performBusSeatsBulkAction('lock')">Verrouiller</flux:button>
+                    <flux:button size="sm" variant="filled" wire:click="performBusSeatsBulkAction('unlock')">Déverrouiller</flux:button>
+                    <flux:button size="sm" variant="ghost" wire:click="clearBusSeatSelection">Effacer</flux:button>
+                @endif
+            </div>
+
+            @php($busSeatRows = $this->busSeatRows)
+
+            @if (count($busSeatRows) === 0)
+                <flux:callout icon="information-circle">
+                    <flux:callout.text>Aucun siège pour ce bus.</flux:callout.text>
+                </flux:callout>
+            @else
+                <div class="grid grid-cols-[repeat(auto-fill,minmax(3.5rem,1fr))] gap-2">
+                    @foreach ($busSeatRows as $busSeatRow)
+                        @php($isSelected = in_array($busSeatRow['id'], $selectedBusSeatIds, true))
+                        <button
+                            type="button"
+                            wire:key="bus-seat-{{ $busSeatRow['id'] }}"
+                            wire:click="toggleBusSeatSelection({{ $busSeatRow['id'] }})"
+                            @class([
+                                'flex flex-col items-center justify-center rounded-lg border-2 px-1 py-2 text-xs font-semibold transition',
+                                'border-blue-500 ring-2 ring-blue-500/40' => $isSelected,
+                                'border-red-400 bg-red-50 text-red-700 dark:border-red-500 dark:bg-red-500/10 dark:text-red-300' => ! $isSelected && $busSeatRow['locked'],
+                                'border-amber-400 bg-amber-50 text-amber-700 dark:border-amber-500 dark:bg-amber-500/10 dark:text-amber-300' => ! $isSelected && ! $busSeatRow['locked'] && $busSeatRow['booked'],
+                                'border-emerald-400 bg-emerald-50 text-emerald-700 dark:border-emerald-500 dark:bg-emerald-500/10 dark:text-emerald-300' => ! $isSelected && ! $busSeatRow['locked'] && ! $busSeatRow['booked'],
+                            ])
+                        >
+                            <flux:icon :icon="$busSeatRow['locked'] ? 'lock-closed' : ($busSeatRow['booked'] ? 'user' : 'check-circle')" variant="mini" />
+                            {{ $busSeatRow['name'] }}
+                        </button>
+                    @endforeach
+                </div>
+            @endif
+
+            <div class="flex justify-end">
+                <flux:button variant="ghost" wire:click="closeBusSeats">Fermer</flux:button>
+            </div>
+        </div>
+    </flux:modal>
+
     {{-- Répartition des clients --}}
     <flux:modal wire:model.self="showBookingsRepartitionModal" wire:key="bookings-repartition-modal" class="w-full max-w-lg">
         <div class="space-y-6">
