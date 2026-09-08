@@ -5,6 +5,7 @@ use App\Http\Controllers\BusController;
 use App\Http\Controllers\DepartController;
 use App\Http\Controllers\TicketController;
 use App\Livewire\BackOffice\AddBusToDepart;
+use App\Livewire\BackOffice\AppParamsPage;
 use App\Livewire\BackOffice\BusBookings;
 use App\Livewire\BackOffice\CreateDepart;
 use App\Livewire\BackOffice\DepartList;
@@ -79,6 +80,7 @@ Route::middleware('auth')->prefix('back-office')->name('back-office.')->group(fu
     Route::get('trajets', TrajetList::class)->name('trajets.index');
     Route::get('employes', EmployeList::class)->name('employes.index');
     Route::get('vehicules', VehiculeList::class)->name('vehicules.index');
+    Route::get('parametres', AppParamsPage::class)->name('parametres.index');
 
     Route::get('buses/{bus}/edit', EditBus::class)->name('buses.edit');
     Route::get('buses/{bus}/bookings', BusBookings::class)->name('buses.bookings');
