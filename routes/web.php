@@ -11,6 +11,7 @@ use App\Livewire\BackOffice\DepartList;
 use App\Livewire\BackOffice\DepartScheduleNotifications;
 use App\Livewire\BackOffice\EditBus;
 use App\Livewire\BackOffice\EditDepart;
+use App\Livewire\BackOffice\PointDepList;
 use App\Livewire\Profile\Edit;
 use App\Models\Trajet;
 use Illuminate\Support\Facades\Route;
@@ -66,6 +67,8 @@ Route::middleware('auth')->prefix('back-office')->name('back-office.')->group(fu
         ->name('departs.schedule-notifications');
     Route::get('departs/{depart}/bookings-export', [DepartController::class, 'bookingsForExport'])
         ->name('departs.bookings-export');
+
+    Route::get('point-deps', PointDepList::class)->name('point-deps.index');
 
     Route::get('buses/{bus}/edit', EditBus::class)->name('buses.edit');
     Route::get('buses/{bus}/bookings', BusBookings::class)->name('buses.bookings');

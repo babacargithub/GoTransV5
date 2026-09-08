@@ -44,7 +44,7 @@
                             <flux:button
                                 :href="route('back-office.departs.add-bus', $depart['id'])"
                                 size="sm"
-                                icon="plus"
+                                icon="bus"
                                 variant="primary"
                                 aria-label="Ajouter un bus"
                             />
