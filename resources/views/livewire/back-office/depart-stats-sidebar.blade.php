@@ -26,14 +26,14 @@
             <flux:callout.text>Aucun départ à venir.</flux:callout.text>
         </flux:callout>
     @else
-        <div class="space-y-4">
+        <div class="space-y-5">
             @foreach ($this->departStatsRows as $departStatsRow)
-                <div class="space-y-2.5" wire:key="sidebar-depart-{{ $loop->index }}">
-                    <flux:heading size="sm" class="px-1 leading-snug">{{ $departStatsRow['depart'] }}</flux:heading>
+                <div class="space-y-3 px-1" wire:key="sidebar-depart-{{ $loop->index }}">
+                    <flux:heading size="sm" class="leading-snug">{{ $departStatsRow['depart'] }}</flux:heading>
 
                     @forelse ($departStatsRow['buses'] as $sidebarBus)
                         <div
-                            class="space-y-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700"
+                            class="space-y-2"
                             wire:key="sidebar-bus-{{ $loop->parent->index }}-{{ $loop->index }}"
                         >
                             <div class="flex items-center justify-between gap-2">
@@ -72,10 +72,18 @@
                                 </flux:tooltip>
                             </div>
                         </div>
+
+                        @unless ($loop->last)
+                            <flux:separator variant="subtle" />
+                        @endunless
                     @empty
-                        <flux:text class="px-1 text-xs text-zinc-500 dark:text-zinc-400">Aucun bus.</flux:text>
+                        <flux:text class="text-xs text-zinc-500 dark:text-zinc-400">Aucun bus.</flux:text>
                     @endforelse
                 </div>
+
+                @unless ($loop->last)
+                    <flux:separator />
+                @endunless
             @endforeach
         </div>
     @endif
