@@ -16,6 +16,7 @@ use App\Livewire\BackOffice\HoraireList;
 use App\Livewire\BackOffice\ItineraireList;
 use App\Livewire\BackOffice\PointDepList;
 use App\Livewire\BackOffice\TrajetList;
+use App\Livewire\BackOffice\VehiculeList;
 use App\Livewire\Profile\Edit;
 use App\Models\Trajet;
 use Illuminate\Support\Facades\Route;
@@ -77,6 +78,7 @@ Route::middleware('auth')->prefix('back-office')->name('back-office.')->group(fu
     Route::get('horaires', HoraireList::class)->name('horaires.index');
     Route::get('trajets', TrajetList::class)->name('trajets.index');
     Route::get('employes', EmployeList::class)->name('employes.index');
+    Route::get('vehicules', VehiculeList::class)->name('vehicules.index');
 
     Route::get('buses/{bus}/edit', EditBus::class)->name('buses.edit');
     Route::get('buses/{bus}/bookings', BusBookings::class)->name('buses.bookings');
