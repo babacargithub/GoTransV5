@@ -1,8 +1,9 @@
 <?php
 
-use App\Http\Controllers\BusController;
+use App\Http\Controllers\BookingController;
 use App\Http\Controllers\DepartController;
 use App\Http\Controllers\TicketController;
+use App\Livewire\BackOffice\BusBookings;
 use App\Livewire\Profile\Edit;
 use App\Models\Trajet;
 use Illuminate\Support\Facades\Route;
@@ -51,5 +52,10 @@ Route::middleware(['auth:sanctum', 'verified'])->group(function () {
  */
 Route::prefix('back-office')->name('back-office.')->group(function () {
     Route::get('departs', [DepartController::class, 'index'])->name('departs.index');
-    Route::get('buses/{bus}/bookings', [BusController::class, 'bookings'])->name('buses.bookings');
+    Route::get('buses/{bus}/bookings', BusBookings::class)->name('buses.bookings');
+
+    Route::post('bookings/{booking}/save_ticket_payment', [BookingController::class, 'saveTicketPayment'])
+        ->name('bookings.save-ticket-payment');
+    Route::post('bookings/{booking}/trigger_payment_request/{paymentMethod}', [BookingController::class, 'triggerPaymentRequestForPaymentMethod'])
+        ->name('bookings.trigger-payment-request');
 });

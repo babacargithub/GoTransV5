@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Http\Resources\BookingForExportResource;
-use App\Http\Resources\BookingResource;
 use App\Manager\BusManager;
 use App\Models\Booking;
 use App\Models\Bus;
@@ -122,30 +121,13 @@ class BusController extends Controller
     }
 
     /**
-     * Lists a bus's passengers.
+     * Lists a bus's passengers for the legacy JSON API.
      *
-     * Serves both the legacy JSON API consumers and the Livewire/Flux back office.
-     * The underlying data is identical; only the response envelope differs.
+     * The Livewire/Flux back office renders the same data through the
+     * App\Livewire\BackOffice\BusBookings full-page component instead.
      */
-    public function bookings(Bus $bus, Request $request)
+    public function bookings(Bus $bus)
     {
-        if ($request->routeIs('back-office.*')) {
-            $bus->load([
-                'bookings.customer',
-                'bookings.seat.seat',
-                'bookings.ticket',
-                'bookings.point_dep',
-                'bookings.destination',
-                'bookings.depart',
-            ]);
-
-            return view('back-office.buses.bookings', [
-                'bus' => $bus,
-                'departLabel' => $bus->depart->identifier(with_trajet_prefix: true),
-                'bookings' => BookingResource::collection($bus->bookings)->resolve($request),
-            ]);
-        }
-
         return $this->bookingsResponse($bus->bookings);
     }
 

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\BackOffice;
 
+use App\Livewire\BackOffice\BusBookings;
 use App\Models\Booking;
 use App\Models\Bus;
 use App\Models\Customer;
@@ -11,6 +12,7 @@ use App\Models\Trajet;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Laravel\Sanctum\Sanctum;
+use Livewire\Livewire;
 use Tests\TestCase;
 
 class BusBookingsPageTest extends TestCase
@@ -84,7 +86,7 @@ class BusBookingsPageTest extends TestCase
             ->get(route('back-office.buses.bookings', $bus));
 
         $response->assertOk();
-        $response->assertViewIs('back-office.buses.bookings');
+        $response->assertSeeLivewire(BusBookings::class);
         $response->assertSee($bus->name);
         $response->assertSee($bus->depart->identifier(with_trajet_prefix: true));
         $response->assertSee($customer->full_name);
@@ -98,6 +100,19 @@ class BusBookingsPageTest extends TestCase
         $response->assertSee('Annuler la réservation');
         $response->assertSee('Transférer vers un autre bus');
         $response->assertSee('Détails de la réservation');
+    }
+
+    public function test_an_unpaid_booking_shows_the_pay_and_reminder_buttons(): void
+    {
+        ['bus' => $bus, 'booking' => $booking] = $this->createBusWithOnePassenger();
+
+        Livewire::test(BusBookings::class, ['bus' => $bus])
+            ->assertSee('Payer')
+            ->assertSee('Wave')
+            ->assertSee('OM')
+            ->assertSeeHtml("askToConfirmTicketPayment({$booking->id})")
+            ->assertSeeHtml("sendWavePaymentReminder({$booking->id})")
+            ->assertSeeHtml("sendOrangeMoneyPaymentReminder({$booking->id})");
     }
 
     public function test_it_shows_an_empty_state_when_the_bus_has_no_passengers(): void
@@ -121,11 +136,63 @@ class BusBookingsPageTest extends TestCase
             'closed' => false,
         ]);
 
-        $response = $this->actingAs(User::factory()->create())
-            ->get(route('back-office.buses.bookings', $bus));
+        Livewire::test(BusBookings::class, ['bus' => $bus])
+            ->assertSee('Aucune réservation');
+    }
 
-        $response->assertOk();
-        $response->assertSee('Aucune réservation');
+    public function test_cancelling_a_booking_asks_for_confirmation_before_deleting(): void
+    {
+        ['bus' => $bus, 'booking' => $booking] = $this->createBusWithOnePassenger();
+
+        Livewire::test(BusBookings::class, ['bus' => $bus])
+            ->call('askToConfirmBookingCancellation', $booking->id)
+            ->assertSet('showConfirmationModal', true)
+            ->assertSet('pendingBookingId', $booking->id)
+            ->assertSet('pendingActionName', 'cancel-booking')
+            ->assertSee('Annuler la réservation');
+
+        // Nothing happens until the modal is confirmed.
+        $this->assertNotSoftDeleted($booking);
+    }
+
+    public function test_confirming_the_modal_cancels_the_booking_without_a_reload(): void
+    {
+        ['bus' => $bus, 'booking' => $booking, 'customer' => $customer] = $this->createBusWithOnePassenger();
+
+        Livewire::test(BusBookings::class, ['bus' => $bus])
+            ->call('askToConfirmBookingCancellation', $booking->id)
+            ->call('confirmPendingAction')
+            ->assertSet('showConfirmationModal', false)
+            ->assertSet('pendingBookingId', null)
+            ->assertSee('Réservation de '.$customer->full_name.' annulée.')
+            ->assertSee('Aucune réservation');
+
+        $this->assertSoftDeleted($booking);
+    }
+
+    public function test_paying_a_ticket_asks_for_confirmation_before_charging(): void
+    {
+        ['bus' => $bus, 'booking' => $booking] = $this->createBusWithOnePassenger();
+
+        Livewire::test(BusBookings::class, ['bus' => $bus])
+            ->call('askToConfirmTicketPayment', $booking->id)
+            ->assertSet('showConfirmationModal', true)
+            ->assertSet('pendingActionName', 'collect-ticket-payment')
+            ->assertSee('Encaisser le paiement');
+
+        // The ticket is only charged once the modal is confirmed.
+        $this->assertNull($booking->fresh()->ticket_id);
+    }
+
+    public function test_the_payment_reminder_route_rejects_an_unknown_method_with_a_flash_error(): void
+    {
+        ['booking' => $booking] = $this->createBusWithOnePassenger();
+
+        $response = $this->actingAs(User::factory()->create())
+            ->post(route('back-office.bookings.trigger-payment-request', [$booking, 'paypal']));
+
+        $response->assertRedirect();
+        $response->assertSessionHas('error', 'Méthode de paiement non supportée.');
     }
 
     public function test_the_shared_controller_still_returns_json_for_the_legacy_api(): void
