@@ -29,6 +29,12 @@ class DepartList extends Component
 
     public ?int $ticketSalesDepartId = null;
 
+    /**
+     * When set, the ventes de billets dialog reports a single bus of the départ
+     * (BusController@busTicketSales) instead of the whole départ.
+     */
+    public ?int $ticketSalesBusId = null;
+
     public bool $showBookingsRepartitionModal = false;
 
     public ?int $bookingsRepartitionDepartId = null;
@@ -38,10 +44,6 @@ class DepartList extends Component
      * the départ instead of counting every booking of the départ.
      */
     public ?int $bookingsRepartitionBusId = null;
-
-    public bool $showBusTicketSalesModal = false;
-
-    public ?int $busTicketSalesBusId = null;
 
     public bool $showBusSeatsModal = false;
 
@@ -99,9 +101,27 @@ class DepartList extends Component
         return DepartResource::collection($upcomingDeparts)->resolve(request());
     }
 
+    /**
+     * Open the shared ventes de billets dialog for a whole départ
+     * (DepartController@ticketSales).
+     */
     public function openTicketSales(int $departId): void
     {
         $this->ticketSalesDepartId = $departId;
+        $this->ticketSalesBusId = null;
+        $this->showTicketSalesModal = true;
+    }
+
+    /**
+     * Open the same dialog scoped to a single bus (BusController@busTicketSales) —
+     * the "Chiffres" item of the bus menu.
+     */
+    public function openBusTicketSales(int $busId): void
+    {
+        $bus = Bus::findOrFail($busId);
+
+        $this->ticketSalesBusId = $busId;
+        $this->ticketSalesDepartId = $bus->depart_id;
         $this->showTicketSalesModal = true;
     }
 
@@ -109,6 +129,7 @@ class DepartList extends Component
     {
         $this->showTicketSalesModal = false;
         $this->ticketSalesDepartId = null;
+        $this->ticketSalesBusId = null;
     }
 
     public function openBookingsRepartition(int $departId, ?int $busId = null): void
@@ -148,12 +169,6 @@ class DepartList extends Component
         session()->flash('status', $bus->fresh()->closed
             ? 'Les réservations du bus '.$bus->name.' ont été clôturées.'
             : 'Les réservations du bus '.$bus->name.' ont été réouvertes.');
-    }
-
-    public function openBusTicketSales(int $busId): void
-    {
-        $this->busTicketSalesBusId = $busId;
-        $this->showBusTicketSalesModal = true;
     }
 
     public function askToDeleteBus(int $busId): void
@@ -328,49 +343,6 @@ class DepartList extends Component
         $this->busSeatsFlashMessage = $freeSeatsResponse->getData(true)['message'] ?? 'Sièges libérés.';
         $this->selectedBusSeatIds = [];
         unset($this->busSeatRows, $this->departRows);
-    }
-
-    public function closeBusTicketSales(): void
-    {
-        $this->showBusTicketSalesModal = false;
-        $this->busTicketSalesBusId = null;
-    }
-
-    public function busTicketSalesBusLabel(): ?string
-    {
-        if ($this->busTicketSalesBusId === null) {
-            return null;
-        }
-
-        return Bus::findOrFail($this->busTicketSalesBusId)->full_name;
-    }
-
-    /**
-     * Ticket sales of the selected bus grouped by "vendu par", straight from
-     * BusController@busTicketSales.
-     *
-     * @return array<int, array{soldBy: string|null, total: float}>
-     */
-    #[Computed]
-    public function busTicketSalesRows(): array
-    {
-        if ($this->busTicketSalesBusId === null) {
-            return [];
-        }
-
-        $bus = Bus::findOrFail($this->busTicketSalesBusId);
-
-        return collect(app(BusController::class)->busTicketSales($bus)->getData(true))
-            ->map(fn (array $row): array => [
-                'soldBy' => $row['soldBy'] ?? null,
-                'total' => (float) ($row['total'] ?? 0),
-            ])
-            ->all();
-    }
-
-    public function busTicketSalesTotal(): float
-    {
-        return collect($this->busTicketSalesRows)->sum('total');
     }
 
     public function askToCancelDepart(int $departId): void
@@ -598,6 +570,10 @@ class DepartList extends Component
 
     public function ticketSalesDepartLabel(): ?string
     {
+        if ($this->ticketSalesBusId !== null) {
+            return Bus::findOrFail($this->ticketSalesBusId)->full_name;
+        }
+
         if ($this->ticketSalesDepartId === null) {
             return null;
         }
@@ -621,21 +597,26 @@ class DepartList extends Component
     }
 
     /**
-     * Ticket sales of the selected départ grouped by "vendu par", straight from
-     * DepartController@ticketSales.
+     * Ticket sales grouped by "vendu par". Scoped to a single bus
+     * (BusController@busTicketSales) when the dialog was opened from the bus menu,
+     * otherwise to the whole départ (DepartController@ticketSales).
      *
      * @return array<int, array{soldBy: string|null, total: float}>
      */
     #[Computed]
     public function ticketSalesRows(): array
     {
-        if ($this->ticketSalesDepartId === null) {
+        if ($this->ticketSalesBusId !== null) {
+            $bus = Bus::findOrFail($this->ticketSalesBusId);
+            $legacyRows = app(BusController::class)->busTicketSales($bus)->getData(true);
+        } elseif ($this->ticketSalesDepartId !== null) {
+            $depart = Depart::findOrFail($this->ticketSalesDepartId);
+            $legacyRows = app(DepartController::class)->ticketSales($depart)->getData(true);
+        } else {
             return [];
         }
 
-        $depart = Depart::findOrFail($this->ticketSalesDepartId);
-
-        return collect(app(DepartController::class)->ticketSales($depart)->getData(true))
+        return collect($legacyRows)
             ->map(fn (array $row): array => [
                 'soldBy' => $row['soldBy'] ?? null,
                 'total' => (float) ($row['total'] ?? 0),

@@ -233,9 +233,14 @@
 
             @if (count($ticketSalesRows) === 0)
                 <flux:callout icon="information-circle">
-                    <flux:callout.text>Aucun billet vendu pour ce départ.</flux:callout.text>
+                    <flux:callout.text>Aucun billet vendu pour cette sélection.</flux:callout.text>
                 </flux:callout>
             @else
+                <div class="rounded-lg bg-zinc-50 p-4 dark:bg-zinc-800">
+                    <flux:text size="sm">Total encaissé</flux:text>
+                    <flux:heading size="xl">{{ number_format($this->ticketSalesTotal(), 0, ',', ' ') }} FCFA</flux:heading>
+                </div>
+
                 <div class="overflow-x-auto">
                     <flux:table>
                         <flux:table.columns>
@@ -264,53 +269,6 @@
 
             <div class="flex justify-end">
                 <flux:button variant="ghost" wire:click="closeTicketSales">Fermer</flux:button>
-            </div>
-        </div>
-    </flux:modal>
-
-    {{-- Chiffres du bus (ventes de billets) --}}
-    <flux:modal wire:model.self="showBusTicketSalesModal" wire:key="bus-ticket-sales-modal" class="w-full max-w-lg">
-        <div class="space-y-6">
-            <div>
-                <flux:heading size="lg">Chiffres du bus</flux:heading>
-                <flux:text class="mt-1">{{ $this->busTicketSalesBusLabel() }}</flux:text>
-            </div>
-
-            @php($busTicketSalesRows = $this->busTicketSalesRows)
-
-            @if (count($busTicketSalesRows) === 0)
-                <flux:callout icon="information-circle">
-                    <flux:callout.text>Aucun billet vendu pour ce bus.</flux:callout.text>
-                </flux:callout>
-            @else
-                <div class="overflow-x-auto">
-                    <flux:table>
-                        <flux:table.columns>
-                            <flux:table.column>Vendu par</flux:table.column>
-                            <flux:table.column align="end">Total</flux:table.column>
-                        </flux:table.columns>
-
-                        <flux:table.rows>
-                            @foreach ($busTicketSalesRows as $busTicketSaleRow)
-                                <flux:table.row wire:key="bus-ticket-sale-{{ $loop->index }}">
-                                    <flux:table.cell variant="strong">{{ $busTicketSaleRow['soldBy'] ?? 'Non renseigné' }}</flux:table.cell>
-                                    <flux:table.cell align="end">{{ number_format($busTicketSaleRow['total'], 0, ',', ' ') }} FCFA</flux:table.cell>
-                                </flux:table.row>
-                            @endforeach
-
-                            <flux:table.row wire:key="bus-ticket-sale-total">
-                                <flux:table.cell variant="strong">Total</flux:table.cell>
-                                <flux:table.cell align="end" variant="strong">
-                                    {{ number_format($this->busTicketSalesTotal(), 0, ',', ' ') }} FCFA
-                                </flux:table.cell>
-                            </flux:table.row>
-                        </flux:table.rows>
-                    </flux:table>
-                </div>
-            @endif
-
-            <div class="flex justify-end">
-                <flux:button variant="ghost" wire:click="closeBusTicketSales">Fermer</flux:button>
             </div>
         </div>
     </flux:modal>

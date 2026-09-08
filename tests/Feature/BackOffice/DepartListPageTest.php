@@ -603,12 +603,33 @@ class DepartListPageTest extends TestCase
         Livewire::actingAs(User::factory()->create())
             ->test(DepartList::class)
             ->call('openBusTicketSales', $bus->id)
-            ->assertSet('showBusTicketSalesModal', true)
+            ->assertSet('showTicketSalesModal', true)
+            ->assertSet('ticketSalesBusId', $bus->id)
             ->assertSee($bus->full_name)
             ->assertSee('agence keur massar')
             ->assertSee(number_format($ticket->price, 0, ',', ' ').' FCFA')
-            ->call('closeBusTicketSales')
-            ->assertSet('showBusTicketSalesModal', false);
+            ->call('closeTicketSales')
+            ->assertSet('showTicketSalesModal', false)
+            ->assertSet('ticketSalesBusId', null);
+    }
+
+    public function test_the_ventes_de_billets_dialog_and_the_bus_chiffres_dialog_share_the_same_modal(): void
+    {
+        ['depart' => $depart, 'bus' => $bus, 'ticket' => $ticket] = $this->createUpcomingDepartWithOnePaidSeatedPassenger();
+
+        // Départ scope: DepartController@ticketSales, no bus id.
+        $component = Livewire::actingAs(User::factory()->create())
+            ->test(DepartList::class)
+            ->call('openTicketSales', $depart->id)
+            ->assertSet('ticketSalesBusId', null)
+            ->assertSee($depart->identifier(with_trajet_prefix: true))
+            ->assertSee(number_format($ticket->price, 0, ',', ' ').' FCFA');
+
+        // Same modal, now bus scope: BusController@busTicketSales.
+        $component->call('openBusTicketSales', $bus->id)
+            ->assertSet('showTicketSalesModal', true)
+            ->assertSet('ticketSalesBusId', $bus->id)
+            ->assertSee($bus->full_name);
     }
 
     public function test_the_repartition_dialog_can_be_scoped_to_a_single_bus(): void
