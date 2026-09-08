@@ -37,11 +37,17 @@
                             wire:key="sidebar-bus-{{ $loop->parent->index }}-{{ $loop->index }}"
                         >
                             <div class="flex items-center justify-between gap-2">
-                                <flux:text class="font-medium">{{ $sidebarBus['name'] }}</flux:text>
+                                <div class="flex items-center gap-1.5">
+                                    <flux:text class="font-medium">{{ $sidebarBus['name'] }}</flux:text>
 
-                                @if ($sidebarBus['closed'])
-                                    <flux:badge size="sm" color="zinc" icon="lock-closed">Fermé</flux:badge>
-                                @elseif (! $sidebarBus['hasSeatsLeft'])
+                                    @if ($sidebarBus['closed'])
+                                        <flux:tooltip content="Fermé">
+                                            <flux:icon.lock-closed variant="micro" class="text-zinc-400 dark:text-zinc-500" />
+                                        </flux:tooltip>
+                                    @endif
+                                </div>
+
+                                @if (! $sidebarBus['closed'] && ! $sidebarBus['hasSeatsLeft'])
                                     <flux:badge size="sm" color="red">Complet</flux:badge>
                                 @endif
                             </div>

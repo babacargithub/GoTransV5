@@ -50,6 +50,17 @@ class DepartStatsSidebarTest extends TestCase
             ->assertSee('réservation(s) au total');
     }
 
+    public function test_a_closed_bus_shows_a_lock_icon_next_to_its_name(): void
+    {
+        $depart = $this->createUpcomingDepartWithBus();
+        $depart->buses()->firstOrFail()->update(['closed' => true]);
+
+        Livewire::actingAs(User::factory()->create())
+            ->test(DepartStatsSidebar::class)
+            ->assertSeeHtml('data-flux-icon')
+            ->assertSee('Fermé');
+    }
+
     public function test_the_sidebar_can_be_refreshed(): void
     {
         $this->createUpcomingDepartWithBus();
