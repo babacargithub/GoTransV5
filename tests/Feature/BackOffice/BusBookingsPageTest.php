@@ -8,6 +8,7 @@ use App\Models\Bus;
 use App\Models\Customer;
 use App\Models\Depart;
 use App\Models\HeureDepart;
+use App\Models\Ticket;
 use App\Models\Trajet;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -76,6 +77,25 @@ class BusBookingsPageTest extends TestCase
             'booking' => $booking->fresh(),
             'customer' => $customer,
         ];
+    }
+
+    private function attachWaveTicket(Booking $booking, string $transactionId = 'cos-2600kqw0r1h1c', string $paymentMethod = 'wave'): Ticket
+    {
+        $ticket = new Ticket;
+        $ticket->forceFill([
+            'number' => random_int(1_000_000, 9_999_999_999),
+            'price' => 3550,
+            'payment_method' => $paymentMethod,
+            'comment' => $transactionId,
+            'used' => true,
+            'soldBy' => 'system',
+            'soldAt' => now(),
+            'expiryDate' => now()->addDays(30),
+        ])->save();
+
+        $booking->ticket()->associate($ticket)->save();
+
+        return $ticket;
     }
 
     public function test_it_lists_the_passengers_of_a_bus(): void
@@ -193,6 +213,79 @@ class BusBookingsPageTest extends TestCase
 
         $response->assertRedirect();
         $response->assertSessionHas('error', 'Méthode de paiement non supportée.');
+    }
+
+    public function test_the_details_menu_shows_the_booking_reference_information(): void
+    {
+        ['bus' => $bus, 'booking' => $booking] = $this->createBusWithOnePassenger();
+
+        Livewire::test(BusBookings::class, ['bus' => $bus])
+            ->assertSee('Informations réservation')
+            ->assertSee((string) $booking->id)
+            // No ticket yet: no transaction id, no group, no download button.
+            ->assertSee('N/A')
+            ->assertSee('Aucun billet émis pour cette réservation.')
+            ->assertDontSee('Télécharger le ticket');
+    }
+
+    public function test_the_details_menu_offers_a_wave_refund_and_the_ticket_download(): void
+    {
+        ['bus' => $bus, 'booking' => $booking] = $this->createBusWithOnePassenger();
+        $this->attachWaveTicket($booking, 'cos-2600kqw0r1h1c');
+
+        Livewire::test(BusBookings::class, ['bus' => $bus])
+            ->assertSee('cos-2600kqw0r1h1c')
+            ->assertSee('Rembourser')
+            ->assertSee('Télécharger le ticket')
+            ->assertSeeHtml('wire:click="askToConfirmRefund('.$booking->id.')"');
+    }
+
+    public function test_a_non_wave_ticket_cannot_be_refunded_from_the_details_menu(): void
+    {
+        ['bus' => $bus, 'booking' => $booking] = $this->createBusWithOnePassenger();
+        $this->attachWaveTicket($booking, 'CASH-0001', paymentMethod: 'cash');
+
+        Livewire::test(BusBookings::class, ['bus' => $bus])
+            ->assertSee('Télécharger le ticket')
+            ->assertDontSee('Rembourser');
+    }
+
+    public function test_requesting_a_refund_asks_for_confirmation_before_anything_happens(): void
+    {
+        ['bus' => $bus, 'booking' => $booking] = $this->createBusWithOnePassenger();
+        $this->attachWaveTicket($booking);
+
+        Livewire::test(BusBookings::class, ['bus' => $bus])
+            ->call('askToConfirmRefund', $booking->id)
+            ->assertSet('showConfirmationModal', true)
+            ->assertSet('pendingBookingId', $booking->id)
+            ->assertSet('pendingActionName', 'refund-booking')
+            ->assertSee('Rembourser la réservation');
+
+        $this->assertNotSoftDeleted($booking);
+    }
+
+    public function test_the_single_booking_ticket_page_renders_a_printable_ticket(): void
+    {
+        ['booking' => $booking, 'customer' => $customer] = $this->createBusWithOnePassenger();
+        $ticket = $this->attachWaveTicket($booking);
+
+        $response = $this->actingAs(User::factory()->create())
+            ->get(route('back-office.bookings.ticket', $booking));
+
+        $response->assertOk();
+        $response->assertSee('BILLET DE VOYAGE');
+        $response->assertSee((string) $ticket->number);
+        $response->assertSee($customer->full_name);
+    }
+
+    public function test_the_single_booking_ticket_page_404s_when_the_booking_has_no_ticket(): void
+    {
+        ['booking' => $booking] = $this->createBusWithOnePassenger();
+
+        $this->actingAs(User::factory()->create())
+            ->get(route('back-office.bookings.ticket', $booking))
+            ->assertNotFound();
     }
 
     public function test_the_shared_controller_still_returns_json_for_the_legacy_api(): void

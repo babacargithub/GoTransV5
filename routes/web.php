@@ -54,6 +54,9 @@ Route::prefix('back-office')->name('back-office.')->group(function () {
     Route::get('departs', [DepartController::class, 'index'])->name('departs.index');
     Route::get('buses/{bus}/bookings', BusBookings::class)->name('buses.bookings');
 
+    Route::get('bookings/{booking}/ticket', [TicketController::class, 'showBookingTicket'])
+        ->name('bookings.ticket');
+
     Route::post('bookings/{booking}/save_ticket_payment', [BookingController::class, 'saveTicketPayment'])
         ->name('bookings.save-ticket-payment');
     Route::post('bookings/{booking}/trigger_payment_request/{paymentMethod}', [BookingController::class, 'triggerPaymentRequestForPaymentMethod'])

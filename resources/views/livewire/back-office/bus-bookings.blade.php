@@ -193,7 +193,13 @@
                                         />
                                     </flux:tooltip>
 
-                                    <flux:tooltip content="Détails de la réservation">
+                                    @php
+                                        $transactionId = data_get($booking, 'extra_info.transactionId');
+                                        $groupId = data_get($booking, 'extra_info.group_id');
+                                        $canBeRefunded = $booking['hasTicket'] && data_get($booking, 'paymentMethod') === 'wave';
+                                    @endphp
+
+                                    <flux:dropdown position="bottom" align="end">
                                         <flux:button
                                             size="sm"
                                             variant="ghost"
@@ -201,7 +207,67 @@
                                             icon:class="text-indigo-600 dark:text-indigo-400"
                                             aria-label="Détails de la réservation"
                                         />
-                                    </flux:tooltip>
+
+                                        <flux:menu class="w-72">
+                                            <div class="space-y-4 p-2">
+                                                <div class="flex items-center gap-2.5">
+                                                    <span class="flex size-8 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-white">
+                                                        <flux:icon.information-circle variant="mini" class="size-4" />
+                                                    </span>
+                                                    <flux:heading class="text-zinc-900 dark:text-white">Informations réservation</flux:heading>
+                                                </div>
+
+                                                <flux:separator variant="subtle" />
+
+                                                <dl class="space-y-3">
+                                                    <div>
+                                                        <dt class="text-[0.65rem] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">ID</dt>
+                                                        <dd class="mt-0.5 text-sm font-semibold text-zinc-900 dark:text-white">{{ $booking['id'] }}</dd>
+                                                    </div>
+
+                                                    <div>
+                                                        <dt class="text-[0.65rem] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Transaction ID</dt>
+                                                        <dd class="mt-0.5 flex flex-wrap items-center gap-2">
+                                                            <span class="font-mono text-sm font-semibold text-zinc-900 dark:text-white">{{ $transactionId ?: 'N/A' }}</span>
+
+                                                            @if ($canBeRefunded)
+                                                                <flux:button
+                                                                    size="xs"
+                                                                    variant="danger"
+                                                                    icon="arrow-uturn-left"
+                                                                    wire:click="askToConfirmRefund({{ $booking['id'] }})"
+                                                                >
+                                                                    Rembourser
+                                                                </flux:button>
+                                                            @endif
+                                                        </dd>
+                                                    </div>
+
+                                                    <div>
+                                                        <dt class="text-[0.65rem] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Group ID</dt>
+                                                        <dd class="mt-0.5 text-sm font-semibold text-zinc-900 dark:text-white">{{ $groupId ?: 'N/A' }}</dd>
+                                                    </div>
+                                                </dl>
+
+                                                <flux:separator variant="subtle" />
+
+                                                @if ($booking['hasTicket'])
+                                                    <flux:button
+                                                        :href="route('back-office.bookings.ticket', $booking['id'])"
+                                                        target="_blank"
+                                                        size="sm"
+                                                        variant="primary"
+                                                        icon="arrow-down-tray"
+                                                        class="w-full"
+                                                    >
+                                                        Télécharger le ticket
+                                                    </flux:button>
+                                                @else
+                                                    <flux:text class="text-zinc-500 dark:text-zinc-400">Aucun billet émis pour cette réservation.</flux:text>
+                                                @endif
+                                            </div>
+                                        </flux:menu>
+                                    </flux:dropdown>
                                 </div>
                             </flux:table.cell>
                         </flux:table.row>

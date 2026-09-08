@@ -7,9 +7,11 @@ use App\Http\Resources\BookingResource;
 use App\Models\Booking;
 use App\Models\Bus;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\JsonResponse;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 /**
  * Back office passengers page for a single bus.
@@ -81,6 +83,12 @@ class BusBookings extends Component
                 'confirmLabel' => 'Annuler la réservation',
                 'confirmVariant' => 'danger',
             ],
+            'refund-booking' => [
+                'heading' => 'Rembourser la réservation',
+                'body' => 'Le paiement Wave sera remboursé au client et la réservation sera annulée. Cette action est irréversible.',
+                'confirmLabel' => 'Rembourser',
+                'confirmVariant' => 'danger',
+            ],
             default => [
                 'heading' => '',
                 'body' => '',
@@ -100,6 +108,11 @@ class BusBookings extends Component
         $this->openConfirmationModal($bookingId, 'cancel-booking');
     }
 
+    public function askToConfirmRefund(int $bookingId): void
+    {
+        $this->openConfirmationModal($bookingId, 'refund-booking');
+    }
+
     public function confirmPendingAction(): void
     {
         $bookingId = $this->pendingBookingId;
@@ -114,6 +127,7 @@ class BusBookings extends Component
         match ($actionName) {
             'collect-ticket-payment' => $this->collectTicketPayment($bookingId),
             'cancel-booking' => $this->cancelBooking($bookingId),
+            'refund-booking' => $this->refundBooking($bookingId),
             default => null,
         };
     }
@@ -182,6 +196,43 @@ class BusBookings extends Component
         }
 
         unset($this->bookingRows);
+    }
+
+    private function refundBooking(int $bookingId): void
+    {
+        $this->resetFlashMessages();
+
+        $booking = $this->findBookingOnThisBus($bookingId);
+        $customerFullName = $booking->customer->full_name;
+
+        try {
+            $legacyResponse = app(BookingController::class)->refundTicket($booking);
+
+            if ($legacyResponse->getStatusCode() === 200) {
+                $this->flashStatusMessage = 'Remboursement Wave effectué pour '.$customerFullName.'.';
+            } else {
+                $this->flashErrorMessage = $this->extractLegacyResponseMessage($legacyResponse, 'Le remboursement a échoué.');
+            }
+        } catch (\Throwable $exception) {
+            $this->flashErrorMessage = $exception->getMessage();
+        }
+
+        unset($this->bookingRows);
+    }
+
+    /**
+     * Pulls a human message out of either an Illuminate JSON response ({"message": ...}) or a
+     * plain Symfony response (the Wave API error body), both of which refundTicket() can return.
+     */
+    private function extractLegacyResponseMessage(SymfonyResponse $response, string $fallback): string
+    {
+        if ($response instanceof JsonResponse) {
+            return data_get($response->getData(true), 'message', $fallback);
+        }
+
+        $content = trim((string) $response->getContent());
+
+        return $content !== '' ? $content : $fallback;
     }
 
     private function sendPaymentReminder(int $bookingId, string $paymentMethod): void
