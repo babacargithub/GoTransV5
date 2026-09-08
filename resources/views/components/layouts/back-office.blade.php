@@ -22,11 +22,17 @@
         {{-- Desktop: horizontal navigation to the main sections --}}
         <flux:navbar class="max-lg:hidden">
             <flux:dropdown>
-                <flux:navbar.item icon="banknotes" icon:trailing="chevron-down">Finances</flux:navbar.item>
+                <flux:navbar.item
+                    icon="banknotes"
+                    icon:trailing="chevron-down"
+                    :current="request()->routeIs('back-office.caisses.*', 'back-office.paiements-om.*', 'back-office.paiements-wave.*')"
+                >
+                    Finances
+                </flux:navbar.item>
                 <flux:navmenu>
-                    <flux:navmenu.item icon="wallet" href="#">Solde des caisses</flux:navmenu.item>
-                    <flux:navmenu.item icon="device-phone-mobile" href="#">Paiements OM</flux:navmenu.item>
-                    <flux:navmenu.item icon="device-phone-mobile" href="#">Paiements Wave</flux:navmenu.item>
+                    <flux:navmenu.item icon="wallet" :href="route('back-office.caisses.index')" :current="request()->routeIs('back-office.caisses.*')">Solde des caisses</flux:navmenu.item>
+                    <flux:navmenu.item icon="device-phone-mobile" :href="route('back-office.paiements-om.index')" :current="request()->routeIs('back-office.paiements-om.*')">Paiements OM</flux:navmenu.item>
+                    <flux:navmenu.item icon="device-phone-mobile" :href="route('back-office.paiements-wave.index')" :current="request()->routeIs('back-office.paiements-wave.*')">Paiements Wave</flux:navmenu.item>
                 </flux:navmenu>
             </flux:dropdown>
 
@@ -72,9 +78,9 @@
             <flux:button variant="subtle" size="sm" icon="bars-3" square aria-label="Menu de navigation" />
             <flux:menu>
                 <flux:menu.group heading="Finances">
-                    <flux:menu.item icon="wallet" href="#">Solde des caisses</flux:menu.item>
-                    <flux:menu.item icon="device-phone-mobile" href="#">Paiements OM</flux:menu.item>
-                    <flux:menu.item icon="device-phone-mobile" href="#">Paiements Wave</flux:menu.item>
+                    <flux:menu.item icon="wallet" :href="route('back-office.caisses.index')">Solde des caisses</flux:menu.item>
+                    <flux:menu.item icon="device-phone-mobile" :href="route('back-office.paiements-om.index')">Paiements OM</flux:menu.item>
+                    <flux:menu.item icon="device-phone-mobile" :href="route('back-office.paiements-wave.index')">Paiements Wave</flux:menu.item>
                 </flux:menu.group>
 
                 <flux:menu.group heading="Départs">

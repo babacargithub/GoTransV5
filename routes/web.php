@@ -7,6 +7,7 @@ use App\Http\Controllers\TicketController;
 use App\Livewire\BackOffice\AddBusToDepart;
 use App\Livewire\BackOffice\AppParamsPage;
 use App\Livewire\BackOffice\BusBookings;
+use App\Livewire\BackOffice\CaisseBalancesPage;
 use App\Livewire\BackOffice\CreateDepart;
 use App\Livewire\BackOffice\DepartList;
 use App\Livewire\BackOffice\DepartScheduleNotifications;
@@ -15,9 +16,11 @@ use App\Livewire\BackOffice\EditDepart;
 use App\Livewire\BackOffice\EmployeList;
 use App\Livewire\BackOffice\HoraireList;
 use App\Livewire\BackOffice\ItineraireList;
+use App\Livewire\BackOffice\OrangeMoneyPage;
 use App\Livewire\BackOffice\PointDepList;
 use App\Livewire\BackOffice\TrajetList;
 use App\Livewire\BackOffice\VehiculeList;
+use App\Livewire\BackOffice\WavePaymentsPage;
 use App\Livewire\Profile\Edit;
 use App\Models\Trajet;
 use Illuminate\Support\Facades\Route;
@@ -81,6 +84,10 @@ Route::middleware('auth')->prefix('back-office')->name('back-office.')->group(fu
     Route::get('employes', EmployeList::class)->name('employes.index');
     Route::get('vehicules', VehiculeList::class)->name('vehicules.index');
     Route::get('parametres', AppParamsPage::class)->name('parametres.index');
+
+    Route::get('caisses', CaisseBalancesPage::class)->name('caisses.index');
+    Route::get('paiements-om', OrangeMoneyPage::class)->name('paiements-om.index');
+    Route::get('paiements-wave', WavePaymentsPage::class)->name('paiements-wave.index');
 
     Route::get('buses/{bus}/edit', EditBus::class)->name('buses.edit');
     Route::get('buses/{bus}/bookings', BusBookings::class)->name('buses.bookings');
