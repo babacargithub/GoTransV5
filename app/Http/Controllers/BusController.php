@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Resources\BookingForExportResource;
+use App\Http\Resources\BookingResource;
 use App\Manager\BusManager;
 use App\Models\Booking;
 use App\Models\Bus;
@@ -29,7 +30,6 @@ class BusController extends Controller
     {
         /**
          * response looks like this
-
          */
 
         // return buses whose depart date is not passed ordered by depart date  and bus name
@@ -43,11 +43,10 @@ class BusController extends Controller
 //            ->distinct()        // Ensure unique buses in the result
             ->get()->map(function ($bus) {
                 return [
-                    "id" => $bus->id,
-                    "fullName" => $bus->full_name,
+                    'id' => $bus->id,
+                    'fullName' => $bus->full_name,
                 ];
             });
-
 
     }
 
@@ -95,10 +94,11 @@ class BusController extends Controller
             'ticket_price' => 'numeric',
             'gp_ticket_price' => 'numeric',
             'visibilite' => 'integer',
-            "itinerary_id" => "required|integer",
-            "agent_numbers" => "nullable|string",
+            'itinerary_id' => 'required|integer',
+            'agent_numbers' => 'nullable|string',
         ]);
         $bus->update($validated);
+
         return response()->json($bus);
     }
 
@@ -116,12 +116,36 @@ class BusController extends Controller
             $bus->seats()->delete();
             $bus->delete();
         });
+
         return response()->noContent();
 
     }
 
-    public function bookings(Bus $bus)
+    /**
+     * Lists a bus's passengers.
+     *
+     * Serves both the legacy JSON API consumers and the Livewire/Flux back office.
+     * The underlying data is identical; only the response envelope differs.
+     */
+    public function bookings(Bus $bus, Request $request)
     {
+        if ($request->routeIs('back-office.*')) {
+            $bus->load([
+                'bookings.customer',
+                'bookings.seat.seat',
+                'bookings.ticket',
+                'bookings.point_dep',
+                'bookings.destination',
+                'bookings.depart',
+            ]);
+
+            return view('back-office.buses.bookings', [
+                'bus' => $bus,
+                'departLabel' => $bus->depart->identifier(with_trajet_prefix: true),
+                'bookings' => BookingResource::collection($bus->bookings)->resolve($request),
+            ]);
+        }
+
         return $this->bookingsResponse($bus->bookings);
     }
 
@@ -132,7 +156,7 @@ class BusController extends Controller
             ->join('tickets', 'bookings.ticket_id', '=', 'tickets.id')
             ->selectRaw('tickets.soldBy as soldBy, SUM(tickets.price) as total')
             ->groupBy('tickets.soldBy')
-            ->get();;
+            ->get();
 
         return response()->json($ticketSales);
     }
@@ -143,29 +167,32 @@ class BusController extends Controller
         $validate = $request->validate([
             'closed' => 'required|boolean',
         ]);
-        $bus->closed =  $validate['closed'];
+        $bus->closed = $validate['closed'];
         $bus->save();
         $bus->refresh();
         try {
-            if ($bus->closed){
-                app(NotificationService::class)->notifyManagerOfBusEvent("Bus " . $bus->full_name . " a été cloturé par currentUser");
+            if ($bus->closed) {
+                app(NotificationService::class)->notifyManagerOfBusEvent('Bus '.$bus->full_name.' a été cloturé par currentUser');
             }
-        }catch (\Exception $e){
+        } catch (\Exception $e) {
         }
+
         return response()->json(['closed' => $bus->closed]);
 
     }
+
     public function toggleBusSeatVisibility(Bus $bus)
     {
-        $bus->should_show_seat_numbers = !$bus->should_show_seat_numbers;
+        $bus->should_show_seat_numbers = ! $bus->should_show_seat_numbers;
         $bus->save();
+
         return response()->json(['show_seat_numbers' => $bus->should_show_seat_numbers]);
 
     }
+
     public function seats(Bus $bus)
     {
         return $this->seatsForAdmin($bus);
-
 
     }
 
@@ -181,7 +208,7 @@ class BusController extends Controller
             'numberOfBookingsToTransfer' => $validated['numberOfBookingsToTransfer'],
             'transferType' => $validated['transferType'],
         ];
-        $busManager = new BusManager();
+        $busManager = new BusManager;
         $response = $busManager->transferBookings($sourceBus, $targetBus, $transferData);
         if ($response instanceof JsonResponse) {
             return $response;
@@ -212,11 +239,11 @@ class BusController extends Controller
         //  order bookings by seat number or by pointDep.position according to trajet id
         // if trajet id is 1, order by seat number, if trajet id is 2, order by pointDep.position
         $query = $bus->bookings()->getQuery();
-       $query = Booking::bookingsOrdererByTrajet($bus->depart->trajet, $query);
+        $query = Booking::bookingsOrdererByTrajet($bus->depart->trajet, $query);
         $bookings = $query->get();
 
-
         $response = BookingForExportResource::collection($bookings);
+
         return response()->json($response);
     }
 
@@ -224,35 +251,36 @@ class BusController extends Controller
     {
 
         return response()->json([
-            "vehicules" =>Vehicule::all()->map(function (Vehicule $vehicule) {
+            'vehicules' => Vehicule::all()->map(function (Vehicule $vehicule) {
                 return [
                     'id' => $vehicule->id,
-                    'name' => $vehicule->name. " - ".$vehicule->nombre_place." places",
+                    'name' => $vehicule->name.' - '.$vehicule->nombre_place.' places',
                     'features' => $vehicule->features,
-                    "type_vehicle" => $vehicule->vehicule_type,
-                    "nombre_place" => $vehicule->nombre_place,
-                    "ticket_price" => $vehicule->climatise ? 4000 : 3550,
+                    'type_vehicle' => $vehicule->vehicule_type,
+                    'nombre_place' => $vehicule->nombre_place,
+                    'ticket_price' => $vehicule->climatise ? 4000 : 3550,
 
                 ];
             }),
-            "itineraries" =>Itinerary::all(),
+            'itineraries' => Itinerary::all(),
         ]);
 
     }
+
     public function getBusSeats(Request $request, $departId): JsonResponse
     {
         try {
             $busId = Depart::find($departId)->getBusForBooking(climatise: is_request_for_gp_customers());
             // Generate seats data (in real app, fetch from database)
-            if ($busId == null){
-                return  response()->json(["message"=>"Aucun bus disponible pour réservation"], 422);
+            if ($busId == null) {
+                return response()->json(['message' => 'Aucun bus disponible pour réservation'], 422);
             }
             $seatsData = $this->formatBusTemplate($busId);
 
             return response()->json([
                 'success' => true,
                 'data' => $seatsData,
-                'message' => 'Bus seats data retrieved successfully'
+                'message' => 'Bus seats data retrieved successfully',
             ], 200);
 
         } catch (\Exception $e) {
@@ -260,7 +288,7 @@ class BusController extends Controller
                 'success' => false,
                 'data' => null,
                 'message' => 'Error retrieving bus seats data',
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -268,8 +296,7 @@ class BusController extends Controller
     /**
      * Generate bus seats data structure
      *
-     * @param string $busId
-     * @return array
+     * @param  string  $busId
      */
     public function formatBusTemplate(Bus $bus): array
     {
@@ -280,33 +307,33 @@ class BusController extends Controller
                 if (isset($slot->seat)) {
                     // Get seat status from database
                     $seatStatus = $bus->seats()
-                        ->join("seats", "bus_seats.seat_id", "=", "seats.id")
-                        ->select("bus_seats.*")
-                        ->where("number", $slot->seat->number)
+                        ->join('seats', 'bus_seats.seat_id', '=', 'seats.id')
+                        ->select('bus_seats.*')
+                        ->where('number', $slot->seat->number)
                         ->first();
 
                     // Update seat status directly in the layout object
-                    $slotRow[$slotIndex]->seat->status = $seatStatus?->hasBooking() ? "booked" : "available";
+                    $slotRow[$slotIndex]->seat->status = $seatStatus?->hasBooking() ? 'booked' : 'available';
 
                     // Add seat to seats array for easy access
                     $seats[$slot->seat->number] = [
                         'number' => $slot->seat->number,
                         'status' => $slotRow[$slotIndex]->seat->status,
                         'row_index' => $index,
-                        'slot_index' => $slotIndex
+                        'slot_index' => $slotIndex,
                     ];
                 }
             }
         }
 
         foreach ($bus->seats as $i => $seat) {
-            $seats[$i+1] = [
+            $seats[$i + 1] = [
                 'id' => "seat-{$seat->number}",
                 'number' => $seat->number,
                 'status' => $seat->booked ? 'booked' : 'available', // 70% available, 30% booked
                 'isDriver' => false,
                 'price' => $seat->price, // Random price between 20-50 (in cents)
-                'position' => $this->getSeatPosition($i+1)
+                'position' => $this->getSeatPosition($i + 1),
             ];
         }
 
@@ -317,16 +344,16 @@ class BusController extends Controller
             'status' => 'booked',
             'isDriver' => true,
             'price' => 0,
-            'position' => 'front-left'
+            'position' => 'front-left',
         ];
 
         return [
             'busId' => $bus->id,
             'name' => $bus->name,
-            //TODO make seat selection allowed dynamic
-            "seatSelectionAllowed"=> true,
+            // TODO make seat selection allowed dynamic
+            'seatSelectionAllowed' => true,
             'totalSeats' => $bus->nombre_place, // 34 passengers + driver
-            'availableSeats' => count(array_filter($seats, fn($seat) => $seat['status'] === 'available')),
+            'availableSeats' => count(array_filter($seats, fn ($seat) => $seat['status'] === 'available')),
             'layout' => $layout,
         ];
     }
@@ -334,8 +361,7 @@ class BusController extends Controller
     /**
      * Get seat position description
      *
-     * @param int $seatNumber
-     * @return string
+     * @param  int  $seatNumber
      */
     private function getSeatPosition($seatNumber): string
     {
@@ -357,18 +383,14 @@ class BusController extends Controller
             27 => 'row7-right-1', 28 => 'row7-right-2',
             29 => 'row8-left-1', 30 => 'row8-left-2',
             31 => 'back-left', 32 => 'back-center-left',
-            33 => 'back-center-right'
+            33 => 'back-center-right',
         ];
 
         return $positions[$seatNumber] ?? "seat-{$seatNumber}";
     }
 
-
-
     /**
      * Get bus layout configuration
-     *
-     * @return array
      */
     private function getBusLayout(): array
     {
@@ -380,16 +402,13 @@ class BusController extends Controller
             'specialFeatures' => [
                 'driver_seat' => true,
                 'luggage_compartment' => true,
-                'doors' => 2
-            ]
+                'doors' => 2,
+            ],
         ];
     }
 
     /**
      * Book selected seats
-     *
-     * @param Request $request
-     * @return JsonResponse
      */
     public function bookSeats(Request $request): JsonResponse
     {
@@ -401,7 +420,7 @@ class BusController extends Controller
             'passenger_info' => 'required|array',
             'passenger_info.name' => 'required|string|max:255',
             'passenger_info.phone' => 'required|string|max:20',
-            'passenger_info.email' => 'required|email|max:255'
+            'passenger_info.email' => 'required|email|max:255',
         ]);
 
         try {
@@ -412,19 +431,19 @@ class BusController extends Controller
             // 4. Send confirmation email/SMS
 
             $bookingData = [
-                'booking_id' => 'BK-' . strtoupper(uniqid()),
+                'booking_id' => 'BK-'.strtoupper(uniqid()),
                 'bus_id' => $request->input('bus_id'),
                 'seats' => $request->input('seats'),
                 'passenger_info' => $request->input('passenger_info'),
                 'total_amount' => count($request->input('seats')) * 3500, // 35 MAD per seat
                 'booking_date' => now()->toISOString(),
-                'status' => 'confirmed'
+                'status' => 'confirmed',
             ];
 
             return response()->json([
                 'success' => true,
                 'data' => $bookingData,
-                'message' => 'Seats booked successfully'
+                'message' => 'Seats booked successfully',
             ], 201);
 
         } catch (\Exception $e) {
@@ -432,19 +451,19 @@ class BusController extends Controller
                 'success' => false,
                 'data' => null,
                 'message' => 'Error booking seats',
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
 
     public function importPassengersFromYobuma(Bus $bus, Request $request)
     {
-       $validated = $request->validate([
+        $validated = $request->validate([
             'passengers' => 'required|array',
             'passengers.*.prenom' => 'required|string|max:255',
             'passengers.*.nom' => 'required|string|max:255',
             'passengers.*.telephone' => 'required|string|max:20',
-           "passengers.*.siege" => 'required|numeric',
+            'passengers.*.siege' => 'required|numeric',
         ]);
 
         $busManager = app(BusManager::class);
@@ -452,18 +471,16 @@ class BusController extends Controller
 
         return response()->json($passengers);
 
-
     }
 
     public function seatsForAdmin(Bus $bus)
     {
-        return $bus->seats->map(fn(BusSeat $seat) => [
-            'id'=>$seat->id,
-            "name"=>$seat->number,
-            "booked"=>$seat->isBooked(),
-            "locked"=>$seat->locked
+        return $bus->seats->map(fn (BusSeat $seat) => [
+            'id' => $seat->id,
+            'name' => $seat->number,
+            'booked' => $seat->isBooked(),
+            'locked' => $seat->locked,
         ]);
-
 
     }
 
@@ -473,10 +490,10 @@ class BusController extends Controller
 
         // Validate action
         $allowedActions = ['lock', 'unlock', 'book', 'unbook'];
-        if (!in_array($action, $allowedActions)) {
+        if (! in_array($action, $allowedActions)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Action not defined or not allowed. Allowed actions: ' . implode(', ', $allowedActions)
+                'message' => 'Action not defined or not allowed. Allowed actions: '.implode(', ', $allowedActions),
             ], ResponseAlias::HTTP_UNPROCESSABLE_ENTITY);
         }
 
@@ -491,7 +508,7 @@ class BusController extends Controller
             'seat_ids.*.integer' => 'Les IDs des sièges doivent être des entiers',
             'seat_ids.*.exists' => 'Un ou plusieurs sièges n\'existent pas',
             'depart_id.required' => 'L\'ID du départ est requis',
-            'depart_id.exists' => 'Le départ sélectionné n\'existe pas'
+            'depart_id.exists' => 'Le départ sélectionné n\'existe pas',
         ]);
 
         try {
@@ -504,7 +521,7 @@ class BusController extends Controller
             if ($seats->count() !== count($validated['seat_ids'])) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Un ou plusieurs sièges ne correspondent pas à ce bus'
+                    'message' => 'Un ou plusieurs sièges ne correspondent pas à ce bus',
                 ], ResponseAlias::HTTP_UNPROCESSABLE_ENTITY);
             }
 
@@ -517,7 +534,7 @@ class BusController extends Controller
             switch ($action) {
                 case 'lock':
                     foreach ($seats as $seat) {
-                        if (!$seat->locked) {
+                        if (! $seat->locked) {
                             $seat->locked = true;
                             $seat->save();
                             $processedCount++;
@@ -545,7 +562,7 @@ class BusController extends Controller
 
                     foreach ($seats as $seat) {
                         // Can only book seats that are not locked and not already booked
-                        if (!$seat->locked && !$seat->booked) {
+                        if (! $seat->locked && ! $seat->booked) {
                             $seat->book();
                             $seat->save();
                             $processedCount++;
@@ -559,18 +576,18 @@ class BusController extends Controller
                 case 'unbook':
                     foreach ($seats as $seat) {
                         if ($seat->booked) {
-                                $seat->freeSeat();
-                                $seat->save();
-                                $processedCount++;
-                                if (Booking::where('seat_id', $seat->id)->exists()) {
-                                    $booking = Booking::where('seat_id', $seat->id)->first();
-                                    if (! $booking->hasTicket()) {
-                                        $booking->freeSeat();
-                                        $booking->save();
-                                    } else {
-                                    }
-
+                            $seat->freeSeat();
+                            $seat->save();
+                            $processedCount++;
+                            if (Booking::where('seat_id', $seat->id)->exists()) {
+                                $booking = Booking::where('seat_id', $seat->id)->first();
+                                if (! $booking->hasTicket()) {
+                                    $booking->freeSeat();
+                                    $booking->save();
+                                } else {
                                 }
+
+                            }
 
                         } else {
                             $skippedCount++;
@@ -588,15 +605,15 @@ class BusController extends Controller
                     'action' => $action,
                     'processed' => $processedCount,
                     'skipped' => $skippedCount,
-                    'total' => $seats->count()
-                ]
+                    'total' => $seats->count(),
+                ],
             ];
 
             // Add warnings if some seats were skipped
             if ($skippedCount > 0) {
                 $response['data']['warnings'] = [
                     'message' => "{$skippedCount} siège(s) ignoré(s)",
-                    'details' => array_unique($errors)
+                    'details' => array_unique($errors),
                 ];
             }
 
@@ -606,7 +623,7 @@ class BusController extends Controller
                 'action' => $action,
                 'seat_ids' => $validated['seat_ids'],
                 'processed' => $processedCount,
-                'user_id' => auth()->id() ?? 'system'
+                'user_id' => auth()->id() ?? 'system',
             ]);
 
             // You might want to fire events here for real-time updates
@@ -619,15 +636,14 @@ class BusController extends Controller
                 'bus_id' => $bus->id,
                 'action' => $action,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
 
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de l\'exécution de l\'action',
-                'error' => config('app.debug') ? $e->getMessage() : 'Une erreur inattendue s\'est produite'
+                'error' => config('app.debug') ? $e->getMessage() : 'Une erreur inattendue s\'est produite',
             ], ResponseAlias::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
-
 }

@@ -1,8 +1,10 @@
 <?php
 
+use App\Http\Controllers\BusController;
 use App\Http\Controllers\DepartController;
 use App\Http\Controllers\TicketController;
-use Illuminate\Foundation\Application;
+use App\Livewire\Profile\Edit;
+use App\Models\Trajet;
 use Illuminate\Support\Facades\Route;
 
 Route::domain(config('app.concours_domain'))->group(function () {
@@ -12,7 +14,7 @@ Route::domain(config('app.concours_domain'))->group(function () {
 });
 Route::domain(config('app.gp_domain'))->group(function () {
     Route::get('/', function () {
-        $trajets = \App\Models\Trajet::select(['id', 'name', 'public_name', 'departure_city', 'arrival_city', 'length'])
+        $trajets = Trajet::select(['id', 'name', 'public_name', 'departure_city', 'arrival_city', 'length'])
             ->with(['departs' => function ($query) {
                 $query->where('date', '>=', now())
                     ->where('canceled', false)
@@ -20,7 +22,7 @@ Route::domain(config('app.gp_domain'))->group(function () {
                     ->select(['id', 'trajet_id', 'name', 'date', 'closed', 'locked']);
             }])
             ->get()
-            ->map(fn($trajet) => tap($trajet, fn($t) => $t->length = (float) $t->length));
+            ->map(fn ($trajet) => tap($trajet, fn ($t) => $t->length = (float) $t->length));
 
         return view('gp_booking.gp_booking_index', [
             'trajets' => $trajets,
@@ -29,18 +31,8 @@ Route::domain(config('app.gp_domain'))->group(function () {
 });
 
 Route::get('/', function () {
-    $trajet = \App\Models\Trajet::first();
-    $messages = app(\App\Http\Controllers\MobileAppController::class)->listeDepartsTrajet($trajet)->getData();
-
-
-    return view('home', [
-        'canLogin' => Route::has('login'),
-        'canRegister' => Route::has('register'),
-        'laravelVersion' => \Illuminate\Foundation\Application::VERSION,
-        'phpVersion' => PHP_VERSION,
-        "departs" => $messages->departs,
-    ]);
-});
+    return view('homepage');
+})->name('home');
 
 // Public, unauthenticated ticket download page: anyone with the group_id can view/download the tickets.
 Route::get('/tickets/group/{groupId}', [TicketController::class, 'showGroupTickets'])->name('tickets.group.show');
@@ -50,5 +42,14 @@ Route::middleware(['auth:sanctum', 'verified'])->group(function () {
         return view('dashboard');
     })->name('dashboard');
 
-    Route::get('/profile', \App\Livewire\Profile\Edit::class)->name('profile.edit');
+    Route::get('/profile', Edit::class)->name('profile.edit');
+});
+
+/*
+ * Back office (Livewire/Flux rewrite). Legacy Vue admin keeps hitting the JSON API;
+ * these routes reuse the same controllers and render the data into Flux pages instead.
+ */
+Route::prefix('back-office')->name('back-office.')->group(function () {
+    Route::get('departs', [DepartController::class, 'index'])->name('departs.index');
+    Route::get('buses/{bus}/bookings', [BusController::class, 'bookings'])->name('buses.bookings');
 });
