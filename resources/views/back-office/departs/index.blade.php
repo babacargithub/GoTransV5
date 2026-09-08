@@ -81,17 +81,18 @@
                                             {{ $bus['numberOfBookedSeats'] }}
                                         </flux:badge>
                                     </flux:tooltip>
-                                </div>
 
-                                <flux:button
-                                    :href="route('back-office.buses.bookings', $bus['id'])"
-                                    size="xs"
-                                    variant="subtle"
-                                    icon="user-group"
-                                    class="ms-auto"
-                                >
-                                    Voir les réservations
-                                </flux:button>
+                                    <flux:tooltip content="Voir les réservations">
+                                        <flux:button
+                                            :href="route('back-office.buses.bookings', $bus['id'])"
+                                            size="xs"
+                                            variant="primary"
+                                            icon="eye"
+                                            aria-label="Voir les réservations"
+                                            class="[--color-accent:var(--color-indigo-700)] [--color-accent-foreground:var(--color-white)] dark:[--color-accent:var(--color-indigo-600)]"
+                                        />
+                                    </flux:tooltip>
+                                </div>
                             </div>
                         @empty
                             <flux:text class="text-sm text-zinc-500 dark:text-zinc-400">
