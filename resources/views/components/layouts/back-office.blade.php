@@ -43,7 +43,7 @@
                     <flux:navmenu.item icon="plus-circle" :href="route('back-office.departs.create')">Nouveau départ</flux:navmenu.item>
                     <flux:navmenu.item icon="map-pin" :href="route('back-office.point-deps.index')" :current="request()->routeIs('back-office.point-deps.*')">Points de départ</flux:navmenu.item>
                     <flux:navmenu.item icon="map" :href="route('back-office.itineraires.index')" :current="request()->routeIs('back-office.itineraires.*')">Itinéraires</flux:navmenu.item>
-                    <flux:navmenu.item icon="clock" href="#">Horaires</flux:navmenu.item>
+                    <flux:navmenu.item icon="clock" :href="route('back-office.horaires.index')" :current="request()->routeIs('back-office.horaires.*')">Horaires</flux:navmenu.item>
                 </flux:navmenu>
             </flux:dropdown>
 
@@ -82,7 +82,7 @@
                     <flux:menu.item icon="plus-circle" :href="route('back-office.departs.create')">Nouveau départ</flux:menu.item>
                     <flux:menu.item icon="map-pin" :href="route('back-office.point-deps.index')">Points de départ</flux:menu.item>
                     <flux:menu.item icon="map" :href="route('back-office.itineraires.index')">Itinéraires</flux:menu.item>
-                    <flux:menu.item icon="clock" href="#">Horaires</flux:menu.item>
+                    <flux:menu.item icon="clock" :href="route('back-office.horaires.index')">Horaires</flux:menu.item>
                 </flux:menu.group>
 
                 <flux:menu.group heading="Admin">
