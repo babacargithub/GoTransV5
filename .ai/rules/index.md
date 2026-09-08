@@ -6,3 +6,4 @@ Before planning or editing, find the row whose globs match the file's path and r
 | --- | --- |
 | app/Livewire/BackOffice/** | .ai/rules/back-office.md |
 | app/Http/Controllers/** | .ai/rules/controllers.md |
+| resources/views/components/layouts/back-office.blade.php | .ai/rules/layouts.md |

@@ -451,6 +451,41 @@ class DepartListPageTest extends TestCase
         $this->assertArrayHasKey('numberOfBookings', $departRow['buses'][0]);
     }
 
+    public function test_the_header_navigation_shows_the_finances_departs_and_admin_menus(): void
+    {
+        $this->createUpcomingDepartWithBus();
+
+        $response = $this->actingAs(User::factory()->create())
+            ->get(route('back-office.departs.index'));
+
+        $response->assertOk();
+        $response->assertSee('data-flux-navbar', false);
+
+        foreach (['Finances', 'Solde des caisses', 'Paiements OM', 'Paiements Wave'] as $financesMenuLabel) {
+            $response->assertSee($financesMenuLabel);
+        }
+
+        foreach (['Départs', 'Liste des départs', 'Nouveau départ', 'Points de départ', 'Itinéraires', 'Horaires'] as $departsMenuLabel) {
+            $response->assertSee($departsMenuLabel);
+        }
+
+        foreach (['Admin', 'Employés', 'Trajets', 'Véhicule', 'Paramètres'] as $adminMenuLabel) {
+            $response->assertSee($adminMenuLabel);
+        }
+    }
+
+    public function test_the_layout_keeps_a_visible_sidebar_for_the_upcoming_departs_stats(): void
+    {
+        $this->createUpcomingDepartWithBus();
+
+        $response = $this->actingAs(User::factory()->create())
+            ->get(route('back-office.departs.index'));
+
+        $response->assertOk();
+        $response->assertSee('data-flux-sidebar', false);
+        $response->assertSee('Statistiques des départs');
+    }
+
     public function test_the_legacy_json_export_endpoint_is_unchanged(): void
     {
         ['depart' => $depart] = $this->createUpcomingDepartWithOnePaidSeatedPassenger();
