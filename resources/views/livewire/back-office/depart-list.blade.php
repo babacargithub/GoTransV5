@@ -90,6 +90,8 @@
                                 <flux:menu.item
                                     icon="paper-airplane"
                                     class="py-2 [&_[data-flux-menu-item-icon]]:!text-emerald-500"
+                                    :href="route('back-office.departs.schedule-notifications', $depart['id'])"
+                                    wire:navigate
                                 >
                                     Envoi des rendez-vous
                                 </flux:menu.item>
