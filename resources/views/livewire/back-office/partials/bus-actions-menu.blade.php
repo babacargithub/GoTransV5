@@ -73,7 +73,8 @@
         <flux:menu.item
             icon="pencil-square"
             class="py-2 [&_[data-flux-menu-item-icon]]:!text-indigo-500"
-            disabled
+            :href="route('back-office.buses.edit', $bus['id'])"
+            wire:navigate
         >
             Modifier infos bus
         </flux:menu.item>
