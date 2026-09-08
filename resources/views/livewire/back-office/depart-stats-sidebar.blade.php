@@ -34,40 +34,36 @@
                     <div class="space-y-2 ps-3">
                     @forelse ($departStatsRow['buses'] as $sidebarBus)
                         <div
-                            class="space-y-2"
+                            class="flex items-center justify-between gap-2"
                             wire:key="sidebar-bus-{{ $loop->parent->index }}-{{ $loop->index }}"
                         >
-                            <div class="flex items-center justify-between gap-2">
-                                <div class="flex items-center gap-1.5">
-                                    <flux:text class="font-medium">{{ $sidebarBus['name'] }}</flux:text>
+                            <div class="flex min-w-0 items-center gap-1.5">
+                                <flux:text class="truncate font-medium">{{ $sidebarBus['name'] }}</flux:text>
 
-                                    @if ($sidebarBus['closed'])
-                                        <flux:tooltip content="Fermé">
-                                            <flux:icon.lock-closed variant="micro" class="text-zinc-400 dark:text-zinc-500" />
-                                        </flux:tooltip>
-                                    @endif
-                                </div>
-
-                                @if (! $sidebarBus['closed'] && ! $sidebarBus['hasSeatsLeft'])
-                                    <flux:badge size="sm" color="red">Complet</flux:badge>
+                                @if ($sidebarBus['closed'])
+                                    <flux:tooltip content="Fermé">
+                                        <flux:icon.lock-closed variant="micro" class="shrink-0 text-zinc-400 dark:text-zinc-500" />
+                                    </flux:tooltip>
+                                @elseif (! $sidebarBus['hasSeatsLeft'])
+                                    <flux:badge size="sm" color="red" rounded class="shrink-0 px-2 py-0 text-[0.6rem] leading-[1.4]">Complet</flux:badge>
                                 @endif
                             </div>
 
-                            <div class="flex flex-wrap gap-1.5">
+                            <div class="flex shrink-0 items-center gap-1">
                                 <flux:tooltip content="Réservations">
-                                    <flux:badge size="sm" color="blue" icon="user-group">
+                                    <flux:badge size="sm" color="blue" variant="solid" rounded class="px-2 py-0 text-[0.65rem] leading-[1.4]">
                                         {{ $sidebarBus['bookingsCount'] }}
                                     </flux:badge>
                                 </flux:tooltip>
 
                                 <flux:tooltip content="Sièges réservés">
-                                    <flux:badge size="sm" color="amber" icon="check-circle">
+                                    <flux:badge size="sm" color="amber" variant="solid" rounded class="px-2 py-0 text-[0.65rem] leading-[1.4]">
                                         {{ $sidebarBus['bookedSeatsCount'] }}
                                     </flux:badge>
                                 </flux:tooltip>
 
                                 <flux:tooltip content="Billets vendus">
-                                    <flux:badge size="sm" color="green" icon="ticket">
+                                    <flux:badge size="sm" color="green" variant="solid" rounded class="px-2 py-0 text-[0.65rem] leading-[1.4]">
                                         {{ $sidebarBus['ticketsSoldCount'] }}
                                     </flux:badge>
                                 </flux:tooltip>
