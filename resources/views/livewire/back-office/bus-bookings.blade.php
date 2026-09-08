@@ -107,7 +107,14 @@
 
                             <flux:table.cell variant="strong">{{ $booking['client']['fullName'] }}</flux:table.cell>
 
-                            <flux:table.cell class="whitespace-nowrap">{{ $booking['client']['phoneNumber'] }}</flux:table.cell>
+                            <flux:table.cell class="whitespace-nowrap">
+                                <a
+                                    href="tel:{{ $booking['client']['phoneNumber'] }}"
+                                    class="font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+                                >
+                                    {{ $booking['client']['phoneNumber'] }}
+                                </a>
+                            </flux:table.cell>
 
                             <flux:table.cell>{{ $booking['destination'] }}</flux:table.cell>
 

@@ -157,6 +157,8 @@ class BusBookingsPageTest extends TestCase
         $response->assertSee($bus->depart->identifier(with_trajet_prefix: true));
         $response->assertSee($customer->full_name);
         $response->assertSee((string) $customer->phone_number);
+        // The phone number is a tel: link so a tap opens the dialer.
+        $response->assertSeeHtml('href="tel:'.$customer->phone_number.'"');
         $response->assertSee('Total réservations');
         $response->assertSee('Sièges attribués');
         $response->assertSee('Billets payés');
@@ -166,6 +168,55 @@ class BusBookingsPageTest extends TestCase
         $response->assertSee('Annuler la réservation');
         $response->assertSee('Transférer vers un autre bus');
         $response->assertSee('Détails de la réservation');
+    }
+
+    public function test_it_orders_unpaid_bookings_newest_first_then_paid_bookings_by_seat_number(): void
+    {
+        ['bus' => $bus, 'customer' => $oldestUnpaidCustomer] = $this->createBusWithOnePassenger();
+
+        $makeCustomer = function (string $prenom): Customer {
+            return Customer::create([
+                'prenom' => $prenom,
+                'nom' => 'Test',
+                'phone_number' => 770000000 + random_int(1, 9999999),
+            ]);
+        };
+
+        $makeBooking = function (Customer $customer) use ($bus): Booking {
+            return $bus->bookings()->create([
+                'customer_id' => $customer->id,
+                'depart_id' => $bus->depart_id,
+                'point_dep_id' => $bus->depart->trajet->pointDeps()->firstOrFail()->id,
+                'destination_id' => $bus->depart->trajet->destinations()->firstOrFail()->id,
+                'paye' => false,
+            ]);
+        };
+
+        $newestUnpaidCustomer = $makeCustomer('Newest');
+        $makeBooking($newestUnpaidCustomer);
+
+        $lowSeatCustomer = $makeCustomer('LowSeat');
+        $lowSeatBooking = $makeBooking($lowSeatCustomer);
+        $highSeatCustomer = $makeCustomer('HighSeat');
+        $highSeatBooking = $makeBooking($highSeatCustomer);
+
+        [$lowSeat, $highSeat] = Seat::query()->orderBy('number')->limit(2)->get()->all();
+
+        $lowBusSeat = $bus->seats()->create(['seat_id' => $lowSeat->id, 'booked' => true, 'price' => 3550]);
+        $highBusSeat = $bus->seats()->create(['seat_id' => $highSeat->id, 'booked' => true, 'price' => 3550]);
+
+        $this->attachWaveTicket($lowSeatBooking, 'TX-LOW');
+        $lowSeatBooking->seat()->associate($lowBusSeat)->save();
+        $this->attachWaveTicket($highSeatBooking, 'TX-HIGH');
+        $highSeatBooking->seat()->associate($highBusSeat)->save();
+
+        Livewire::test(BusBookings::class, ['bus' => $bus])
+            ->assertSeeInOrder([
+                $newestUnpaidCustomer->full_name,
+                $oldestUnpaidCustomer->full_name,
+                $lowSeatCustomer->full_name,
+                $highSeatCustomer->full_name,
+            ]);
     }
 
     public function test_an_unpaid_booking_shows_the_pay_and_reminder_buttons(): void

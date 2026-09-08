@@ -74,7 +74,26 @@ class BusBookings extends Component
             'bookings.depart',
         ]);
 
-        return BookingResource::collection($this->bus->bookings)->resolve(request());
+        $orderedBookings = $this->bus->bookings
+            ->sortBy(fn (Booking $booking): array => $this->bookingSortKey($booking))
+            ->values();
+
+        return BookingResource::collection($orderedBookings)->resolve(request());
+    }
+
+    /**
+     * Sort key placing every unpaid booking first (newest on top), then the paid
+     * bookings ordered by ascending seat number.
+     *
+     * @return array{0: int, 1: int}
+     */
+    private function bookingSortKey(Booking $booking): array
+    {
+        if (! $booking->has_ticket) {
+            return [0, -$booking->id];
+        }
+
+        return [1, $booking->seat_number ?? PHP_INT_MAX];
     }
 
     public function departLabel(): string
