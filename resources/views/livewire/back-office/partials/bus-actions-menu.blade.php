@@ -92,7 +92,7 @@
             icon="x-circle"
             variant="danger"
             class="py-2"
-            disabled
+            wire:click="askToDeleteBus({{ $bus['id'] }})"
         >
             Supprimer le bus
         </flux:menu.item>

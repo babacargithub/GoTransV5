@@ -79,6 +79,10 @@ class DepartList extends Component
 
     public ?int $cancelDepartId = null;
 
+    public bool $showDeleteBusModal = false;
+
+    public ?int $deleteBusId = null;
+
     /**
      * Upcoming départs rendered through the same resource the legacy API uses.
      *
@@ -150,6 +154,57 @@ class DepartList extends Component
     {
         $this->busTicketSalesBusId = $busId;
         $this->showBusTicketSalesModal = true;
+    }
+
+    public function askToDeleteBus(int $busId): void
+    {
+        $this->deleteBusId = $busId;
+        $this->showDeleteBusModal = true;
+    }
+
+    public function closeDeleteBusModal(): void
+    {
+        $this->showDeleteBusModal = false;
+        $this->deleteBusId = null;
+    }
+
+    public function deleteBusLabel(): ?string
+    {
+        if ($this->deleteBusId === null) {
+            return null;
+        }
+
+        return Bus::findOrFail($this->deleteBusId)->full_name;
+    }
+
+    /**
+     * Delete the bus through BusController@destroy (the legacy business logic:
+     * refuses with a 422 when the bus still has bookings, otherwise deletes its
+     * heures de départ + seats + the bus). The list re-renders afterwards.
+     */
+    public function confirmDeleteBus(): void
+    {
+        $busId = $this->deleteBusId;
+
+        $this->closeDeleteBusModal();
+
+        if ($busId === null) {
+            return;
+        }
+
+        $bus = Bus::findOrFail($busId);
+        $busName = $bus->name;
+
+        $destroyResponse = app(BusController::class)->destroy($bus);
+
+        if ($destroyResponse->getStatusCode() === 422) {
+            session()->flash('error', $destroyResponse->getData(true)['message'] ?? 'Le bus n\'a pas pu être supprimé.');
+
+            return;
+        }
+
+        unset($this->departRows);
+        session()->flash('status', 'Le bus '.$busName.' a été supprimé.');
     }
 
     public function openBusSeats(int $busId): void

@@ -523,6 +523,47 @@ class DepartListPageTest extends TestCase
             ->assertSee('Sièges du bus');
     }
 
+    public function test_deleting_a_bus_without_bookings_removes_it_after_confirmation(): void
+    {
+        ['depart' => $depart, 'seats' => $seats] = $this->createUpcomingDepartWithBusSeats();
+        $bus = $depart->buses()->firstOrFail();
+
+        Livewire::actingAs(User::factory()->create())
+            ->test(DepartList::class)
+            ->call('askToDeleteBus', $bus->id)
+            ->assertSet('showDeleteBusModal', true)
+            ->assertSee('Supprimer ce bus ?')
+            ->call('confirmDeleteBus')
+            ->assertSee('a été supprimé');
+
+        $this->assertDatabaseMissing('buses', ['id' => $bus->id]);
+        $this->assertDatabaseMissing('bus_seats', ['id' => $seats[0]->id]);
+    }
+
+    public function test_deleting_a_bus_with_bookings_is_refused_with_the_legacy_message(): void
+    {
+        ['bus' => $bus] = $this->createUpcomingDepartWithOnePaidSeatedPassenger();
+
+        Livewire::actingAs(User::factory()->create())
+            ->test(DepartList::class)
+            ->call('askToDeleteBus', $bus->id)
+            ->call('confirmDeleteBus')
+            ->assertSee('transférer');
+
+        $this->assertDatabaseHas('buses', ['id' => $bus->id]);
+    }
+
+    public function test_the_delete_bus_action_is_wired_on_the_bus_menu(): void
+    {
+        $depart = $this->createUpcomingDepartWithBus();
+        $bus = $depart->buses()->firstOrFail();
+
+        $this->actingAs(User::factory()->create())
+            ->get(route('back-office.departs.index'))
+            ->assertSee('askToDeleteBus('.$bus->id.')', false)
+            ->assertSee('Supprimer le bus');
+    }
+
     public function test_the_cloturer_reouvrir_switch_toggles_the_bus_closed_state(): void
     {
         $depart = $this->createUpcomingDepartWithBus();

@@ -555,4 +555,29 @@
             </div>
         </div>
     </flux:modal>
+
+    {{-- Supprimer le bus --}}
+    <flux:modal wire:model.self="showDeleteBusModal" wire:key="delete-bus-modal" class="min-w-[22rem] max-w-md">
+        <div class="space-y-6">
+            <div>
+                <flux:heading size="lg">Supprimer ce bus ?</flux:heading>
+                <flux:text class="mt-2">
+                    Voulez-vous vraiment supprimer le bus {{ $this->deleteBusLabel() }} ? Un bus avec des réservations
+                    ne peut pas être supprimé : transférez d'abord ses réservations.
+                </flux:text>
+            </div>
+
+            <div class="flex items-center justify-end gap-2">
+                <flux:button variant="ghost" wire:click="closeDeleteBusModal">Retour</flux:button>
+                <flux:button
+                    variant="danger"
+                    wire:click="confirmDeleteBus"
+                    wire:loading.attr="disabled"
+                    wire:target="confirmDeleteBus"
+                >
+                    Supprimer le bus
+                </flux:button>
+            </div>
+        </div>
+    </flux:modal>
 </div>
