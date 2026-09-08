@@ -4,6 +4,7 @@ namespace App\Livewire\BackOffice;
 
 use App\Http\Controllers\DepartController;
 use App\Http\Resources\DepartResource;
+use App\Models\Bus;
 use App\Models\Depart;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Computed;
@@ -29,6 +30,25 @@ class DepartList extends Component
     public bool $showBookingsRepartitionModal = false;
 
     public ?int $bookingsRepartitionDepartId = null;
+
+    public bool $showScheduleManagementModal = false;
+
+    public ?int $scheduleManagementDepartId = null;
+
+    /**
+     * Which set of rendez-vous is being edited: 'depart' for the départ-wide
+     * schedules, or 'bus:{id}' for a single bus of that départ.
+     */
+    public string $scheduleManagementScope = 'depart';
+
+    /**
+     * Editable rendez-vous rows for the selected scope.
+     *
+     * @var array<int, array{id: int, pointDepName: string, rendezVousPoint: string, rendezVousSchedule: string, isActive: bool}>
+     */
+    public array $scheduleManagementRows = [];
+
+    public ?string $scheduleManagementFlashMessage = null;
 
     /**
      * Upcoming départs rendered through the same resource the legacy API uses.
@@ -68,6 +88,151 @@ class DepartList extends Component
     {
         $this->showBookingsRepartitionModal = false;
         $this->bookingsRepartitionDepartId = null;
+    }
+
+    public function openScheduleManagement(int $departId): void
+    {
+        $this->scheduleManagementDepartId = $departId;
+        $this->scheduleManagementScope = $this->defaultScheduleManagementScope();
+        $this->scheduleManagementFlashMessage = null;
+        $this->resetValidation();
+        $this->loadScheduleManagementRows();
+        $this->showScheduleManagementModal = true;
+    }
+
+    public function closeScheduleManagement(): void
+    {
+        $this->showScheduleManagementModal = false;
+        $this->scheduleManagementDepartId = null;
+        $this->scheduleManagementScope = 'depart';
+        $this->scheduleManagementRows = [];
+        $this->scheduleManagementFlashMessage = null;
+        $this->resetValidation();
+    }
+
+    public function updatedScheduleManagementScope(): void
+    {
+        $this->scheduleManagementFlashMessage = null;
+        $this->resetValidation();
+        $this->loadScheduleManagementRows();
+    }
+
+    /**
+     * Buses of the départ whose rendez-vous can be managed, for the scope picker.
+     *
+     * @return array<int, array{id: int, name: string}>
+     */
+    #[Computed]
+    public function scheduleManagementBuses(): array
+    {
+        if ($this->scheduleManagementDepartId === null) {
+            return [];
+        }
+
+        return Depart::findOrFail($this->scheduleManagementDepartId)
+            ->buses()
+            ->get()
+            ->map(fn (Bus $bus): array => ['id' => $bus->id, 'name' => $bus->name])
+            ->all();
+    }
+
+    public function scheduleManagementDepartLabel(): ?string
+    {
+        if ($this->scheduleManagementDepartId === null) {
+            return null;
+        }
+
+        return Depart::findOrFail($this->scheduleManagementDepartId)->identifier(with_trajet_prefix: true);
+    }
+
+    /**
+     * Reload the editable rendez-vous rows for the current scope, straight from
+     * DepartController@busStopSchedules (the legacy JSON path).
+     */
+    public function loadScheduleManagementRows(): void
+    {
+        if ($this->scheduleManagementDepartId === null) {
+            $this->scheduleManagementRows = [];
+
+            return;
+        }
+
+        $depart = Depart::findOrFail($this->scheduleManagementDepartId);
+
+        request()->merge(['bus_id' => $this->selectedScheduleManagementBusId()]);
+
+        $busStopSchedules = app(DepartController::class)
+            ->busStopSchedules($depart, request())
+            ->getData(true);
+
+        $this->scheduleManagementRows = collect($busStopSchedules)
+            ->map(fn (array $busStopSchedule): array => [
+                'id' => (int) $busStopSchedule['id'],
+                'pointDepName' => (string) $busStopSchedule['pointDep'],
+                'rendezVousPoint' => (string) ($busStopSchedule['rendezVousPoint'] ?? ''),
+                'rendezVousSchedule' => (string) $busStopSchedule['rendezVousSchedule'],
+                'isActive' => ! (bool) $busStopSchedule['disabled'],
+            ])
+            ->all();
+    }
+
+    /**
+     * Persist every rendez-vous row through DepartController@updateBusStopSchedules.
+     */
+    public function saveScheduleManagementRows(): void
+    {
+        if ($this->scheduleManagementDepartId === null || $this->scheduleManagementRows === []) {
+            return;
+        }
+
+        $this->validate([
+            'scheduleManagementRows.*.rendezVousPoint' => ['required', 'string', 'max:100'],
+            'scheduleManagementRows.*.rendezVousSchedule' => ['required', 'date_format:H:i'],
+        ], [
+            'scheduleManagementRows.*.rendezVousPoint.required' => 'Le point de rendez-vous est obligatoire.',
+            'scheduleManagementRows.*.rendezVousPoint.max' => 'Le point de rendez-vous ne peut pas dépasser 100 caractères.',
+            'scheduleManagementRows.*.rendezVousSchedule.required' => "L'heure de rendez-vous est obligatoire.",
+            'scheduleManagementRows.*.rendezVousSchedule.date_format' => "L'heure de rendez-vous doit être au format HH:MM.",
+        ]);
+
+        $depart = Depart::findOrFail($this->scheduleManagementDepartId);
+
+        $busStopSchedules = collect($this->scheduleManagementRows)
+            ->map(fn (array $row): array => [
+                'id' => $row['id'],
+                'pointDep' => $row['pointDepName'],
+                'rendezVousPoint' => $row['rendezVousPoint'],
+                'rendezVousSchedule' => $row['rendezVousSchedule'],
+                'disabled' => ! $row['isActive'],
+            ])
+            ->all();
+
+        request()->merge(['busStopSchedules' => $busStopSchedules]);
+
+        app(DepartController::class)->updateBusStopSchedules($depart, request());
+
+        $this->scheduleManagementFlashMessage = 'Les rendez-vous ont été enregistrés.';
+        $this->loadScheduleManagementRows();
+    }
+
+    /**
+     * Open on the first bus of the départ when it has any (that is where the
+     * rendez-vous actually live nowadays); fall back to the départ-wide scope.
+     */
+    private function defaultScheduleManagementScope(): string
+    {
+        $buses = $this->scheduleManagementBuses();
+
+        return $buses === [] ? 'depart' : 'bus:'.$buses[0]['id'];
+    }
+
+    private function selectedScheduleManagementBusId(): ?int
+    {
+        if (! str_starts_with($this->scheduleManagementScope, 'bus:')) {
+            return null;
+        }
+
+        return (int) substr($this->scheduleManagementScope, strlen('bus:'));
     }
 
     public function ticketSalesDepartLabel(): ?string

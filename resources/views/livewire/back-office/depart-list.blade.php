@@ -71,7 +71,9 @@
                                 <flux:menu.item icon="chart-pie" wire:click="openBookingsRepartition({{ $depart['id'] }})">
                                     Répartition des clients
                                 </flux:menu.item>
-                                <flux:menu.item icon="clock">Gestion des rendez-vous</flux:menu.item>
+                                <flux:menu.item icon="clock" wire:click="openScheduleManagement({{ $depart['id'] }})">
+                                    Gestion des rendez-vous
+                                </flux:menu.item>
                                 <flux:menu.item icon="paper-airplane">Envoi des rendez-vous</flux:menu.item>
                                 <flux:menu.separator />
                                 <flux:menu.item icon="x-circle" variant="danger">Annuler ce départ</flux:menu.item>
@@ -243,6 +245,84 @@
             <div class="flex justify-end">
                 <flux:button variant="ghost" wire:click="closeBookingsRepartition">Fermer</flux:button>
             </div>
+        </div>
+    </flux:modal>
+
+    {{-- Gestion des rendez-vous --}}
+    <flux:modal wire:model.self="showScheduleManagementModal" wire:key="schedule-management-modal" class="w-full max-w-2xl">
+        <div class="space-y-6">
+            <div>
+                <flux:heading size="lg">Gestion des rendez-vous</flux:heading>
+                <flux:text class="mt-1">{{ $this->scheduleManagementDepartLabel() }}</flux:text>
+            </div>
+
+            <flux:field>
+                <flux:label>Rendez-vous à gérer</flux:label>
+                <flux:select wire:model.live="scheduleManagementScope">
+                    <flux:select.option value="depart">Départ (tous les bus)</flux:select.option>
+                    @foreach ($this->scheduleManagementBuses as $scheduleManagementBus)
+                        <flux:select.option value="bus:{{ $scheduleManagementBus['id'] }}">
+                            {{ $scheduleManagementBus['name'] }}
+                        </flux:select.option>
+                    @endforeach
+                </flux:select>
+            </flux:field>
+
+            @if ($scheduleManagementFlashMessage)
+                <flux:callout variant="success" icon="check-circle">
+                    <flux:callout.text>{{ $scheduleManagementFlashMessage }}</flux:callout.text>
+                </flux:callout>
+            @endif
+
+            @if (count($scheduleManagementRows) === 0)
+                <flux:callout icon="information-circle">
+                    <flux:callout.text>Aucun rendez-vous configuré pour cette sélection.</flux:callout.text>
+                </flux:callout>
+            @else
+                <form wire:submit="saveScheduleManagementRows" class="space-y-4">
+                    <div class="space-y-3">
+                        @foreach ($scheduleManagementRows as $scheduleManagementRowIndex => $scheduleManagementRow)
+                            <div
+                                class="grid grid-cols-1 gap-3 rounded-lg border border-zinc-200 p-3 sm:grid-cols-[auto_1fr_1fr_auto] sm:items-start dark:border-zinc-700"
+                                wire:key="schedule-row-{{ $scheduleManagementRow['id'] }}"
+                            >
+                                <flux:field variant="inline" class="sm:pt-7">
+                                    <flux:switch wire:model="scheduleManagementRows.{{ $scheduleManagementRowIndex }}.isActive" />
+                                    <flux:label>Actif</flux:label>
+                                </flux:field>
+
+                                <flux:field>
+                                    <flux:label>Arrêt</flux:label>
+                                    <flux:input readonly variant="filled" value="{{ $scheduleManagementRow['pointDepName'] }}" />
+                                </flux:field>
+
+                                <flux:field>
+                                    <flux:label>Point de rendez-vous</flux:label>
+                                    <flux:input wire:model="scheduleManagementRows.{{ $scheduleManagementRowIndex }}.rendezVousPoint" />
+                                    <flux:error name="scheduleManagementRows.{{ $scheduleManagementRowIndex }}.rendezVousPoint" />
+                                </flux:field>
+
+                                <flux:field>
+                                    <flux:label>Heure</flux:label>
+                                    <flux:input type="time" wire:model="scheduleManagementRows.{{ $scheduleManagementRowIndex }}.rendezVousSchedule" />
+                                    <flux:error name="scheduleManagementRows.{{ $scheduleManagementRowIndex }}.rendezVousSchedule" />
+                                </flux:field>
+                            </div>
+                        @endforeach
+                    </div>
+
+                    <div class="flex justify-end gap-2">
+                        <flux:button variant="ghost" wire:click="closeScheduleManagement">Fermer</flux:button>
+                        <flux:button type="submit" variant="primary">Enregistrer les modifications</flux:button>
+                    </div>
+                </form>
+            @endif
+
+            @if (count($scheduleManagementRows) === 0)
+                <div class="flex justify-end">
+                    <flux:button variant="ghost" wire:click="closeScheduleManagement">Fermer</flux:button>
+                </div>
+            @endif
         </div>
     </flux:modal>
 </div>

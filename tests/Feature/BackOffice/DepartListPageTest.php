@@ -125,6 +125,150 @@ class DepartListPageTest extends TestCase
     }
 
     /**
+     * @return array{depart: Depart, bus: Bus, otherBus: Bus, schedules: array<int, HeureDepart>}
+     */
+    private function createUpcomingDepartWithBusStopSchedules(): array
+    {
+        $trajet = Trajet::query()
+            ->has('pointDeps', '>=', 2)
+            ->firstOrFail();
+
+        [$firstPointDep, $secondPointDep] = $trajet->pointDeps()->take(2)->get()->all();
+
+        $depart = Depart::create([
+            'name' => 'DEPART RDV '.uniqid(),
+            'date' => now()->addDays(3),
+            'trajet_id' => $trajet->id,
+            'closed' => false,
+            'locked' => false,
+            'canceled' => false,
+        ]);
+
+        $bus = $depart->buses()->create([
+            'name' => 'Bus RDV Un',
+            'nombre_place' => 57,
+            'ticket_price' => 3550,
+            'gp_ticket_price' => 6000,
+            'closed' => false,
+        ]);
+
+        $otherBus = $depart->buses()->create([
+            'name' => 'Bus RDV Deux',
+            'nombre_place' => 57,
+            'ticket_price' => 3550,
+            'gp_ticket_price' => 6000,
+            'closed' => false,
+        ]);
+
+        $schedules = [
+            HeureDepart::create([
+                'depart_id' => $depart->id,
+                'bus_id' => $bus->id,
+                'point_dep_id' => $firstPointDep->id,
+                'heureDepart' => '07:00:00',
+                'arretBus' => 'Devant la pharmacie',
+            ]),
+            HeureDepart::create([
+                'depart_id' => $depart->id,
+                'bus_id' => $bus->id,
+                'point_dep_id' => $secondPointDep->id,
+                'heureDepart' => '07:45:00',
+                'arretBus' => 'Rond-point',
+            ]),
+        ];
+
+        HeureDepart::create([
+            'depart_id' => $depart->id,
+            'bus_id' => $otherBus->id,
+            'point_dep_id' => $firstPointDep->id,
+            'heureDepart' => '09:00:00',
+            'arretBus' => 'Station essence',
+        ]);
+
+        return [
+            'depart' => $depart->fresh(),
+            'bus' => $bus->fresh(),
+            'otherBus' => $otherBus->fresh(),
+            'schedules' => $schedules,
+        ];
+    }
+
+    public function test_the_gestion_des_rendez_vous_dialog_loads_the_first_bus_schedules(): void
+    {
+        ['depart' => $depart, 'bus' => $bus] = $this->createUpcomingDepartWithBusStopSchedules();
+        $firstPointDepName = $depart->trajet->pointDeps()->take(1)->firstOrFail()->name;
+
+        Livewire::actingAs(User::factory()->create())
+            ->test(DepartList::class)
+            ->call('openScheduleManagement', $depart->id)
+            ->assertSet('showScheduleManagementModal', true)
+            ->assertSet('scheduleManagementScope', 'bus:'.$bus->id)
+            ->assertCount('scheduleManagementRows', 2)
+            ->assertSet('scheduleManagementRows.0.rendezVousPoint', 'Devant la pharmacie')
+            ->assertSet('scheduleManagementRows.0.rendezVousSchedule', '07:00')
+            ->assertSet('scheduleManagementRows.0.isActive', true)
+            ->assertSet('scheduleManagementRows.1.rendezVousPoint', 'Rond-point')
+            ->assertSee($firstPointDepName)
+            ->assertSee('Bus RDV Un')
+            ->assertSee('Bus RDV Deux');
+    }
+
+    public function test_switching_the_scope_loads_the_other_bus_schedules(): void
+    {
+        ['depart' => $depart, 'otherBus' => $otherBus] = $this->createUpcomingDepartWithBusStopSchedules();
+
+        Livewire::actingAs(User::factory()->create())
+            ->test(DepartList::class)
+            ->call('openScheduleManagement', $depart->id)
+            ->set('scheduleManagementScope', 'bus:'.$otherBus->id)
+            ->assertCount('scheduleManagementRows', 1)
+            ->assertSet('scheduleManagementRows.0.rendezVousPoint', 'Station essence');
+    }
+
+    public function test_saving_updates_the_rendez_vous_point_time_and_active_state(): void
+    {
+        ['depart' => $depart, 'schedules' => $schedules] = $this->createUpcomingDepartWithBusStopSchedules();
+
+        Livewire::actingAs(User::factory()->create())
+            ->test(DepartList::class)
+            ->call('openScheduleManagement', $depart->id)
+            ->set('scheduleManagementRows.0.rendezVousPoint', 'Nouveau point')
+            ->set('scheduleManagementRows.0.rendezVousSchedule', '06:30')
+            ->set('scheduleManagementRows.1.isActive', false)
+            ->call('saveScheduleManagementRows')
+            ->assertHasNoErrors()
+            ->assertSee('Les rendez-vous ont été enregistrés.');
+
+        $this->assertDatabaseHas('heure_departs', [
+            'id' => $schedules[0]->id,
+            'arretBus' => 'Nouveau point',
+            'heureDepart' => '06:30:00',
+            'disabled' => 0,
+        ]);
+        $this->assertDatabaseHas('heure_departs', [
+            'id' => $schedules[1]->id,
+            'disabled' => 1,
+        ]);
+    }
+
+    public function test_saving_requires_a_rendez_vous_point_for_every_row(): void
+    {
+        ['depart' => $depart, 'schedules' => $schedules] = $this->createUpcomingDepartWithBusStopSchedules();
+
+        Livewire::actingAs(User::factory()->create())
+            ->test(DepartList::class)
+            ->call('openScheduleManagement', $depart->id)
+            ->set('scheduleManagementRows.0.rendezVousPoint', '')
+            ->call('saveScheduleManagementRows')
+            ->assertHasErrors('scheduleManagementRows.0.rendezVousPoint');
+
+        $this->assertDatabaseHas('heure_departs', [
+            'id' => $schedules[0]->id,
+            'arretBus' => 'Devant la pharmacie',
+        ]);
+    }
+
+    /**
      * Auth middleware is temporarily disabled on the back-office routes for quick testing.
      * When it is restored, this should assert a redirect to the login page for guests.
      */
