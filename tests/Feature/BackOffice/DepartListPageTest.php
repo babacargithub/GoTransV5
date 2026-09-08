@@ -616,12 +616,28 @@ class DepartListPageTest extends TestCase
         ['depart' => $depart, 'bus' => $bus] = $this->createUpcomingDepartWithOnePaidSeatedPassenger();
         $pointDepName = $depart->trajet->pointDeps()->firstOrFail()->name;
 
-        Livewire::actingAs(User::factory()->create())
+        $component = Livewire::actingAs(User::factory()->create())
             ->test(DepartList::class)
             ->call('openBookingsRepartition', $depart->id, $bus->id)
             ->assertSet('bookingsRepartitionBusId', $bus->id)
             ->assertSee($bus->name)
             ->assertSee($pointDepName);
+
+        // The répartition rows carry a running cumulative count.
+        $rows = $component->get('bookingsRepartitionRows');
+        $this->assertSame(1, $rows[0]['bookingsCount']);
+        $this->assertSame(1, $rows[0]['cumulativeCount']);
+
+        // Scoping to the other (empty) bus yields no rows.
+        $otherBus = $depart->buses()->create([
+            'name' => 'Bus Vide',
+            'nombre_place' => 5,
+            'ticket_price' => 3550,
+            'gp_ticket_price' => 6000,
+            'closed' => false,
+        ]);
+        $component->call('openBookingsRepartition', $depart->id, $otherBus->id)
+            ->assertCount('bookingsRepartitionRows', 0);
     }
 
     public function test_the_schedule_management_dialog_opens_on_the_given_bus_scope(): void

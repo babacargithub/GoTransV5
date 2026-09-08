@@ -652,7 +652,7 @@ class DepartList extends Component
      * Paid-booking count per point de départ for the selected départ, straight
      * from DepartController@bookingGroupingsCount.
      *
-     * @return array<int, array{name: string, bookingsCount: int}>
+     * @return array<int, array{name: string, bookingsCount: int, cumulativeCount: int}>
      */
     #[Computed]
     public function bookingsRepartitionRows(): array
@@ -667,11 +667,18 @@ class DepartList extends Component
             request()->merge(['bus_id' => $this->bookingsRepartitionBusId]);
         }
 
+        $runningTotal = 0;
+
         return collect(app(DepartController::class)->bookingGroupingsCount($depart, request())->getData(true))
-            ->map(fn (array $row): array => [
-                'name' => $row['name'],
-                'bookingsCount' => (int) $row['bookingsCount'],
-            ])
+            ->map(function (array $row) use (&$runningTotal): array {
+                $runningTotal += (int) $row['bookingsCount'];
+
+                return [
+                    'name' => $row['name'],
+                    'bookingsCount' => (int) $row['bookingsCount'],
+                    'cumulativeCount' => $runningTotal,
+                ];
+            })
             ->all();
     }
 

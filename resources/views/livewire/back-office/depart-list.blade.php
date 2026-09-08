@@ -409,7 +409,7 @@
 
             @if (count($bookingsRepartitionRows) === 0)
                 <flux:callout icon="information-circle">
-                    <flux:callout.text>Aucun billet payé pour ce départ.</flux:callout.text>
+                    <flux:callout.text>Aucun billet payé pour cette sélection.</flux:callout.text>
                 </flux:callout>
             @else
                 <div class="overflow-x-auto">
@@ -417,6 +417,7 @@
                         <flux:table.columns>
                             <flux:table.column>Point de départ</flux:table.column>
                             <flux:table.column align="end">Billets</flux:table.column>
+                            <flux:table.column align="end">Cumul</flux:table.column>
                         </flux:table.columns>
 
                         <flux:table.rows>
@@ -424,12 +425,14 @@
                                 <flux:table.row wire:key="repartition-{{ $loop->index }}">
                                     <flux:table.cell variant="strong">{{ $bookingsRepartitionRow['name'] }}</flux:table.cell>
                                     <flux:table.cell align="end">{{ $bookingsRepartitionRow['bookingsCount'] }}</flux:table.cell>
+                                    <flux:table.cell align="end" class="text-zinc-500 dark:text-zinc-400">{{ $bookingsRepartitionRow['cumulativeCount'] }}</flux:table.cell>
                                 </flux:table.row>
                             @endforeach
 
                             <flux:table.row wire:key="repartition-total">
                                 <flux:table.cell variant="strong">Total</flux:table.cell>
                                 <flux:table.cell align="end" variant="strong">{{ $this->bookingsRepartitionTotal() }}</flux:table.cell>
+                                <flux:table.cell align="end" />
                             </flux:table.row>
                         </flux:table.rows>
                     </flux:table>
