@@ -51,7 +51,7 @@
                 <flux:navbar.item icon="cog-6-tooth" icon:trailing="chevron-down">Admin</flux:navbar.item>
                 <flux:navmenu>
                     <flux:navmenu.item icon="users" href="#">Employés</flux:navmenu.item>
-                    <flux:navmenu.item icon="arrows-right-left" href="#">Trajets</flux:navmenu.item>
+                    <flux:navmenu.item icon="arrows-right-left" :href="route('back-office.trajets.index')" :current="request()->routeIs('back-office.trajets.*')">Trajets</flux:navmenu.item>
                     <flux:navmenu.item icon="truck" href="#">Véhicule</flux:navmenu.item>
                     <flux:navmenu.item icon="adjustments-horizontal" href="#">Paramètres</flux:navmenu.item>
                 </flux:navmenu>
@@ -87,7 +87,7 @@
 
                 <flux:menu.group heading="Admin">
                     <flux:menu.item icon="users" href="#">Employés</flux:menu.item>
-                    <flux:menu.item icon="arrows-right-left" href="#">Trajets</flux:menu.item>
+                    <flux:menu.item icon="arrows-right-left" :href="route('back-office.trajets.index')">Trajets</flux:menu.item>
                     <flux:menu.item icon="truck" href="#">Véhicule</flux:menu.item>
                     <flux:menu.item icon="adjustments-horizontal" href="#">Paramètres</flux:menu.item>
                 </flux:menu.group>
