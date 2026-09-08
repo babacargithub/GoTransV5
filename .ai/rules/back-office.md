@@ -46,3 +46,14 @@ Each bus row of DepartList has an ellipsis dropdown (partial resources/views/liv
 - Supprimer le bus → askToDeleteBus → BusController@destroy (422 when bookings exist).
 - Exports: 4 filtered links (paye=1|0 & format=pdf|text) + "Toutes (PDF)" via Controller::filteredBookingsExportResponse; also added to the départ menu.
 Menu item icon colours: [&_[data-flux-menu-item-icon]]:!text-<color>-500. Seat icon fetched via php artisan flux:icon armchair.
+
+## Départs sub-menu list pages (PointDep / Itineraire / Horaire / Trajet)
+The "Départs" header sub-items + "Admin > Trajets" are full-page Livewire list components in app/Livewire/BackOffice/, views resources/views/livewire/back-office/*-list.blade.php, routes back-office.{point-deps,itineraires,horaires,trajets}.index.
+
+Row actions use shared icon-only buttons: <x-back-office.edit-button> (indigo) and <x-back-office.delete-button> (red danger). House rule — edit/delete are always icon-only, indigo/red.
+
+Mutations reuse untouched controller methods where they exist: PointDepController (update/disable/destroy/store), ItineraryController (update/destroy), TrajetController+TrajetService (update/destroy). HoraireController and DestinationController are empty stubs, so those mutations are plain model writes in the component. Components validate first (mirroring the controller rules) then call app(Controller::class)->method(request()->merge([...]), $model) inside try/catch(\Throwable).
+
+Itinerary gained a `disabled` boolean column (migration) + cast; disable toggle is inline. Horaire gained `periode` in $fillable + a trajet() belongsTo.
+
+TrajetList is interactive: pointDeps/destinations count badges (flux:badge with wire:click) open a flux:modal listing that trajet's items with an add form + per-row edit/delete.
