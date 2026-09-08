@@ -40,7 +40,7 @@
                 </flux:navbar.item>
                 <flux:navmenu>
                     <flux:navmenu.item icon="list-bullet" :href="route('back-office.departs.index')">Liste des départs</flux:navmenu.item>
-                    <flux:navmenu.item icon="plus-circle" href="#">Nouveau départ</flux:navmenu.item>
+                    <flux:navmenu.item icon="plus-circle" :href="route('back-office.departs.create')">Nouveau départ</flux:navmenu.item>
                     <flux:navmenu.item icon="map-pin" href="#">Points de départ</flux:navmenu.item>
                     <flux:navmenu.item icon="map" href="#">Itinéraires</flux:navmenu.item>
                     <flux:navmenu.item icon="clock" href="#">Horaires</flux:navmenu.item>
@@ -79,7 +79,7 @@
 
                 <flux:menu.group heading="Départs">
                     <flux:menu.item icon="list-bullet" :href="route('back-office.departs.index')">Liste des départs</flux:menu.item>
-                    <flux:menu.item icon="plus-circle" href="#">Nouveau départ</flux:menu.item>
+                    <flux:menu.item icon="plus-circle" :href="route('back-office.departs.create')">Nouveau départ</flux:menu.item>
                     <flux:menu.item icon="map-pin" href="#">Points de départ</flux:menu.item>
                     <flux:menu.item icon="map" href="#">Itinéraires</flux:menu.item>
                     <flux:menu.item icon="clock" href="#">Horaires</flux:menu.item>

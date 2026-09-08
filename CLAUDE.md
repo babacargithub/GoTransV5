@@ -173,4 +173,10 @@ This project has domain-specific skills available in `**/skills/**`. You MUST ac
 - Rerun a test after each change to it.
 - Run `vendor/bin/phpunit` to call the test runner directly. It accepts the same file path and `--filter=testName` arguments.
 
+## Version Control and Git
+- Don't include Claude Credits in commit messages
+- Don't auto-commit ! Commits must be explicitly requested by user
+- The word "cm" stands for "Commit  current changes"  commit
+- The word "gcm" stands for "Generate a commit message of current changes" without commit
+- 
 </laravel-boost-guidelines>

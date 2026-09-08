@@ -1,6 +1,18 @@
 <div class="mx-auto w-full max-w-5xl">
-    <flux:heading size="xl" level="1">Liste des départs</flux:heading>
-    <flux:text class="mt-1">Départs à venir</flux:text>
+    <div class="flex items-start justify-between gap-4">
+        <div>
+            <flux:heading size="xl" level="1">Liste des départs</flux:heading>
+            <flux:text class="mt-1">Départs à venir</flux:text>
+        </div>
+
+        <flux:button
+            :href="route('back-office.departs.create')"
+            variant="primary"
+            icon="plus"
+        >
+            Nouveau départ
+        </flux:button>
+    </div>
 
     @if (session('status'))
         <flux:callout class="mt-4" variant="success" icon="check-circle">

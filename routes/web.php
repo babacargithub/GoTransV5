@@ -6,6 +6,7 @@ use App\Http\Controllers\DepartController;
 use App\Http\Controllers\TicketController;
 use App\Livewire\BackOffice\AddBusToDepart;
 use App\Livewire\BackOffice\BusBookings;
+use App\Livewire\BackOffice\CreateDepart;
 use App\Livewire\BackOffice\DepartList;
 use App\Livewire\BackOffice\DepartScheduleNotifications;
 use App\Livewire\Profile\Edit;
@@ -54,8 +55,9 @@ Route::middleware(['auth:sanctum', 'verified'])->group(function () {
  * Back office (Livewire/Flux rewrite). Legacy Vue admin keeps hitting the JSON API;
  * these routes reuse the same controllers and render the data into Flux pages instead.
  */
-Route::prefix('back-office')->name('back-office.')->group(function () {
+Route::middleware('auth')->prefix('back-office')->name('back-office.')->group(function () {
     Route::get('departs', DepartList::class)->name('departs.index');
+    Route::get('departs/create', CreateDepart::class)->name('departs.create');
     Route::get('departs/{depart}/add-bus', AddBusToDepart::class)->name('departs.add-bus');
     Route::get('departs/{depart}/schedule-notifications', DepartScheduleNotifications::class)
         ->name('departs.schedule-notifications');

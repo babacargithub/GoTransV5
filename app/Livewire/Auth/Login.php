@@ -8,38 +8,38 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
-use Livewire\Attributes\Layout;
 use Livewire\Component;
 
-#[Layout('components.layouts.auth')]
 class Login extends Component
 {
-    public string $email = '';
+    public string $username = '';
+
     public string $password = '';
+
     public bool $remember = false;
 
     public function login(): void
     {
         $this->validate([
-            'email' => ['required', 'string', 'email'],
+            'username' => ['required', 'string'],
             'password' => ['required', 'string'],
         ]);
 
-        $throttleKey = Str::transliterate(Str::lower($this->email).'|'.request()->ip());
+        $throttleKey = Str::transliterate(Str::lower($this->username).'|'.request()->ip());
 
         if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
             throw ValidationException::withMessages([
-                'email' => __('auth.throttle', ['seconds' => RateLimiter::availableIn($throttleKey)]),
+                'username' => __('auth.throttle', ['seconds' => RateLimiter::availableIn($throttleKey)]),
             ]);
         }
 
-        $user = User::where('email', $this->email)->first();
+        $user = User::where('username', $this->username)->first();
 
         if (! $user || ! Hash::check($this->password, $user->password)) {
             RateLimiter::hit($throttleKey);
 
             throw ValidationException::withMessages([
-                'email' => __('auth.failed'),
+                'username' => __('auth.failed'),
             ]);
         }
 

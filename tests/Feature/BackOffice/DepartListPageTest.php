@@ -324,15 +324,11 @@ class DepartListPageTest extends TestCase
             ->assertSee('askToCancelDepart('.$depart->id.')', false);
     }
 
-    /**
-     * Auth middleware is temporarily disabled on the back-office routes for quick testing.
-     * When it is restored, this should assert a redirect to the login page for guests.
-     */
-    public function test_the_page_is_currently_reachable_without_authentication(): void
+    public function test_guests_are_redirected_to_the_login_page(): void
     {
         $this->createUpcomingDepartWithBus();
 
-        $this->get(route('back-office.departs.index'))->assertOk();
+        $this->get(route('back-office.departs.index'))->assertRedirect(route('login'));
     }
 
     public function test_it_lists_upcoming_departs_with_their_buses_and_actions(): void

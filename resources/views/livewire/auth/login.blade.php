@@ -3,9 +3,9 @@
 
     <form wire:submit="login" class="space-y-4">
         <div>
-            <label for="email" class="label-uppercase block mb-1">Email</label>
-            <input wire:model="email" id="email" type="email" autocomplete="username" required autofocus class="input-field">
-            @error('email') <p class="text-error text-sm mt-1">{{ $message }}</p> @enderror
+            <label for="username" class="label-uppercase block mb-1">Nom d'utilisateur</label>
+            <input wire:model="username" id="username" type="text" autocomplete="username" required autofocus class="input-field">
+            @error('username') <p class="text-error text-sm mt-1">{{ $message }}</p> @enderror
         </div>
 
         <div>
