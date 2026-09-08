@@ -71,17 +71,6 @@
                             />
                         </flux:tooltip>
 
-                        <flux:tooltip content="Exporter les réservations (PDF)">
-                            <flux:button
-                                :href="route('back-office.departs.bookings-export', $depart['id'])"
-                                target="_blank"
-                                size="sm"
-                                icon="arrow-down-tray"
-                                variant="filled"
-                                aria-label="Exporter les réservations"
-                            />
-                        </flux:tooltip>
-
                         <flux:dropdown position="bottom" align="end">
                             <flux:button size="sm" icon="ellipsis-vertical" variant="subtle" inset="right" aria-label="Plus d'actions" />
 
@@ -114,6 +103,47 @@
                                 >
                                     Envoi des rendez-vous
                                 </flux:menu.item>
+                                <flux:menu.separator />
+                                <flux:menu.group heading="Exporter les réservations">
+                                    <flux:menu.item
+                                        icon="document-text"
+                                        class="py-2 [&_[data-flux-menu-item-icon]]:!text-emerald-600"
+                                        :href="route('back-office.departs.bookings-export', ['depart' => $depart['id'], 'paye' => 1, 'format' => 'pdf'])"
+                                        target="_blank"
+                                    >
+                                        Payés (PDF)
+                                    </flux:menu.item>
+                                    <flux:menu.item
+                                        icon="document-text"
+                                        class="py-2 [&_[data-flux-menu-item-icon]]:!text-emerald-600"
+                                        :href="route('back-office.departs.bookings-export', ['depart' => $depart['id'], 'paye' => 0, 'format' => 'pdf'])"
+                                        target="_blank"
+                                    >
+                                        Non payés (PDF)
+                                    </flux:menu.item>
+                                    <flux:menu.item
+                                        icon="document"
+                                        class="py-2 [&_[data-flux-menu-item-icon]]:!text-indigo-500"
+                                        :href="route('back-office.departs.bookings-export', ['depart' => $depart['id'], 'paye' => 1, 'format' => 'text'])"
+                                    >
+                                        Payés (texte)
+                                    </flux:menu.item>
+                                    <flux:menu.item
+                                        icon="document"
+                                        class="py-2 [&_[data-flux-menu-item-icon]]:!text-indigo-500"
+                                        :href="route('back-office.departs.bookings-export', ['depart' => $depart['id'], 'paye' => 0, 'format' => 'text'])"
+                                    >
+                                        Non payés (texte)
+                                    </flux:menu.item>
+                                    <flux:menu.item
+                                        icon="arrow-down-tray"
+                                        class="py-2 [&_[data-flux-menu-item-icon]]:!text-zinc-500"
+                                        :href="route('back-office.departs.bookings-export', $depart['id'])"
+                                        target="_blank"
+                                    >
+                                        Toutes (PDF)
+                                    </flux:menu.item>
+                                </flux:menu.group>
                                 <flux:menu.separator />
                                 <flux:menu.item
                                     icon="x-circle"

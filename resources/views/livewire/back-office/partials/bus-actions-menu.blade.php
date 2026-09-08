@@ -99,13 +99,45 @@
 
         <flux:menu.separator />
 
-        <flux:menu.item
-            icon="arrow-down-tray"
-            class="py-2 [&_[data-flux-menu-item-icon]]:!text-emerald-600"
-            :href="route('back-office.buses.bookings-export', $bus['id'])"
-            target="_blank"
-        >
-            Exporter les réservations (PDF)
-        </flux:menu.item>
+        <flux:menu.group heading="Exporter les réservations">
+            <flux:menu.item
+                icon="document-text"
+                class="py-2 [&_[data-flux-menu-item-icon]]:!text-emerald-600"
+                :href="route('back-office.buses.bookings-export', ['bus' => $bus['id'], 'paye' => 1, 'format' => 'pdf'])"
+                target="_blank"
+            >
+                Payés (PDF)
+            </flux:menu.item>
+            <flux:menu.item
+                icon="document-text"
+                class="py-2 [&_[data-flux-menu-item-icon]]:!text-emerald-600"
+                :href="route('back-office.buses.bookings-export', ['bus' => $bus['id'], 'paye' => 0, 'format' => 'pdf'])"
+                target="_blank"
+            >
+                Non payés (PDF)
+            </flux:menu.item>
+            <flux:menu.item
+                icon="document"
+                class="py-2 [&_[data-flux-menu-item-icon]]:!text-indigo-500"
+                :href="route('back-office.buses.bookings-export', ['bus' => $bus['id'], 'paye' => 1, 'format' => 'text'])"
+            >
+                Payés (texte)
+            </flux:menu.item>
+            <flux:menu.item
+                icon="document"
+                class="py-2 [&_[data-flux-menu-item-icon]]:!text-indigo-500"
+                :href="route('back-office.buses.bookings-export', ['bus' => $bus['id'], 'paye' => 0, 'format' => 'text'])"
+            >
+                Non payés (texte)
+            </flux:menu.item>
+            <flux:menu.item
+                icon="arrow-down-tray"
+                class="py-2 [&_[data-flux-menu-item-icon]]:!text-zinc-500"
+                :href="route('back-office.buses.bookings-export', $bus['id'])"
+                target="_blank"
+            >
+                Toutes (PDF)
+            </flux:menu.item>
+        </flux:menu.group>
     </flux:menu>
 </flux:dropdown>

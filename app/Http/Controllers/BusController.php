@@ -227,8 +227,9 @@ class BusController extends Controller
         if ($request->routeIs('back-office.*')) {
             $departLabel = $bus->depart->identifier(with_trajet_prefix: true);
 
-            return $this->bookingsExportDocumentResponse(
+            return $this->filteredBookingsExportResponse(
                 $bookings,
+                $request,
                 'Réservations — '.$bus->name,
                 [
                     'Départ : '.$departLabel,

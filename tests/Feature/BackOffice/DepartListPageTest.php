@@ -613,6 +613,77 @@ class DepartListPageTest extends TestCase
         $response->assertSee('wave');
     }
 
+    public function test_the_depart_export_filters_to_paid_bookings_only(): void
+    {
+        ['depart' => $depart, 'bus' => $bus] = $this->createUpcomingDepartWithOnePaidSeatedPassenger();
+
+        $unpaidCustomer = Customer::create([
+            'prenom' => 'moussa',
+            'nom' => 'sarr',
+            'phone_number' => 780000000 + random_int(1, 9999999),
+        ]);
+        $unpaidBusSeat = $bus->seats()->create([
+            'seat_id' => Seat::query()->orderBy('number')->skip(1)->firstOrFail()->id,
+            'booked' => true,
+            'price' => 3550,
+        ]);
+        $bus->bookings()->create([
+            'customer_id' => $unpaidCustomer->id,
+            'depart_id' => $depart->id,
+            'point_dep_id' => $depart->trajet->pointDeps()->firstOrFail()->id,
+            'destination_id' => $depart->trajet->destinations()->firstOrFail()->id,
+            'seat_id' => $unpaidBusSeat->id,
+            'paye' => false,
+        ]);
+
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->get(route('back-office.departs.bookings-export', ['depart' => $depart->id, 'paye' => 1, 'format' => 'pdf']))
+            ->assertOk()
+            ->assertSee('Filtre : réservations payées')
+            ->assertSee('Awa Fatou NDIAYE')
+            ->assertDontSee('Moussa SARR');
+
+        $this->actingAs($user)
+            ->get(route('back-office.departs.bookings-export', ['depart' => $depart->id, 'paye' => 0, 'format' => 'pdf']))
+            ->assertOk()
+            ->assertSee('Filtre : réservations non payées')
+            ->assertSee('Moussa SARR')
+            ->assertDontSee('Awa Fatou NDIAYE');
+    }
+
+    public function test_the_bus_export_can_be_downloaded_as_a_text_file(): void
+    {
+        ['bus' => $bus, 'customer' => $customer] = $this->createUpcomingDepartWithOnePaidSeatedPassenger();
+
+        $response = $this->actingAs(User::factory()->create())
+            ->get(route('back-office.buses.bookings-export', ['bus' => $bus->id, 'paye' => 1, 'format' => 'text']));
+
+        $response->assertOk();
+        $response->assertHeader('content-type', 'text/plain; charset=UTF-8');
+        $this->assertStringContainsString('.txt', $response->headers->get('content-disposition'));
+        $textContent = $response->streamedContent();
+        $this->assertStringContainsString((string) $customer->phone_number, $textContent);
+        $this->assertStringContainsString('https://globeone.site/payer/', $textContent);
+    }
+
+    public function test_the_bus_menu_exposes_the_four_filtered_export_links(): void
+    {
+        $this->createUpcomingDepartWithBus();
+
+        $response = $this->actingAs(User::factory()->create())
+            ->get(route('back-office.departs.index'));
+
+        $response->assertOk();
+        $response->assertSee('paye=1&amp;format=pdf', false);
+        $response->assertSee('paye=0&amp;format=pdf', false);
+        $response->assertSee('paye=1&amp;format=text', false);
+        $response->assertSee('paye=0&amp;format=text', false);
+        $response->assertSee('Payés (PDF)');
+        $response->assertSee('Non payés (texte)');
+    }
+
     public function test_the_bus_export_header_mentions_both_the_depart_and_the_bus(): void
     {
         ['bus' => $bus] = $this->createUpcomingDepartWithOnePaidSeatedPassenger();

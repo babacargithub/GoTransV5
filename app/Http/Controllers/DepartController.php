@@ -404,8 +404,9 @@ class DepartController extends Controller
         $bookings = $query->with(['seat.seat', 'customer', 'point_dep', 'ticket'])->get();
 
         if ($request->routeIs('back-office.*')) {
-            return $this->bookingsExportDocumentResponse(
+            return $this->filteredBookingsExportResponse(
                 $bookings,
+                $request,
                 'Réservations — '.$depart->identifier(with_trajet_prefix: true),
                 [
                     'Départ : '.$depart->identifier(with_trajet_prefix: true),
