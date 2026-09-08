@@ -57,3 +57,11 @@ Mutations reuse untouched controller methods where they exist: PointDepControlle
 Itinerary gained a `disabled` boolean column (migration) + cast; disable toggle is inline. Horaire gained `periode` in $fillable + a trajet() belongsTo.
 
 TrajetList is interactive: pointDeps/destinations count badges (flux:badge with wire:click) open a flux:modal listing that trajet's items with an add form + per-row edit/delete.
+
+## Admin + Finances back-office pages (Employé / Véhicule / Params / Caisses / OM / Wave)
+Header "Admin" + "Finances" menus now point to full-page Livewire components:
+- EmployeList (back-office.employes.index), VehiculeList (vehicules.index): list + top "Ajouter/Créer" + modal create/edit + delete + activate toggle. EmployeController is JSON-index-only and VehiculeController is an empty stub, so mutations are plain model writes. Fleshed out Employe/EmployeCategory/Vehicule models (fillable, casts, relations). vehicules table has NOT-NULL no-default columns chauffeur/nombre_place/vehicule_type/description — chauffeur & seats required, description coalesced to ''. Marking a véhicule default unsets the others in a DB::transaction.
+- AppParamsPage (parametres.index): edits the known scalar keys of the single app_params.data JSON; save does array_replace_recursive to preserve unrelated keys (mirrors MobileAppController@updateParams).
+- CaisseBalancesPage (caisses.index): reproduces TicketController@index's payment-method aggregation query in-component; Wave/OM balances via app(WavePaiementController/OrangeMoneyController)::class each in its own try/catch → null → "Indisponible".
+- OrangeMoneyPage (paiements-om.index): OM balance + transactions (try/catch → null), withdraw form → OrangeMoneyController@withdraw (422 handling). Tests use Http::fake to keep provider calls in-process.
+- WavePaymentsPage (paiements-wave.index): placeholder only.
