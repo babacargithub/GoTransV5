@@ -169,6 +169,7 @@
                                             icon="pencil-square"
                                             icon:class="text-amber-600 dark:text-amber-400"
                                             aria-label="Modifier la réservation"
+                                            wire:click="openBookingEditModal({{ $booking['id'] }})"
                                         />
                                     </flux:tooltip>
 
@@ -277,6 +278,54 @@
             </flux:table>
         </div>
     @endif
+
+    <flux:modal wire:model.self="showEditModal" wire:key="edit-modal" class="w-full max-w-md">
+        @php
+            $editableTrajetStops = $this->editableTrajetStops;
+        @endphp
+
+        <form wire:submit="saveBookingEdit" class="space-y-6">
+            <div>
+                <flux:heading size="lg">Modifier la réservation</flux:heading>
+                <flux:text class="mt-2">
+                    Seuls le point de départ et la destination peuvent être modifiés. Les choix sont limités aux arrêts du trajet de la réservation.
+                </flux:text>
+            </div>
+
+            <flux:field>
+                <flux:label>Point de départ</flux:label>
+                <flux:select wire:model="editPointDepId" placeholder="Choisir un point de départ">
+                    @foreach ($editableTrajetStops['pointDeps'] as $pointDep)
+                        <flux:select.option :value="$pointDep['id']">{{ $pointDep['name'] }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+                <flux:error name="editPointDepId" />
+            </flux:field>
+
+            <flux:field>
+                <flux:label>Destination</flux:label>
+                <flux:select wire:model="editDestinationId" placeholder="Choisir une destination">
+                    @foreach ($editableTrajetStops['destinations'] as $destination)
+                        <flux:select.option :value="$destination['id']">{{ $destination['name'] }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+                <flux:error name="editDestinationId" />
+            </flux:field>
+
+            <div class="flex items-center justify-end gap-2">
+                <flux:button variant="ghost" wire:click="closeBookingEditModal">Annuler</flux:button>
+
+                <flux:button
+                    type="submit"
+                    variant="primary"
+                    wire:loading.attr="disabled"
+                    wire:target="saveBookingEdit"
+                >
+                    Enregistrer
+                </flux:button>
+            </div>
+        </form>
+    </flux:modal>
 
     <flux:modal wire:model.self="showTransferModal" wire:key="transfer-modal" class="w-full max-w-2xl">
         <div class="space-y-6">

@@ -8,6 +8,7 @@ use App\Models\Bus;
 use App\Models\Customer;
 use App\Models\Depart;
 use App\Models\HeureDepart;
+use App\Models\PointDep;
 use App\Models\Seat;
 use App\Models\Ticket;
 use App\Models\Trajet;
@@ -380,6 +381,102 @@ class BusBookingsPageTest extends TestCase
             ->assertSet('transferErrorMessage', "Il n'y a pas de place disponible pour ce bus !");
 
         $this->assertSame($bus->id, $booking->fresh()->bus_id);
+    }
+
+    public function test_the_edit_modal_prefills_the_booking_and_only_offers_stops_of_its_trajet(): void
+    {
+        ['bus' => $bus, 'booking' => $booking] = $this->createBusWithOnePassenger();
+
+        $bookingTrajet = $booking->depart->trajet;
+        $otherTrajetPointDep = PointDep::query()
+            ->where('trajet_id', '!=', $bookingTrajet->id)
+            ->firstOrFail();
+
+        Livewire::test(BusBookings::class, ['bus' => $bus])
+            ->call('openBookingEditModal', $booking->id)
+            ->assertSet('showEditModal', true)
+            ->assertSet('editBookingId', $booking->id)
+            ->assertSet('editPointDepId', $booking->point_dep_id)
+            ->assertSet('editDestinationId', $booking->destination_id)
+            ->assertSee($bookingTrajet->pointDeps()->firstOrFail()->name)
+            ->assertDontSee($otherTrajetPointDep->name);
+    }
+
+    public function test_editing_a_booking_updates_the_pickup_and_destination_without_a_reload(): void
+    {
+        ['bus' => $bus, 'booking' => $booking, 'customer' => $customer] = $this->createBusWithOnePassenger();
+
+        $trajet = $booking->depart->trajet;
+        $newPointDep = $trajet->pointDeps()->where('id', '!=', $booking->point_dep_id)->firstOrFail();
+        $newDestination = $trajet->destinations()->where('id', '!=', $booking->destination_id)->firstOrFail();
+
+        Livewire::test(BusBookings::class, ['bus' => $bus])
+            ->call('openBookingEditModal', $booking->id)
+            ->set('editPointDepId', $newPointDep->id)
+            ->set('editDestinationId', $newDestination->id)
+            ->call('saveBookingEdit')
+            ->assertSet('showEditModal', false)
+            ->assertSet('editBookingId', null)
+            ->assertSee('Réservation de '.$customer->full_name.' mise à jour.');
+
+        $booking->refresh();
+        $this->assertSame($newPointDep->id, $booking->point_dep_id);
+        $this->assertSame($newDestination->id, $booking->destination_id);
+    }
+
+    public function test_editing_a_booking_rejects_a_stop_that_belongs_to_another_trajet(): void
+    {
+        ['bus' => $bus, 'booking' => $booking] = $this->createBusWithOnePassenger();
+
+        $foreignPointDep = PointDep::query()
+            ->where('trajet_id', '!=', $booking->depart->trajet_id)
+            ->firstOrFail();
+
+        Livewire::test(BusBookings::class, ['bus' => $bus])
+            ->call('openBookingEditModal', $booking->id)
+            ->set('editPointDepId', $foreignPointDep->id)
+            ->call('saveBookingEdit')
+            ->assertHasErrors(['editPointDepId' => 'exists']);
+
+        $this->assertNotSame($foreignPointDep->id, $booking->fresh()->point_dep_id);
+    }
+
+    public function test_the_legacy_api_update_route_changes_the_pickup_and_destination(): void
+    {
+        ['booking' => $booking] = $this->createBusWithOnePassenger();
+
+        $trajet = $booking->depart->trajet;
+        $newPointDep = $trajet->pointDeps()->where('id', '!=', $booking->point_dep_id)->firstOrFail();
+        $newDestination = $trajet->destinations()->where('id', '!=', $booking->destination_id)->firstOrFail();
+
+        Sanctum::actingAs(User::factory()->create());
+
+        $this->putJson("/api/bookings/{$booking->id}", [
+            'point_dep_id' => $newPointDep->id,
+            'destination_id' => $newDestination->id,
+        ])->assertOk();
+
+        $booking->refresh();
+        $this->assertSame($newPointDep->id, $booking->point_dep_id);
+        $this->assertSame($newDestination->id, $booking->destination_id);
+    }
+
+    public function test_the_legacy_api_update_route_rejects_a_stop_from_another_trajet(): void
+    {
+        ['booking' => $booking] = $this->createBusWithOnePassenger();
+
+        $foreignPointDep = PointDep::query()
+            ->where('trajet_id', '!=', $booking->depart->trajet_id)
+            ->firstOrFail();
+
+        Sanctum::actingAs(User::factory()->create());
+
+        $this->putJson("/api/bookings/{$booking->id}", [
+            'point_dep_id' => $foreignPointDep->id,
+            'destination_id' => $booking->destination_id,
+        ])->assertStatus(422)->assertJsonValidationErrorFor('point_dep_id');
+
+        $this->assertNotSame($foreignPointDep->id, $booking->fresh()->point_dep_id);
     }
 
     public function test_the_shared_controller_still_returns_json_for_the_legacy_api(): void

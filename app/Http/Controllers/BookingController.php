@@ -13,7 +13,9 @@ use App\Services\NotificationService;
 use App\Services\WaitingCustomerService;
 use DB;
 use Exception;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class BookingController extends Controller
 {
@@ -147,16 +149,33 @@ class BookingController extends Controller
     }
 
     /**
-     * Update the specified resource in storage.
+     * Update the pickup point (point de départ) and destination of a booking.
+     *
+     * Only pickup points and destinations that belong to the same trajet as the
+     * booking's depart are accepted: offering pickup points from another trajet
+     * would not be coherent.
      */
-    public function update(Request $request, Booking $booking)
+    public function update(Request $request, Booking $booking): JsonResponse
     {
-        //
+        $trajetId = $booking->depart->trajet_id;
+
         $validated = $request->validate([
-            'point_dep_id' => 'required|exists:point_deps,id',
-            'destination_id' => 'required|exists:destinations,id',
+            'point_dep_id' => [
+                'required',
+                Rule::exists('point_deps', 'id')->where('trajet_id', $trajetId),
+            ],
+            'destination_id' => [
+                'required',
+                Rule::exists('destinations', 'id')->where('trajet_id', $trajetId),
+            ],
+        ], [
+            'point_dep_id.exists' => "Ce point de départ n'appartient pas au trajet de la réservation.",
+            'destination_id.exists' => "Cette destination n'appartient pas au trajet de la réservation.",
         ]);
+
         $booking->update($validated);
+
+        return response()->json(['message' => 'Réservation mise à jour avec succès.']);
     }
 
     /**

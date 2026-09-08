@@ -7,8 +7,11 @@ use App\Http\Resources\BookingResource;
 use App\Models\Booking;
 use App\Models\Bus;
 use App\Models\Depart;
+use App\Models\Destination;
+use App\Models\PointDep;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -42,6 +45,14 @@ class BusBookings extends Component
     public ?int $transferBookingId = null;
 
     public ?string $transferErrorMessage = null;
+
+    public bool $showEditModal = false;
+
+    public ?int $editBookingId = null;
+
+    public ?int $editPointDepId = null;
+
+    public ?int $editDestinationId = null;
 
     public function mount(Bus $bus): void
     {
@@ -236,6 +247,101 @@ class BusBookings extends Component
             $this->transferErrorMessage = data_get($legacyResponse->getData(true), 'message', "Le transfert n'a pas pu être effectué.");
         } catch (\Throwable $exception) {
             $this->transferErrorMessage = $exception->getMessage();
+        }
+    }
+
+    public function openBookingEditModal(int $bookingId): void
+    {
+        $this->resetFlashMessages();
+        $this->resetValidation();
+
+        $booking = $this->findBookingOnThisBus($bookingId);
+
+        $this->editBookingId = $bookingId;
+        $this->editPointDepId = $booking->point_dep_id;
+        $this->editDestinationId = $booking->destination_id;
+        $this->showEditModal = true;
+    }
+
+    public function closeBookingEditModal(): void
+    {
+        $this->showEditModal = false;
+        $this->editBookingId = null;
+        $this->editPointDepId = null;
+        $this->editDestinationId = null;
+        $this->resetValidation();
+    }
+
+    /**
+     * Pickup points and destinations that belong to the same trajet as the booking's depart.
+     * Choosing stops from another trajet would not be coherent, so those are the only options.
+     *
+     * @return array{
+     *     pointDeps: array<int, array{id: int, name: string}>,
+     *     destinations: array<int, array{id: int, name: string}>
+     * }
+     */
+    #[Computed]
+    public function editableTrajetStops(): array
+    {
+        if ($this->editBookingId === null) {
+            return ['pointDeps' => [], 'destinations' => []];
+        }
+
+        $trajet = $this->findBookingOnThisBus($this->editBookingId)->depart->trajet;
+
+        return [
+            'pointDeps' => $trajet->pointDeps
+                ->map(fn (PointDep $pointDep): array => ['id' => $pointDep->id, 'name' => $pointDep->name])
+                ->all(),
+            'destinations' => $trajet->destinations
+                ->map(fn (Destination $destination): array => ['id' => $destination->id, 'name' => $destination->name])
+                ->all(),
+        ];
+    }
+
+    public function saveBookingEdit(): void
+    {
+        $this->resetFlashMessages();
+
+        if ($this->editBookingId === null) {
+            return;
+        }
+
+        $booking = $this->findBookingOnThisBus($this->editBookingId);
+        $trajetId = $booking->depart->trajet_id;
+
+        $this->validate([
+            'editPointDepId' => ['required', Rule::exists('point_deps', 'id')->where('trajet_id', $trajetId)],
+            'editDestinationId' => ['required', Rule::exists('destinations', 'id')->where('trajet_id', $trajetId)],
+        ], [
+            'editPointDepId.required' => 'Le point de départ est obligatoire.',
+            'editPointDepId.exists' => "Ce point de départ n'appartient pas au trajet de la réservation.",
+            'editDestinationId.required' => 'La destination est obligatoire.',
+            'editDestinationId.exists' => "Cette destination n'appartient pas au trajet de la réservation.",
+        ]);
+
+        $customerFullName = $booking->customer->full_name;
+
+        try {
+            request()->merge([
+                'point_dep_id' => $this->editPointDepId,
+                'destination_id' => $this->editDestinationId,
+            ]);
+
+            $legacyResponse = app(BookingController::class)->update(request(), $booking);
+
+            if ($legacyResponse->getStatusCode() === 200) {
+                $this->closeBookingEditModal();
+                $this->flashStatusMessage = 'Réservation de '.$customerFullName.' mise à jour.';
+                unset($this->bookingRows);
+
+                return;
+            }
+
+            $this->flashErrorMessage = data_get($legacyResponse->getData(true), 'message', "La réservation n'a pas pu être mise à jour.");
+        } catch (\Throwable $exception) {
+            $this->flashErrorMessage = $exception->getMessage();
         }
     }
 
