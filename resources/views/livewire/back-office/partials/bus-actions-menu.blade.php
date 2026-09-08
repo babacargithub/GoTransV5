@@ -82,7 +82,7 @@
         <flux:menu.item
             icon="arrow-right"
             class="py-2 [&_[data-flux-menu-item-icon]]:!text-indigo-500"
-            disabled
+            wire:click="openBusBookingsTransfer({{ $bus['id'] }})"
         >
             Transférer les réservations
         </flux:menu.item>

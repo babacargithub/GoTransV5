@@ -517,6 +517,64 @@
         </div>
     </flux:modal>
 
+    {{-- Transférer les réservations du bus --}}
+    <flux:modal wire:model.self="showBusTransferModal" wire:key="bus-transfer-modal" class="w-full max-w-lg">
+        <form wire:submit="confirmBusBookingsTransfer" class="space-y-6">
+            <div>
+                <flux:heading size="lg">Transférer les réservations</flux:heading>
+                <flux:text class="mt-1">Bus source : {{ $this->transferSourceBusLabel() }}</flux:text>
+            </div>
+
+            @if ($busTransferErrorMessage)
+                <flux:callout variant="danger" icon="exclamation-triangle">
+                    <flux:callout.text>{{ $busTransferErrorMessage }}</flux:callout.text>
+                </flux:callout>
+            @endif
+
+            <flux:field>
+                <flux:label>Bus de destination</flux:label>
+                <flux:select wire:model="transferTargetBusId" placeholder="Choisir un bus">
+                    @foreach ($this->busTransferTargetOptions as $transferDepartOption)
+                        <flux:select.option disabled>— {{ $transferDepartOption['label'] }} —</flux:select.option>
+                        @foreach ($transferDepartOption['buses'] as $transferBusOption)
+                            <flux:select.option :value="$transferBusOption['id']">
+                                {{ $transferBusOption['name'] }} ({{ $transferBusOption['seatsLeft'] }} places libres)
+                            </flux:select.option>
+                        @endforeach
+                    @endforeach
+                </flux:select>
+                <flux:error name="transferTargetBusId" />
+            </flux:field>
+
+            <flux:radio.group wire:model.live="transferType" label="Type de réservations à transférer">
+                <flux:radio :value="1" label="Réservations non payées" />
+                <flux:radio :value="2" label="Réservations payées" />
+                <flux:radio :value="3" label="Toutes les réservations (payées & non)" />
+            </flux:radio.group>
+
+            @if ($transferType !== 3)
+                <flux:field>
+                    <flux:label>Nombre à transférer</flux:label>
+                    <flux:input type="number" wire:model="transferCount" min="-1" />
+                    <flux:description>-1 signifie que toutes les réservations du type choisi seront transférées.</flux:description>
+                    <flux:error name="transferCount" />
+                </flux:field>
+            @endif
+
+            <div class="flex items-center justify-end gap-2">
+                <flux:button variant="ghost" wire:click="closeBusBookingsTransfer">Annuler</flux:button>
+                <flux:button
+                    type="submit"
+                    variant="primary"
+                    wire:loading.attr="disabled"
+                    wire:target="confirmBusBookingsTransfer"
+                >
+                    Transférer
+                </flux:button>
+            </div>
+        </form>
+    </flux:modal>
+
     {{-- Supprimer le bus --}}
     <flux:modal wire:model.self="showDeleteBusModal" wire:key="delete-bus-modal" class="min-w-[22rem] max-w-md">
         <div class="space-y-6">

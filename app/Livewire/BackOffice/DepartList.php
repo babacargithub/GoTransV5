@@ -85,6 +85,24 @@ class DepartList extends Component
 
     public ?int $deleteBusId = null;
 
+    public bool $showBusTransferModal = false;
+
+    public ?int $transferSourceBusId = null;
+
+    public ?int $transferTargetBusId = null;
+
+    /**
+     * 1 = réservations non payées, 2 = payées, 3 = toutes (legacy transferType).
+     */
+    public int $transferType = 2;
+
+    /**
+     * Number of bookings to move; -1 means "toutes celles du type choisi".
+     */
+    public int $transferCount = -1;
+
+    public ?string $busTransferErrorMessage = null;
+
     /**
      * Upcoming départs rendered through the same resource the legacy API uses.
      *
@@ -175,6 +193,113 @@ class DepartList extends Component
     {
         $this->deleteBusId = $busId;
         $this->showDeleteBusModal = true;
+    }
+
+    public function openBusBookingsTransfer(int $busId): void
+    {
+        $this->transferSourceBusId = $busId;
+        $this->transferTargetBusId = null;
+        $this->transferType = 2;
+        $this->transferCount = -1;
+        $this->busTransferErrorMessage = null;
+        $this->showBusTransferModal = true;
+    }
+
+    public function closeBusBookingsTransfer(): void
+    {
+        $this->showBusTransferModal = false;
+        $this->transferSourceBusId = null;
+        $this->transferTargetBusId = null;
+        $this->busTransferErrorMessage = null;
+    }
+
+    public function transferSourceBusLabel(): ?string
+    {
+        if ($this->transferSourceBusId === null) {
+            return null;
+        }
+
+        return Bus::findOrFail($this->transferSourceBusId)->full_name;
+    }
+
+    /**
+     * Upcoming départs (soonest first) and their buses that the source bus's
+     * réservations can be transferred to (the source bus itself excluded).
+     *
+     * @return array<int, array{label: string, buses: array<int, array{id: int, name: string, seatsLeft: int}>}>
+     */
+    #[Computed]
+    public function busTransferTargetOptions(): array
+    {
+        if ($this->transferSourceBusId === null) {
+            return [];
+        }
+
+        return Depart::query()
+            ->where('date', '>', now())
+            ->with(['trajet', 'buses'])
+            ->orderBy('date')
+            ->get()
+            ->map(fn (Depart $upcomingDepart): array => [
+                'label' => $upcomingDepart->identifier(with_trajet_prefix: true),
+                'buses' => $upcomingDepart->buses
+                    ->reject(fn (Bus $candidateBus): bool => $candidateBus->id === $this->transferSourceBusId)
+                    ->map(fn (Bus $candidateBus): array => [
+                        'id' => $candidateBus->id,
+                        'name' => $candidateBus->name,
+                        'seatsLeft' => $candidateBus->seatsLeft(),
+                    ])
+                    ->values()
+                    ->all(),
+            ])
+            ->filter(fn (array $departOption): bool => $departOption['buses'] !== [])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Move réservations from the source bus to the chosen target through
+     * BusController@transferBookings (the legacy BusManager business logic:
+     * refuses with a 422 when the target lacks seats for paid bookings).
+     */
+    public function confirmBusBookingsTransfer(): void
+    {
+        $this->busTransferErrorMessage = null;
+
+        $this->validate([
+            'transferTargetBusId' => ['required', 'integer', 'different:transferSourceBusId'],
+            'transferType' => ['required', 'integer', 'in:1,2,3'],
+            'transferCount' => ['required', 'integer', 'min:-1'],
+        ], [
+            'transferTargetBusId.required' => 'Choisissez le bus de destination.',
+            'transferTargetBusId.different' => 'Le bus de destination doit être différent du bus source.',
+        ]);
+
+        $sourceBus = Bus::findOrFail($this->transferSourceBusId);
+
+        request()->merge([
+            'targetBusId' => $this->transferTargetBusId,
+            'numberOfBookingsToTransfer' => $this->transferType === 3 ? -1 : $this->transferCount,
+            'transferType' => $this->transferType,
+        ]);
+
+        try {
+            $transferResponse = app(BusController::class)->transferBookings($sourceBus, request());
+        } catch (\Throwable $exception) {
+            $this->busTransferErrorMessage = $exception->getMessage();
+
+            return;
+        }
+
+        if ($transferResponse->getStatusCode() !== 200) {
+            $this->busTransferErrorMessage = data_get($transferResponse->getData(true), 'message', "Le transfert n'a pas pu être effectué.");
+
+            return;
+        }
+
+        $this->closeBusBookingsTransfer();
+        unset($this->departRows);
+        session()->flash('status', 'Les réservations ont été transférées.');
     }
 
     public function closeDeleteBusModal(): void

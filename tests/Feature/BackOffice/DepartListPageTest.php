@@ -523,6 +523,74 @@ class DepartListPageTest extends TestCase
             ->assertSee('Sièges du bus');
     }
 
+    public function test_transferring_paid_bookings_moves_them_to_the_target_bus(): void
+    {
+        ['depart' => $depart, 'bus' => $sourceBus] = $this->createUpcomingDepartWithOnePaidSeatedPassenger();
+
+        $targetBus = $depart->buses()->create([
+            'name' => 'Bus Cible',
+            'nombre_place' => 5,
+            'ticket_price' => 3550,
+            'gp_ticket_price' => 6000,
+            'closed' => false,
+        ]);
+        Seat::query()->orderBy('number')->take(3)->get()->each(fn (Seat $seat) => $targetBus->seats()->create([
+            'seat_id' => $seat->id,
+            'booked' => false,
+            'price' => 3550,
+        ]));
+
+        Livewire::actingAs(User::factory()->create())
+            ->test(DepartList::class)
+            ->call('openBusBookingsTransfer', $sourceBus->id)
+            ->assertSet('showBusTransferModal', true)
+            ->set('transferTargetBusId', $targetBus->id)
+            ->set('transferType', 2)
+            ->set('transferCount', -1)
+            ->call('confirmBusBookingsTransfer')
+            ->assertHasNoErrors()
+            ->assertSet('showBusTransferModal', false)
+            ->assertSee('Les réservations ont été transférées.');
+
+        $this->assertSame(0, $sourceBus->bookings()->count());
+        $this->assertSame(1, $targetBus->bookings()->count());
+    }
+
+    public function test_transfer_is_refused_when_the_target_bus_lacks_seats(): void
+    {
+        ['depart' => $depart, 'bus' => $sourceBus] = $this->createUpcomingDepartWithOnePaidSeatedPassenger();
+
+        $targetBus = $depart->buses()->create([
+            'name' => 'Bus Plein',
+            'nombre_place' => 5,
+            'ticket_price' => 3550,
+            'gp_ticket_price' => 6000,
+            'closed' => false,
+        ]);
+
+        Livewire::actingAs(User::factory()->create())
+            ->test(DepartList::class)
+            ->call('openBusBookingsTransfer', $sourceBus->id)
+            ->set('transferTargetBusId', $targetBus->id)
+            ->set('transferType', 2)
+            ->set('transferCount', -1)
+            ->call('confirmBusBookingsTransfer')
+            ->assertSet('busTransferErrorMessage', "Il n'y a pas assez de places dans le bus cible");
+
+        $this->assertSame(1, $sourceBus->bookings()->count());
+    }
+
+    public function test_the_transfer_action_is_wired_on_the_bus_menu(): void
+    {
+        $depart = $this->createUpcomingDepartWithBus();
+        $bus = $depart->buses()->firstOrFail();
+
+        $this->actingAs(User::factory()->create())
+            ->get(route('back-office.departs.index'))
+            ->assertSee('openBusBookingsTransfer('.$bus->id.')', false)
+            ->assertSee('Transférer les réservations');
+    }
+
     public function test_deleting_a_bus_without_bookings_removes_it_after_confirmation(): void
     {
         ['depart' => $depart, 'seats' => $seats] = $this->createUpcomingDepartWithBusSeats();
