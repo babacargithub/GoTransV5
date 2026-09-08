@@ -8,6 +8,7 @@ use App\Models\BusSeat;
 use App\Models\Customer;
 use App\Models\Depart;
 use App\Models\HeureDepart;
+use App\Models\Horaire;
 use App\Models\Seat;
 use App\Models\Ticket;
 use App\Models\Trajet;
@@ -430,6 +431,52 @@ class DepartListPageTest extends TestCase
             ]));
 
         return ['depart' => $depart->fresh(), 'bus' => $bus->fresh(), 'seats' => $seats];
+    }
+
+    public function test_the_bus_menu_merges_itineraire_and_rendez_vous_into_one_bus_scoped_item(): void
+    {
+        $depart = $this->createUpcomingDepartWithBus();
+        $bus = $depart->buses()->firstOrFail();
+
+        $response = $this->actingAs(User::factory()->create())
+            ->get(route('back-office.departs.index'));
+
+        $response->assertOk();
+        $response->assertSee('Itinéraire / rendez-vous');
+        $response->assertSee('openScheduleManagement('.$depart->id.', '.$bus->id.')', false);
+        // The legacy split "Itinéraire" + "Gérer les RV" is gone.
+        $response->assertDontSee('Gérer les RV');
+    }
+
+    public function test_adding_all_bus_stops_creates_a_rendez_vous_row_per_point_de_depart(): void
+    {
+        $trajet = Trajet::query()->has('pointDeps', '>=', 2)->firstOrFail();
+        $horaire = Horaire::query()->where('periode', Horaire::PERIODE_MATIN)->firstOrFail();
+
+        $depart = Depart::create([
+            'name' => 'DEPART ARRETS '.uniqid(),
+            'date' => now()->addDays(3),
+            'trajet_id' => $trajet->id,
+            'horaire_id' => $horaire->id,
+            'closed' => false,
+            'locked' => false,
+            'canceled' => false,
+        ]);
+        $bus = $depart->buses()->create([
+            'name' => 'Bus Arrets',
+            'nombre_place' => 57,
+            'ticket_price' => 3550,
+            'gp_ticket_price' => 6000,
+            'closed' => false,
+        ]);
+
+        Livewire::actingAs(User::factory()->create())
+            ->test(DepartList::class)
+            ->call('openScheduleManagement', $depart->id, $bus->id)
+            ->assertCount('scheduleManagementRows', 0)
+            ->call('addAllBusStopSchedules')
+            ->assertSee('Les arrêts ont été ajoutés.')
+            ->assertCount('scheduleManagementRows', $trajet->pointDeps()->count());
     }
 
     public function test_the_gestion_des_sieges_dialog_lists_the_bus_seats_with_their_state(): void

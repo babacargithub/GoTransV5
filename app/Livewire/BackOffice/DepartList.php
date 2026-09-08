@@ -494,6 +494,34 @@ class DepartList extends Component
     }
 
     /**
+     * Create a rendez-vous row for every point de départ of the trajet that the
+     * selected bus does not have yet, through DepartController@addPointDepsSchedulesForBus
+     * (the legacy "Ajouter tous les arrêts" button). Only available in a bus scope.
+     */
+    public function addAllBusStopSchedules(): void
+    {
+        $busId = $this->selectedScheduleManagementBusId();
+
+        if ($busId === null) {
+            return;
+        }
+
+        try {
+            app(DepartController::class)->addPointDepsSchedulesForBus(Bus::findOrFail($busId));
+            $this->scheduleManagementFlashMessage = 'Les arrêts ont été ajoutés.';
+        } catch (\Throwable $exception) {
+            $this->scheduleManagementFlashMessage = $exception->getMessage();
+        }
+
+        $this->loadScheduleManagementRows();
+    }
+
+    public function scheduleManagementScopeIsBus(): bool
+    {
+        return $this->selectedScheduleManagementBusId() !== null;
+    }
+
+    /**
      * Open on the first bus of the départ when it has any (that is where the
      * rendez-vous actually live nowadays); fall back to the départ-wide scope.
      */

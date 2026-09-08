@@ -442,6 +442,18 @@
                 <flux:callout icon="information-circle">
                     <flux:callout.text>Aucun rendez-vous configuré pour cette sélection.</flux:callout.text>
                 </flux:callout>
+
+                @if ($this->scheduleManagementScopeIsBus())
+                    <flux:button
+                        variant="primary"
+                        icon="plus"
+                        wire:click="addAllBusStopSchedules"
+                        wire:loading.attr="disabled"
+                        wire:target="addAllBusStopSchedules"
+                    >
+                        Ajouter tous les arrêts
+                    </flux:button>
+                @endif
             @else
                 <form wire:submit="saveScheduleManagementRows" class="space-y-4">
                     <div class="space-y-3">
