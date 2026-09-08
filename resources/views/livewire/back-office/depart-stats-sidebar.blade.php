@@ -31,6 +31,7 @@
                 <div class="space-y-2 px-1" wire:key="sidebar-depart-{{ $loop->index }}">
                     <flux:heading size="sm" class="leading-snug">{{ $departStatsRow['depart'] }}</flux:heading>
 
+                    <div class="space-y-2 ps-3">
                     @forelse ($departStatsRow['buses'] as $sidebarBus)
                         <div
                             class="space-y-2"
@@ -79,6 +80,7 @@
                     @empty
                         <flux:text class="text-xs text-zinc-500 dark:text-zinc-400">Aucun bus.</flux:text>
                     @endforelse
+                    </div>
                 </div>
 
                 @unless ($loop->last)
