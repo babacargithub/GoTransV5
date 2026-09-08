@@ -66,6 +66,10 @@
 
         <flux:spacer />
 
+        <div class="me-2 max-lg:hidden">
+            <livewire:back-office.global-search />
+        </div>
+
         <form method="POST" action="{{ route('logout') }}" class="max-lg:hidden">
             @csrf
             <flux:button type="submit" variant="subtle" size="sm" icon="arrow-right-start-on-rectangle">
