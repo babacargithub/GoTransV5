@@ -26,9 +26,9 @@
             <flux:callout.text>Aucun départ à venir.</flux:callout.text>
         </flux:callout>
     @else
-        <div class="space-y-8">
+        <div class="space-y-4">
             @foreach ($this->departStatsRows as $departStatsRow)
-                <div class="space-y-4 px-1" wire:key="sidebar-depart-{{ $loop->index }}">
+                <div class="space-y-2 px-1" wire:key="sidebar-depart-{{ $loop->index }}">
                     <flux:heading size="sm" class="leading-snug">{{ $departStatsRow['depart'] }}</flux:heading>
 
                     @forelse ($departStatsRow['buses'] as $sidebarBus)
@@ -74,7 +74,7 @@
                         </div>
 
                         @unless ($loop->last)
-                            <flux:separator variant="subtle" class="my-2" />
+                            <flux:separator variant="subtle" class="my-1" />
                         @endunless
                     @empty
                         <flux:text class="text-xs text-zinc-500 dark:text-zinc-400">Aucun bus.</flux:text>
