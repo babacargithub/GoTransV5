@@ -11,6 +11,7 @@ use App\Models\Destination;
 use App\Models\PointDep;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
@@ -78,7 +79,35 @@ class BusBookings extends Component
             ->sortBy(fn (Booking $booking): array => $this->bookingSortKey($booking))
             ->values();
 
-        return BookingResource::collection($orderedBookings)->resolve(request());
+        return collect(BookingResource::collection($orderedBookings)->resolve(request()))
+            ->map(function (array $bookingRow): array {
+                $bookingRow['client']['fullName'] = $this->normalizeDisplayName($bookingRow['client']['fullName']);
+
+                return $bookingRow;
+            })
+            ->all();
+    }
+
+    /**
+     * Formats a passenger name as "Firstname Parts LASTNAME": every first-name part is
+     * capitalised (multipart first names included) and the last word is fully uppercased.
+     */
+    private function normalizeDisplayName(string $rawName): string
+    {
+        $nameParts = preg_split('/\s+/', trim($rawName), flags: PREG_SPLIT_NO_EMPTY) ?: [];
+
+        if ($nameParts === []) {
+            return $rawName;
+        }
+
+        if (count($nameParts) === 1) {
+            return Str::title($nameParts[0]);
+        }
+
+        $lastName = Str::upper(array_pop($nameParts));
+        $firstName = Str::title(implode(' ', $nameParts));
+
+        return $firstName.' '.$lastName;
     }
 
     /**
@@ -249,7 +278,7 @@ class BusBookings extends Component
         }
 
         $booking = $this->findBookingOnThisBus($this->transferBookingId);
-        $customerFullName = $booking->customer->full_name;
+        $customerFullName = $this->normalizeDisplayName($booking->customer->full_name);
         $targetBus = Bus::findOrFail($targetBusId);
 
         try {
@@ -340,7 +369,7 @@ class BusBookings extends Component
             'editDestinationId.exists' => "Cette destination n'appartient pas au trajet de la réservation.",
         ]);
 
-        $customerFullName = $booking->customer->full_name;
+        $customerFullName = $this->normalizeDisplayName($booking->customer->full_name);
 
         try {
             request()->merge([
@@ -390,7 +419,7 @@ class BusBookings extends Component
         $this->resetFlashMessages();
 
         $booking = $this->findBookingOnThisBus($bookingId);
-        $customerFullName = $booking->customer->full_name;
+        $customerFullName = $this->normalizeDisplayName($booking->customer->full_name);
 
         $legacyResponse = app(BookingController::class)->saveTicketPayment($booking, request());
 
@@ -408,7 +437,7 @@ class BusBookings extends Component
         $this->resetFlashMessages();
 
         $booking = $this->findBookingOnThisBus($bookingId);
-        $customerFullName = $booking->customer->full_name;
+        $customerFullName = $this->normalizeDisplayName($booking->customer->full_name);
 
         try {
             app(BookingController::class)->cancelBooking($booking);
@@ -425,7 +454,7 @@ class BusBookings extends Component
         $this->resetFlashMessages();
 
         $booking = $this->findBookingOnThisBus($bookingId);
-        $customerFullName = $booking->customer->full_name;
+        $customerFullName = $this->normalizeDisplayName($booking->customer->full_name);
 
         try {
             $legacyResponse = app(BookingController::class)->refundTicket($booking);
@@ -465,7 +494,7 @@ class BusBookings extends Component
 
         try {
             app(BookingController::class)->triggerPaymentRequestForPaymentMethod($booking, $paymentMethod, request());
-            $this->flashStatusMessage = 'Relance de paiement '.strtoupper($paymentMethod).' envoyée à '.$booking->customer->full_name.'.';
+            $this->flashStatusMessage = 'Relance de paiement '.strtoupper($paymentMethod).' envoyée à '.$this->normalizeDisplayName($booking->customer->full_name).'.';
         } catch (\Throwable $exception) {
             $this->flashErrorMessage = $exception->getMessage();
         }

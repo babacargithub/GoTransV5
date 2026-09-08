@@ -14,6 +14,7 @@ use App\Models\Ticket;
 use App\Models\Trajet;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -125,6 +126,14 @@ class BusBookingsPageTest extends TestCase
         return $bus->fresh();
     }
 
+    /**
+     * How a customer's name is shown on the page: capitalised first name(s), UPPERCASE last name.
+     */
+    private function displayedName(Customer $customer): string
+    {
+        return Str::title($customer->prenom).' '.Str::upper($customer->nom);
+    }
+
     private function attachWaveTicket(Booking $booking, string $transactionId = 'cos-2600kqw0r1h1c', string $paymentMethod = 'wave'): Ticket
     {
         $ticket = new Ticket;
@@ -155,7 +164,7 @@ class BusBookingsPageTest extends TestCase
         $response->assertSeeLivewire(BusBookings::class);
         $response->assertSee($bus->name);
         $response->assertSee($bus->depart->identifier(with_trajet_prefix: true));
-        $response->assertSee($customer->full_name);
+        $response->assertSee($this->displayedName($customer));
         $response->assertSee((string) $customer->phone_number);
         // The phone number is a tel: link so a tap opens the dialer.
         $response->assertSeeHtml('href="tel:'.$customer->phone_number.'"');
@@ -168,6 +177,34 @@ class BusBookingsPageTest extends TestCase
         $response->assertSee('Annuler la réservation');
         $response->assertSee('Transférer vers un autre bus');
         $response->assertSee('Détails de la réservation');
+    }
+
+    public function test_it_normalises_passenger_names_with_capitalised_first_names_and_uppercase_last_name(): void
+    {
+        ['bus' => $bus] = $this->createBusWithOnePassenger();
+
+        $trajet = $bus->depart->trajet;
+
+        foreach (['serigne fallou' => 'seye', 'babacar' => 'seye'] as $prenom => $nom) {
+            $customer = Customer::create([
+                'prenom' => $prenom,
+                'nom' => $nom,
+                'phone_number' => 770000000 + random_int(1, 9999999),
+            ]);
+
+            $bus->bookings()->create([
+                'customer_id' => $customer->id,
+                'depart_id' => $bus->depart_id,
+                'point_dep_id' => $trajet->pointDeps()->firstOrFail()->id,
+                'destination_id' => $trajet->destinations()->firstOrFail()->id,
+                'paye' => false,
+            ]);
+        }
+
+        Livewire::test(BusBookings::class, ['bus' => $bus])
+            ->assertSee('Serigne Fallou SEYE')
+            ->assertSee('Babacar SEYE')
+            ->assertDontSee('serigne fallou seye');
     }
 
     public function test_it_orders_unpaid_bookings_newest_first_then_paid_bookings_by_seat_number(): void
@@ -212,10 +249,10 @@ class BusBookingsPageTest extends TestCase
 
         Livewire::test(BusBookings::class, ['bus' => $bus])
             ->assertSeeInOrder([
-                $newestUnpaidCustomer->full_name,
-                $oldestUnpaidCustomer->full_name,
-                $lowSeatCustomer->full_name,
-                $highSeatCustomer->full_name,
+                $this->displayedName($newestUnpaidCustomer),
+                $this->displayedName($oldestUnpaidCustomer),
+                $this->displayedName($lowSeatCustomer),
+                $this->displayedName($highSeatCustomer),
             ]);
     }
 
@@ -281,7 +318,7 @@ class BusBookingsPageTest extends TestCase
             ->call('confirmPendingAction')
             ->assertSet('showConfirmationModal', false)
             ->assertSet('pendingBookingId', null)
-            ->assertSee('Réservation de '.$customer->full_name.' annulée.')
+            ->assertSee('Réservation de '.$this->displayedName($customer).' annulée.')
             ->assertSee('Aucune réservation');
 
         $this->assertSoftDeleted($booking);
@@ -373,6 +410,7 @@ class BusBookingsPageTest extends TestCase
         $response->assertOk();
         $response->assertSee('BILLET DE VOYAGE');
         $response->assertSee((string) $ticket->number);
+        // The printable ticket is a separate legacy view and keeps the raw customer name.
         $response->assertSee($customer->full_name);
     }
 
@@ -411,7 +449,7 @@ class BusBookingsPageTest extends TestCase
             ->call('transferBookingToBus', $targetBus->id)
             ->assertSet('showTransferModal', false)
             ->assertSet('transferBookingId', null)
-            ->assertSee('Réservation de '.$customer->full_name.' transférée vers '.$targetBus->name.'.')
+            ->assertSee('Réservation de '.$this->displayedName($customer).' transférée vers '.$targetBus->name.'.')
             ->assertSee('Aucune réservation');
 
         $booking->refresh();
@@ -468,7 +506,7 @@ class BusBookingsPageTest extends TestCase
             ->call('saveBookingEdit')
             ->assertSet('showEditModal', false)
             ->assertSet('editBookingId', null)
-            ->assertSee('Réservation de '.$customer->full_name.' mise à jour.');
+            ->assertSee('Réservation de '.$this->displayedName($customer).' mise à jour.');
 
         $booking->refresh();
         $this->assertSame($newPointDep->id, $booking->point_dep_id);
