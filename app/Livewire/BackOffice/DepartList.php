@@ -2,6 +2,7 @@
 
 namespace App\Livewire\BackOffice;
 
+use App\Http\Controllers\BusController;
 use App\Http\Controllers\DepartController;
 use App\Http\Resources\DepartResource;
 use App\Models\Bus;
@@ -30,6 +31,16 @@ class DepartList extends Component
     public bool $showBookingsRepartitionModal = false;
 
     public ?int $bookingsRepartitionDepartId = null;
+
+    /**
+     * When set, the répartition des clients dialog is scoped to a single bus of
+     * the départ instead of counting every booking of the départ.
+     */
+    public ?int $bookingsRepartitionBusId = null;
+
+    public bool $showBusTicketSalesModal = false;
+
+    public ?int $busTicketSalesBusId = null;
 
     public bool $showScheduleManagementModal = false;
 
@@ -82,9 +93,10 @@ class DepartList extends Component
         $this->ticketSalesDepartId = null;
     }
 
-    public function openBookingsRepartition(int $departId): void
+    public function openBookingsRepartition(int $departId, ?int $busId = null): void
     {
         $this->bookingsRepartitionDepartId = $departId;
+        $this->bookingsRepartitionBusId = $busId;
         $this->showBookingsRepartitionModal = true;
     }
 
@@ -92,6 +104,56 @@ class DepartList extends Component
     {
         $this->showBookingsRepartitionModal = false;
         $this->bookingsRepartitionDepartId = null;
+        $this->bookingsRepartitionBusId = null;
+    }
+
+    public function openBusTicketSales(int $busId): void
+    {
+        $this->busTicketSalesBusId = $busId;
+        $this->showBusTicketSalesModal = true;
+    }
+
+    public function closeBusTicketSales(): void
+    {
+        $this->showBusTicketSalesModal = false;
+        $this->busTicketSalesBusId = null;
+    }
+
+    public function busTicketSalesBusLabel(): ?string
+    {
+        if ($this->busTicketSalesBusId === null) {
+            return null;
+        }
+
+        return Bus::findOrFail($this->busTicketSalesBusId)->full_name;
+    }
+
+    /**
+     * Ticket sales of the selected bus grouped by "vendu par", straight from
+     * BusController@busTicketSales.
+     *
+     * @return array<int, array{soldBy: string|null, total: float}>
+     */
+    #[Computed]
+    public function busTicketSalesRows(): array
+    {
+        if ($this->busTicketSalesBusId === null) {
+            return [];
+        }
+
+        $bus = Bus::findOrFail($this->busTicketSalesBusId);
+
+        return collect(app(BusController::class)->busTicketSales($bus)->getData(true))
+            ->map(fn (array $row): array => [
+                'soldBy' => $row['soldBy'] ?? null,
+                'total' => (float) ($row['total'] ?? 0),
+            ])
+            ->all();
+    }
+
+    public function busTicketSalesTotal(): float
+    {
+        return collect($this->busTicketSalesRows)->sum('total');
     }
 
     public function askToCancelDepart(int $departId): void
@@ -142,10 +204,12 @@ class DepartList extends Component
         $this->redirectRoute('back-office.departs.index', navigate: true);
     }
 
-    public function openScheduleManagement(int $departId): void
+    public function openScheduleManagement(int $departId, ?int $busId = null): void
     {
         $this->scheduleManagementDepartId = $departId;
-        $this->scheduleManagementScope = $this->defaultScheduleManagementScope();
+        $this->scheduleManagementScope = $busId !== null
+            ? 'bus:'.$busId
+            : $this->defaultScheduleManagementScope();
         $this->scheduleManagementFlashMessage = null;
         $this->resetValidation();
         $this->loadScheduleManagementRows();
@@ -302,7 +366,13 @@ class DepartList extends Component
             return null;
         }
 
-        return Depart::findOrFail($this->bookingsRepartitionDepartId)->identifier(with_trajet_prefix: true);
+        $label = Depart::findOrFail($this->bookingsRepartitionDepartId)->identifier(with_trajet_prefix: true);
+
+        if ($this->bookingsRepartitionBusId !== null) {
+            $label .= ' — '.Bus::findOrFail($this->bookingsRepartitionBusId)->name;
+        }
+
+        return $label;
     }
 
     /**
@@ -347,6 +417,10 @@ class DepartList extends Component
         }
 
         $depart = Depart::findOrFail($this->bookingsRepartitionDepartId);
+
+        if ($this->bookingsRepartitionBusId !== null) {
+            request()->merge(['bus_id' => $this->bookingsRepartitionBusId]);
+        }
 
         return collect(app(DepartController::class)->bookingGroupingsCount($depart, request())->getData(true))
             ->map(fn (array $row): array => [

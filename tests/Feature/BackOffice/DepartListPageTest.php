@@ -396,6 +396,62 @@ class DepartListPageTest extends TestCase
             ->assertSeeText('Total');
     }
 
+    public function test_the_bus_actions_menu_wires_the_bus_scoped_dialogs(): void
+    {
+        $depart = $this->createUpcomingDepartWithBus();
+        $bus = $depart->buses()->firstOrFail();
+
+        $response = $this->actingAs(User::factory()->create())
+            ->get(route('back-office.departs.index'));
+
+        $response->assertOk();
+        $response->assertSee('Actions du bus');
+        $response->assertSee('Chiffres');
+        $response->assertSee('openBusTicketSales('.$bus->id.')', false);
+        $response->assertSee('openScheduleManagement('.$depart->id.', '.$bus->id.')', false);
+        $response->assertSee('openBookingsRepartition('.$depart->id.', '.$bus->id.')', false);
+    }
+
+    public function test_the_chiffres_dialog_shows_bus_ticket_sales_grouped_by_seller(): void
+    {
+        ['bus' => $bus, 'ticket' => $ticket] = $this->createUpcomingDepartWithOnePaidSeatedPassenger();
+
+        Livewire::actingAs(User::factory()->create())
+            ->test(DepartList::class)
+            ->call('openBusTicketSales', $bus->id)
+            ->assertSet('showBusTicketSalesModal', true)
+            ->assertSee($bus->full_name)
+            ->assertSee('agence keur massar')
+            ->assertSee(number_format($ticket->price, 0, ',', ' ').' FCFA')
+            ->call('closeBusTicketSales')
+            ->assertSet('showBusTicketSalesModal', false);
+    }
+
+    public function test_the_repartition_dialog_can_be_scoped_to_a_single_bus(): void
+    {
+        ['depart' => $depart, 'bus' => $bus] = $this->createUpcomingDepartWithOnePaidSeatedPassenger();
+        $pointDepName = $depart->trajet->pointDeps()->firstOrFail()->name;
+
+        Livewire::actingAs(User::factory()->create())
+            ->test(DepartList::class)
+            ->call('openBookingsRepartition', $depart->id, $bus->id)
+            ->assertSet('bookingsRepartitionBusId', $bus->id)
+            ->assertSee($bus->name)
+            ->assertSee($pointDepName);
+    }
+
+    public function test_the_schedule_management_dialog_opens_on_the_given_bus_scope(): void
+    {
+        ['depart' => $depart, 'otherBus' => $otherBus] = $this->createUpcomingDepartWithBusStopSchedules();
+
+        Livewire::actingAs(User::factory()->create())
+            ->test(DepartList::class)
+            ->call('openScheduleManagement', $depart->id, $otherBus->id)
+            ->assertSet('scheduleManagementScope', 'bus:'.$otherBus->id)
+            ->assertCount('scheduleManagementRows', 1)
+            ->assertSet('scheduleManagementRows.0.rendezVousPoint', 'Station essence');
+    }
+
     public function test_the_depart_export_renders_a_printable_bookings_document(): void
     {
         ['depart' => $depart, 'customer' => $customer] = $this->createUpcomingDepartWithOnePaidSeatedPassenger();
