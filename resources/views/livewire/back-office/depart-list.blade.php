@@ -66,17 +66,42 @@
                         <flux:dropdown position="bottom" align="end">
                             <flux:button size="sm" icon="ellipsis-vertical" variant="subtle" inset="right" aria-label="Plus d'actions" />
 
-                            <flux:menu>
-                                <flux:menu.item icon="document-chart-bar">Voir le bilan</flux:menu.item>
-                                <flux:menu.item icon="chart-pie" wire:click="openBookingsRepartition({{ $depart['id'] }})">
+                            <flux:menu class="space-y-1">
+                                <flux:menu.item
+                                    icon="document-chart-bar"
+                                    class="py-2 [&_[data-flux-menu-item-icon]]:!text-sky-500"
+                                >
+                                    Voir le bilan
+                                </flux:menu.item>
+                                <flux:menu.item
+                                    icon="chart-pie"
+                                    class="py-2 [&_[data-flux-menu-item-icon]]:!text-violet-500"
+                                    wire:click="openBookingsRepartition({{ $depart['id'] }})"
+                                >
                                     Répartition des clients
                                 </flux:menu.item>
-                                <flux:menu.item icon="clock" wire:click="openScheduleManagement({{ $depart['id'] }})">
+                                <flux:menu.item
+                                    icon="clock"
+                                    class="py-2 [&_[data-flux-menu-item-icon]]:!text-amber-500"
+                                    wire:click="openScheduleManagement({{ $depart['id'] }})"
+                                >
                                     Gestion des rendez-vous
                                 </flux:menu.item>
-                                <flux:menu.item icon="paper-airplane">Envoi des rendez-vous</flux:menu.item>
+                                <flux:menu.item
+                                    icon="paper-airplane"
+                                    class="py-2 [&_[data-flux-menu-item-icon]]:!text-emerald-500"
+                                >
+                                    Envoi des rendez-vous
+                                </flux:menu.item>
                                 <flux:menu.separator />
-                                <flux:menu.item icon="x-circle" variant="danger">Annuler ce départ</flux:menu.item>
+                                <flux:menu.item
+                                    icon="x-circle"
+                                    variant="danger"
+                                    class="py-2"
+                                    wire:click="askToCancelDepart({{ $depart['id'] }})"
+                                >
+                                    Annuler ce départ
+                                </flux:menu.item>
                             </flux:menu>
                         </flux:dropdown>
                     </div>
@@ -323,6 +348,30 @@
                     <flux:button variant="ghost" wire:click="closeScheduleManagement">Fermer</flux:button>
                 </div>
             @endif
+        </div>
+    </flux:modal>
+
+    {{-- Annuler ce départ --}}
+    <flux:modal wire:model.self="showCancelDepartModal" wire:key="cancel-depart-modal" class="min-w-[22rem] max-w-md">
+        <div class="space-y-6">
+            <div>
+                <flux:heading size="lg">Annuler ce départ ?</flux:heading>
+                <flux:text class="mt-2">
+                    Voulez-vous vraiment annuler le départ {{ $this->cancelDepartLabel() }} ? Cette action est irréversible.
+                </flux:text>
+            </div>
+
+            <div class="flex items-center justify-end gap-2">
+                <flux:button variant="ghost" wire:click="closeCancelDepartModal">Retour</flux:button>
+                <flux:button
+                    variant="danger"
+                    wire:click="confirmCancelDepart"
+                    wire:loading.attr="disabled"
+                    wire:target="confirmCancelDepart"
+                >
+                    Annuler le départ
+                </flux:button>
+            </div>
         </div>
     </flux:modal>
 </div>

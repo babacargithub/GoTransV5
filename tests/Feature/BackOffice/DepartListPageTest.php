@@ -268,6 +268,62 @@ class DepartListPageTest extends TestCase
         ]);
     }
 
+    public function test_cancelling_a_depart_without_bookings_deletes_it_after_confirmation(): void
+    {
+        $depart = $this->createUpcomingDepartWithBus();
+        $departLabel = $depart->identifier(with_trajet_prefix: true);
+
+        Livewire::actingAs(User::factory()->create())
+            ->test(DepartList::class)
+            ->call('askToCancelDepart', $depart->id)
+            ->assertSet('showCancelDepartModal', true)
+            ->assertSee('Annuler ce départ ?')
+            ->call('confirmCancelDepart')
+            ->assertRedirect(route('back-office.departs.index'));
+
+        $this->assertDatabaseMissing('departs', ['id' => $depart->id]);
+
+        $this->actingAs(User::factory()->create())
+            ->get(route('back-office.departs.index'))
+            ->assertSee('Le départ '.$departLabel.' a été annulé.');
+    }
+
+    public function test_cancelling_a_depart_with_bookings_soft_cancels_it_and_hides_it_from_the_list(): void
+    {
+        ['depart' => $depart, 'bus' => $bus] = $this->createUpcomingDepartWithOnePaidSeatedPassenger();
+        $departLabel = $depart->identifier(with_trajet_prefix: true);
+
+        Livewire::actingAs(User::factory()->create())
+            ->test(DepartList::class)
+            ->assertSee($departLabel)
+            ->call('askToCancelDepart', $depart->id)
+            ->call('confirmCancelDepart')
+            ->assertRedirect(route('back-office.departs.index'));
+
+        $this->assertDatabaseHas('departs', [
+            'id' => $depart->id,
+            'canceled' => 1,
+            'closed' => 1,
+            'locked' => 1,
+        ]);
+        $this->assertDatabaseHas('buses', ['id' => $bus->id]);
+
+        // The global "notCanceled" scope keeps the cancelled départ off the list.
+        $this->actingAs(User::factory()->create())
+            ->get(route('back-office.departs.index'))
+            ->assertSee('a été annulé')
+            ->assertDontSee($bus->name);
+    }
+
+    public function test_the_cancel_depart_action_is_wired_on_the_menu(): void
+    {
+        $depart = $this->createUpcomingDepartWithBus();
+
+        $this->actingAs(User::factory()->create())
+            ->get(route('back-office.departs.index'))
+            ->assertSee('askToCancelDepart('.$depart->id.')', false);
+    }
+
     /**
      * Auth middleware is temporarily disabled on the back-office routes for quick testing.
      * When it is restored, this should assert a redirect to the login page for guests.

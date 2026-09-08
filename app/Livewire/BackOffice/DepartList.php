@@ -50,6 +50,10 @@ class DepartList extends Component
 
     public ?string $scheduleManagementFlashMessage = null;
 
+    public bool $showCancelDepartModal = false;
+
+    public ?int $cancelDepartId = null;
+
     /**
      * Upcoming départs rendered through the same resource the legacy API uses.
      *
@@ -88,6 +92,54 @@ class DepartList extends Component
     {
         $this->showBookingsRepartitionModal = false;
         $this->bookingsRepartitionDepartId = null;
+    }
+
+    public function askToCancelDepart(int $departId): void
+    {
+        $this->cancelDepartId = $departId;
+        $this->showCancelDepartModal = true;
+    }
+
+    public function closeCancelDepartModal(): void
+    {
+        $this->showCancelDepartModal = false;
+        $this->cancelDepartId = null;
+    }
+
+    public function cancelDepartLabel(): ?string
+    {
+        if ($this->cancelDepartId === null) {
+            return null;
+        }
+
+        return Depart::findOrFail($this->cancelDepartId)->identifier(with_trajet_prefix: true);
+    }
+
+    /**
+     * Cancel the pending départ through DepartController@cancelDepart (soft cancel
+     * when it has bookings, hard delete otherwise); the legacy JSON path is unchanged.
+     */
+    public function confirmCancelDepart(): void
+    {
+        $departId = $this->cancelDepartId;
+
+        $this->closeCancelDepartModal();
+
+        if ($departId === null) {
+            return;
+        }
+
+        $depart = Depart::findOrFail($departId);
+        $departLabel = $depart->identifier(with_trajet_prefix: true);
+
+        try {
+            app(DepartController::class)->cancelDepart($depart);
+            session()->flash('status', 'Le départ '.$departLabel.' a été annulé.');
+        } catch (\Throwable $exception) {
+            session()->flash('error', $exception->getMessage());
+        }
+
+        $this->redirectRoute('back-office.departs.index', navigate: true);
     }
 
     public function openScheduleManagement(int $departId): void
