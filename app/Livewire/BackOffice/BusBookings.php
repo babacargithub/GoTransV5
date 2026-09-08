@@ -6,6 +6,7 @@ use App\Http\Controllers\BookingController;
 use App\Http\Resources\BookingResource;
 use App\Models\Booking;
 use App\Models\Bus;
+use App\Models\Depart;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Livewire\Attributes\Computed;
@@ -35,6 +36,12 @@ class BusBookings extends Component
     public ?int $pendingBookingId = null;
 
     public ?string $pendingActionName = null;
+
+    public bool $showTransferModal = false;
+
+    public ?int $transferBookingId = null;
+
+    public ?string $transferErrorMessage = null;
 
     public function mount(Bus $bus): void
     {
@@ -140,6 +147,96 @@ class BusBookings extends Component
     public function sendOrangeMoneyPaymentReminder(int $bookingId): void
     {
         $this->sendPaymentReminder($bookingId, 'om');
+    }
+
+    public function openBookingTransferModal(int $bookingId): void
+    {
+        $this->resetFlashMessages();
+        $this->transferErrorMessage = null;
+        $this->transferBookingId = $bookingId;
+        $this->showTransferModal = true;
+    }
+
+    public function closeBookingTransferModal(): void
+    {
+        $this->showTransferModal = false;
+        $this->transferBookingId = null;
+        $this->transferErrorMessage = null;
+    }
+
+    /**
+     * Upcoming departs (soonest first) with the buses a booking can be transferred to.
+     * The current bus is excluded; full buses are kept but flagged so the UI can disable them.
+     *
+     * @return array<int, array{
+     *     id: int,
+     *     label: string,
+     *     date: string,
+     *     buses: array<int, array{id: int, name: string, numberOfSeatsLeft: int, isFull: bool}>
+     * }>
+     */
+    #[Computed]
+    public function transferDepartOptions(): array
+    {
+        return Depart::query()
+            ->notPassed()
+            ->with(['trajet', 'buses'])
+            ->orderBy('date')
+            ->get()
+            ->map(function (Depart $upcomingDepart): array {
+                return [
+                    'id' => $upcomingDepart->id,
+                    'label' => $upcomingDepart->identifier(with_trajet_prefix: true),
+                    'date' => $upcomingDepart->date->format('d/m/Y H:i'),
+                    'buses' => $upcomingDepart->buses
+                        ->reject(fn (Bus $candidateBus): bool => $candidateBus->id === $this->bus->id)
+                        ->map(function (Bus $candidateBus): array {
+                            $numberOfSeatsLeft = $candidateBus->seatsLeft();
+
+                            return [
+                                'id' => $candidateBus->id,
+                                'name' => $candidateBus->name,
+                                'numberOfSeatsLeft' => $numberOfSeatsLeft,
+                                'isFull' => $numberOfSeatsLeft <= 0,
+                            ];
+                        })
+                        ->values()
+                        ->all(),
+                ];
+            })
+            ->reject(fn (array $departOption): bool => $departOption['buses'] === [])
+            ->values()
+            ->all();
+    }
+
+    public function transferBookingToBus(int $targetBusId): void
+    {
+        $this->resetFlashMessages();
+        $this->transferErrorMessage = null;
+
+        if ($this->transferBookingId === null) {
+            return;
+        }
+
+        $booking = $this->findBookingOnThisBus($this->transferBookingId);
+        $customerFullName = $booking->customer->full_name;
+        $targetBus = Bus::findOrFail($targetBusId);
+
+        try {
+            $legacyResponse = app(BookingController::class)->transferBooking($booking, $targetBus);
+
+            if ($legacyResponse->getStatusCode() === 200) {
+                $this->closeBookingTransferModal();
+                $this->flashStatusMessage = 'Réservation de '.$customerFullName.' transférée vers '.$targetBus->name.'.';
+                unset($this->bookingRows, $this->transferDepartOptions);
+
+                return;
+            }
+
+            $this->transferErrorMessage = data_get($legacyResponse->getData(true), 'message', "Le transfert n'a pas pu être effectué.");
+        } catch (\Throwable $exception) {
+            $this->transferErrorMessage = $exception->getMessage();
+        }
     }
 
     public function render(): View

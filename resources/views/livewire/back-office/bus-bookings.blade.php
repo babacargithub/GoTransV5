@@ -190,6 +190,7 @@
                                             icon="arrow-right-circle"
                                             icon:class="text-emerald-600 dark:text-emerald-400"
                                             aria-label="Transférer la réservation"
+                                            wire:click="openBookingTransferModal({{ $booking['id'] }})"
                                         />
                                     </flux:tooltip>
 
@@ -276,6 +277,80 @@
             </flux:table>
         </div>
     @endif
+
+    <flux:modal wire:model.self="showTransferModal" wire:key="transfer-modal" class="w-full max-w-2xl">
+        <div class="space-y-6">
+            <div>
+                <flux:heading size="lg">Transférer la réservation</flux:heading>
+                <flux:text class="mt-2">
+                    Choisissez le bus de destination parmi les départs à venir. Le siège sera réattribué automatiquement et le client sera notifié.
+                </flux:text>
+            </div>
+
+            @if ($transferErrorMessage)
+                <flux:callout variant="danger" icon="exclamation-triangle" wire:key="transfer-error">
+                    <flux:callout.text>{{ $transferErrorMessage }}</flux:callout.text>
+                </flux:callout>
+            @endif
+
+            @php
+                $transferDepartOptions = $this->transferDepartOptions;
+            @endphp
+
+            @if (count($transferDepartOptions) === 0)
+                <flux:callout icon="information-circle">
+                    <flux:callout.text>Aucun autre bus disponible sur les départs à venir.</flux:callout.text>
+                </flux:callout>
+            @else
+                <div class="max-h-[26rem] space-y-4 overflow-y-auto pr-1">
+                    @foreach ($transferDepartOptions as $departOption)
+                        <div wire:key="transfer-depart-{{ $departOption['id'] }}">
+                            <div class="flex items-baseline justify-between gap-2">
+                                <flux:heading size="sm">{{ $departOption['label'] }}</flux:heading>
+                                <flux:text class="text-xs whitespace-nowrap">{{ $departOption['date'] }}</flux:text>
+                            </div>
+
+                            <div class="mt-2 grid gap-2 sm:grid-cols-2">
+                                @foreach ($departOption['buses'] as $candidateBus)
+                                    <div
+                                        class="flex items-center justify-between gap-2 rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-700"
+                                        wire:key="transfer-bus-{{ $candidateBus['id'] }}"
+                                    >
+                                        <div class="min-w-0">
+                                            <flux:text class="truncate font-medium text-zinc-900 dark:text-white">{{ $candidateBus['name'] }}</flux:text>
+                                            <flux:text class="text-xs">
+                                                @if ($candidateBus['isFull'])
+                                                    Complet
+                                                @else
+                                                    {{ $candidateBus['numberOfSeatsLeft'] }} place(s) restante(s)
+                                                @endif
+                                            </flux:text>
+                                        </div>
+
+                                        <flux:button
+                                            size="xs"
+                                            variant="primary"
+                                            icon="arrow-right-circle"
+                                            :disabled="$candidateBus['isFull']"
+                                            wire:click="transferBookingToBus({{ $candidateBus['id'] }})"
+                                            wire:loading.attr="disabled"
+                                            wire:target="transferBookingToBus({{ $candidateBus['id'] }})"
+                                        >
+                                            Transférer
+                                        </flux:button>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            @endif
+
+            <div class="flex items-center justify-end">
+                <flux:button variant="ghost" wire:click="closeBookingTransferModal">Fermer</flux:button>
+            </div>
+        </div>
+    </flux:modal>
 
     <flux:modal wire:model.self="showConfirmationModal" class="min-w-[22rem] max-w-md">
         <div class="space-y-6">

@@ -8,6 +8,7 @@ use App\Models\Bus;
 use App\Models\Customer;
 use App\Models\Depart;
 use App\Models\HeureDepart;
+use App\Models\Seat;
 use App\Models\Ticket;
 use App\Models\Trajet;
 use App\Models\User;
@@ -77,6 +78,50 @@ class BusBookingsPageTest extends TestCase
             'booking' => $booking->fresh(),
             'customer' => $customer,
         ];
+    }
+
+    /**
+     * Builds an extra upcoming depart with a single bus that has real, free seats,
+     * so a booking can actually be transferred onto it.
+     */
+    private function createUpcomingDepartWithBus(int $numberOfSeats = 5, ?string $busName = null): Bus
+    {
+        $trajet = Trajet::query()
+            ->has('pointDeps')
+            ->has('destinations')
+            ->firstOrFail();
+
+        $depart = Depart::create([
+            'name' => 'DEPART CIBLE '.uniqid(),
+            'date' => now()->addDays(4),
+            'trajet_id' => $trajet->id,
+            'closed' => false,
+            'locked' => false,
+            'canceled' => false,
+        ]);
+
+        $bus = $depart->buses()->create([
+            'name' => $busName ?? 'Bus Cible '.uniqid(),
+            'nombre_place' => $numberOfSeats,
+            'ticket_price' => 3550,
+            'gp_ticket_price' => 6000,
+            'closed' => false,
+        ]);
+
+        $busSeats = Seat::query()
+            ->orderBy('number')
+            ->limit($numberOfSeats)
+            ->get()
+            ->map(fn (Seat $seat): array => [
+                'seat_id' => $seat->id,
+                'booked' => false,
+                'price' => 3550,
+            ])
+            ->all();
+
+        $bus->seats()->createMany($busSeats);
+
+        return $bus->fresh();
     }
 
     private function attachWaveTicket(Booking $booking, string $transactionId = 'cos-2600kqw0r1h1c', string $paymentMethod = 'wave'): Ticket
@@ -286,6 +331,55 @@ class BusBookingsPageTest extends TestCase
         $this->actingAs(User::factory()->create())
             ->get(route('back-office.bookings.ticket', $booking))
             ->assertNotFound();
+    }
+
+    public function test_the_transfer_modal_lists_upcoming_departs_with_their_buses(): void
+    {
+        ['bus' => $bus, 'booking' => $booking] = $this->createBusWithOnePassenger();
+        $targetBus = $this->createUpcomingDepartWithBus(busName: 'Bus Destination Beta');
+
+        Livewire::test(BusBookings::class, ['bus' => $bus])
+            ->call('openBookingTransferModal', $booking->id)
+            ->assertSet('showTransferModal', true)
+            ->assertSet('transferBookingId', $booking->id)
+            ->assertSee($targetBus->depart->identifier(with_trajet_prefix: true))
+            ->assertSee('Bus Destination Beta')
+            ->assertSeeHtml('wire:click="transferBookingToBus('.$targetBus->id.')"')
+            // The current bus is never offered as a transfer target.
+            ->assertDontSeeHtml('wire:click="transferBookingToBus('.$bus->id.')"');
+    }
+
+    public function test_transferring_a_booking_moves_it_to_the_chosen_bus_without_a_reload(): void
+    {
+        ['bus' => $bus, 'booking' => $booking, 'customer' => $customer] = $this->createBusWithOnePassenger();
+        $targetBus = $this->createUpcomingDepartWithBus();
+
+        Livewire::test(BusBookings::class, ['bus' => $bus])
+            ->call('openBookingTransferModal', $booking->id)
+            ->call('transferBookingToBus', $targetBus->id)
+            ->assertSet('showTransferModal', false)
+            ->assertSet('transferBookingId', null)
+            ->assertSee('Réservation de '.$customer->full_name.' transférée vers '.$targetBus->name.'.')
+            ->assertSee('Aucune réservation');
+
+        $booking->refresh();
+        $this->assertSame($targetBus->id, $booking->bus_id);
+        $this->assertSame($targetBus->depart_id, $booking->depart_id);
+    }
+
+    public function test_transferring_reports_the_legacy_error_and_keeps_the_booking_in_place(): void
+    {
+        ['bus' => $bus, 'booking' => $booking] = $this->createBusWithOnePassenger();
+        // A full target bus (no free seats): the legacy controller rejects the transfer.
+        $targetBus = $this->createUpcomingDepartWithBus(numberOfSeats: 0);
+
+        Livewire::test(BusBookings::class, ['bus' => $bus])
+            ->call('openBookingTransferModal', $booking->id)
+            ->call('transferBookingToBus', $targetBus->id)
+            ->assertSet('showTransferModal', true)
+            ->assertSet('transferErrorMessage', "Il n'y a pas de place disponible pour ce bus !");
+
+        $this->assertSame($bus->id, $booking->fresh()->bus_id);
     }
 
     public function test_the_shared_controller_still_returns_json_for_the_legacy_api(): void
