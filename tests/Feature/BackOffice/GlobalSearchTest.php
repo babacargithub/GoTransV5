@@ -7,7 +7,6 @@ use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\Depart;
 use App\Models\Trajet;
-use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -70,7 +69,7 @@ class GlobalSearchTest extends TestCase
 
     public function test_the_search_starts_collapsed_and_toggles_open(): void
     {
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(GlobalSearch::class)
             ->assertSet('showSearchInput', false)
             ->call('toggleSearchInput')
@@ -83,7 +82,7 @@ class GlobalSearchTest extends TestCase
     {
         ['customer' => $customer] = $this->createCustomerWithBookings();
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(GlobalSearch::class)
             ->set('searchQuery', (string) $customer->phone_number)
             ->assertSet('showResultDialog', true)
@@ -94,7 +93,7 @@ class GlobalSearchTest extends TestCase
 
     public function test_an_unknown_number_shows_the_no_result_toast_and_no_dialog(): void
     {
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(GlobalSearch::class)
             ->set('searchQuery', '779999998')
             ->assertSet('showResultDialog', false)
@@ -103,7 +102,7 @@ class GlobalSearchTest extends TestCase
 
     public function test_an_invalid_phone_number_does_not_search(): void
     {
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(GlobalSearch::class)
             ->call('toggleSearchInput')
             ->set('searchQuery', '12345')
@@ -116,7 +115,7 @@ class GlobalSearchTest extends TestCase
     {
         ['customer' => $customer, 'currentBooking' => $currentBooking, 'pastBooking' => $pastBooking] = $this->createCustomerWithBookings();
 
-        $component = Livewire::actingAs(User::factory()->create())
+        $component = Livewire::actingAs($this->createUserWithFullAccess())
             ->test(GlobalSearch::class)
             ->set('searchQuery', (string) $customer->phone_number);
 
@@ -130,7 +129,7 @@ class GlobalSearchTest extends TestCase
         $currentBooking->update(['deleted_by' => 'Awa Guaye']);
         $currentBooking->delete();
 
-        $component = Livewire::actingAs(User::factory()->create())
+        $component = Livewire::actingAs($this->createUserWithFullAccess())
             ->test(GlobalSearch::class)
             ->set('searchQuery', (string) $customer->phone_number)
             ->assertSee('2 réservation(s)')
@@ -154,7 +153,7 @@ class GlobalSearchTest extends TestCase
     {
         ['customer' => $customer, 'currentBooking' => $currentBooking] = $this->createCustomerWithBookings();
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(GlobalSearch::class)
             ->set('searchQuery', (string) $customer->phone_number)
             ->call('askToConfirmBookingCancellation', $currentBooking->id)
@@ -170,7 +169,7 @@ class GlobalSearchTest extends TestCase
         ['customer' => $customer] = $this->createCustomerWithBookings();
         ['currentBooking' => $otherBooking] = $this->createCustomerWithBookings();
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(GlobalSearch::class)
             ->set('searchQuery', (string) $customer->phone_number)
             ->call('askToConfirmBookingCancellation', $otherBooking->id)
@@ -181,7 +180,7 @@ class GlobalSearchTest extends TestCase
 
     public function test_the_search_is_rendered_in_the_back_office_header(): void
     {
-        $this->actingAs(User::factory()->create())
+        $this->actingAs($this->createUserWithFullAccess())
             ->get(route('back-office.departs.index'))
             ->assertOk()
             ->assertSeeLivewire(GlobalSearch::class);

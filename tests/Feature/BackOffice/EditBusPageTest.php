@@ -7,7 +7,6 @@ use App\Models\Bus;
 use App\Models\Depart;
 use App\Models\Itinerary;
 use App\Models\Trajet;
-use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -45,7 +44,7 @@ class EditBusPageTest extends TestCase
     {
         $bus = $this->createBus();
 
-        $this->actingAs(User::factory()->create())
+        $this->actingAs($this->createUserWithFullAccess())
             ->get(route('back-office.departs.index'))
             ->assertOk()
             ->assertSee(route('back-office.buses.edit', $bus->id), false);
@@ -55,7 +54,7 @@ class EditBusPageTest extends TestCase
     {
         $bus = $this->createBus();
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(EditBus::class, ['bus' => $bus])
             ->assertOk()
             ->assertSet('busName', 'Bus Edit Un')
@@ -72,7 +71,7 @@ class EditBusPageTest extends TestCase
         $bus = $this->createBus();
         $otherItinerary = Itinerary::query()->firstOrFail();
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(EditBus::class, ['bus' => $bus])
             ->set('busName', 'Bus Edit Modifié')
             ->set('numberOfSeats', 63)
@@ -100,7 +99,7 @@ class EditBusPageTest extends TestCase
     {
         $bus = $this->createBus();
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(EditBus::class, ['bus' => $bus])
             ->set('busName', '')
             ->set('itineraryId', null)

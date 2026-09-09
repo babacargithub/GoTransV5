@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\PermissionName;
 use App\Http\Resources\BookingForExportResource;
 use App\Http\Resources\BookingResource;
 use App\Http\Resources\DepartResource;
@@ -45,6 +46,8 @@ class DepartController extends Controller
      */
     public function store(Request $request)
     {
+        PermissionName::CreateDeparts->authorizeForCurrentUser();
+
         // request payload looks like this
 
         $validated = $request->validate([
@@ -119,7 +122,8 @@ class DepartController extends Controller
      */
     public function update(Request $request, Depart $depart)
     {
-        //
+        PermissionName::UpdateDeparts->authorizeForCurrentUser();
+
         $validated = $request->validate([
             'name' => 'string',
             'date' => 'date',
@@ -139,12 +143,15 @@ class DepartController extends Controller
      */
     public function destroy(Depart $depart)
     {
-        //
+        PermissionName::CancelDeparts->authorizeForCurrentUser();
+
         return $this->cancelDepart($depart);
     }
 
     public function addBusToDepart(Depart $depart, Request $request)
     {
+        PermissionName::CreateBus->authorizeForCurrentUser();
+
         $validated = $request->validate([
             'name' => 'required|string',
             'ticket_price' => 'required|numeric',
@@ -238,6 +245,7 @@ class DepartController extends Controller
 
     public function updateBusStopSchedules(Depart $depart, Request $request)
     {
+        PermissionName::UpdateSchedules->authorizeForCurrentUser();
 
         $validated = $request->validate([
             'busStopSchedules' => 'required|array',
@@ -322,6 +330,8 @@ class DepartController extends Controller
 
     public function cancelDepart(Depart $depart)
     {
+        PermissionName::CancelDeparts->authorizeForCurrentUser();
+
         // cancel depart
         if ($depart->bookings()->count() > 0) {
             $depart->cancel();
@@ -516,6 +526,8 @@ class DepartController extends Controller
 
     public function addPointDepsSchedulesForBus(Bus $bus)
     {
+        PermissionName::UpdateSchedules->authorizeForCurrentUser();
+
         $depart = $bus->depart;
         $pointDeps = PointDep::where('trajet_id', $bus->depart->trajet_id)
             ->orderBy('position')

@@ -201,7 +201,7 @@ class DepartListPageTest extends TestCase
         ['depart' => $depart, 'bus' => $bus] = $this->createUpcomingDepartWithBusStopSchedules();
         $firstPointDepName = $depart->trajet->pointDeps()->take(1)->firstOrFail()->name;
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(DepartList::class)
             ->call('openScheduleManagement', $depart->id)
             ->assertSet('showScheduleManagementModal', true)
@@ -220,7 +220,7 @@ class DepartListPageTest extends TestCase
     {
         ['depart' => $depart, 'otherBus' => $otherBus] = $this->createUpcomingDepartWithBusStopSchedules();
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(DepartList::class)
             ->call('openScheduleManagement', $depart->id)
             ->set('scheduleManagementScope', 'bus:'.$otherBus->id)
@@ -232,7 +232,7 @@ class DepartListPageTest extends TestCase
     {
         ['depart' => $depart, 'schedules' => $schedules] = $this->createUpcomingDepartWithBusStopSchedules();
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(DepartList::class)
             ->call('openScheduleManagement', $depart->id)
             ->set('scheduleManagementRows.0.rendezVousPoint', 'Nouveau point')
@@ -258,7 +258,7 @@ class DepartListPageTest extends TestCase
     {
         ['depart' => $depart, 'schedules' => $schedules] = $this->createUpcomingDepartWithBusStopSchedules();
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(DepartList::class)
             ->call('openScheduleManagement', $depart->id)
             ->set('scheduleManagementRows.0.rendezVousPoint', '')
@@ -276,7 +276,7 @@ class DepartListPageTest extends TestCase
         $depart = $this->createUpcomingDepartWithBus();
         $departLabel = $depart->identifier(with_trajet_prefix: true);
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(DepartList::class)
             ->call('askToCancelDepart', $depart->id)
             ->assertSet('showCancelDepartModal', true)
@@ -286,7 +286,7 @@ class DepartListPageTest extends TestCase
 
         $this->assertDatabaseMissing('departs', ['id' => $depart->id]);
 
-        $this->actingAs(User::factory()->create())
+        $this->actingAs($this->createUserWithFullAccess())
             ->get(route('back-office.departs.index'))
             ->assertSee('Le départ '.$departLabel.' a été annulé.');
     }
@@ -296,7 +296,7 @@ class DepartListPageTest extends TestCase
         ['depart' => $depart, 'bus' => $bus] = $this->createUpcomingDepartWithOnePaidSeatedPassenger();
         $departLabel = $depart->identifier(with_trajet_prefix: true);
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(DepartList::class)
             ->assertSee($departLabel)
             ->call('askToCancelDepart', $depart->id)
@@ -312,7 +312,7 @@ class DepartListPageTest extends TestCase
         $this->assertDatabaseHas('buses', ['id' => $bus->id]);
 
         // The global "notCanceled" scope keeps the cancelled départ off the list.
-        $this->actingAs(User::factory()->create())
+        $this->actingAs($this->createUserWithFullAccess())
             ->get(route('back-office.departs.index'))
             ->assertSee('a été annulé')
             ->assertDontSee($bus->name);
@@ -322,7 +322,7 @@ class DepartListPageTest extends TestCase
     {
         $depart = $this->createUpcomingDepartWithBus();
 
-        $this->actingAs(User::factory()->create())
+        $this->actingAs($this->createUserWithFullAccess())
             ->get(route('back-office.departs.index'))
             ->assertSee('askToCancelDepart('.$depart->id.')', false);
     }
@@ -338,7 +338,7 @@ class DepartListPageTest extends TestCase
     {
         $depart = $this->createUpcomingDepartWithBus();
 
-        $response = $this->actingAs(User::factory()->create())
+        $response = $this->actingAs($this->createUserWithFullAccess())
             ->get(route('back-office.departs.index'));
 
         $response->assertOk();
@@ -364,7 +364,7 @@ class DepartListPageTest extends TestCase
         $depart = $this->createUpcomingDepartWithBus();
         $depart->buses()->firstOrFail()->update(['closed' => true]);
 
-        $response = $this->actingAs(User::factory()->create())
+        $response = $this->actingAs($this->createUserWithFullAccess())
             ->get(route('back-office.departs.index'));
 
         $response->assertOk();
@@ -376,7 +376,7 @@ class DepartListPageTest extends TestCase
     {
         ['depart' => $depart, 'ticket' => $ticket] = $this->createUpcomingDepartWithOnePaidSeatedPassenger();
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(DepartList::class)
             ->call('openTicketSales', $depart->id)
             ->assertSet('showTicketSalesModal', true)
@@ -391,7 +391,7 @@ class DepartListPageTest extends TestCase
         ['depart' => $depart] = $this->createUpcomingDepartWithOnePaidSeatedPassenger();
         $pointDepName = $depart->trajet->pointDeps()->firstOrFail()->name;
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(DepartList::class)
             ->call('openBookingsRepartition', $depart->id)
             ->assertSet('showBookingsRepartitionModal', true)
@@ -404,7 +404,7 @@ class DepartListPageTest extends TestCase
         $depart = $this->createUpcomingDepartWithBus();
         $bus = $depart->buses()->firstOrFail();
 
-        $response = $this->actingAs(User::factory()->create())
+        $response = $this->actingAs($this->createUserWithFullAccess())
             ->get(route('back-office.departs.index'));
 
         $response->assertOk();
@@ -438,7 +438,7 @@ class DepartListPageTest extends TestCase
         $depart = $this->createUpcomingDepartWithBus();
         $bus = $depart->buses()->firstOrFail();
 
-        $response = $this->actingAs(User::factory()->create())
+        $response = $this->actingAs($this->createUserWithFullAccess())
             ->get(route('back-office.departs.index'));
 
         $response->assertOk();
@@ -470,7 +470,7 @@ class DepartListPageTest extends TestCase
             'closed' => false,
         ]);
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(DepartList::class)
             ->call('openScheduleManagement', $depart->id, $bus->id)
             ->assertCount('scheduleManagementRows', 0)
@@ -484,7 +484,7 @@ class DepartListPageTest extends TestCase
         ['bus' => $bus, 'seats' => $seats] = $this->createUpcomingDepartWithBusSeats();
         $seats[0]->update(['booked' => true]);
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(DepartList::class)
             ->call('openBusSeats', $bus->id)
             ->assertSet('showBusSeatsModal', true)
@@ -498,7 +498,7 @@ class DepartListPageTest extends TestCase
     {
         ['bus' => $bus, 'seats' => $seats] = $this->createUpcomingDepartWithBusSeats();
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(DepartList::class)
             ->call('openBusSeats', $bus->id)
             ->call('toggleBusSeatSelection', $seats[0]->id)
@@ -517,7 +517,7 @@ class DepartListPageTest extends TestCase
         $depart = $this->createUpcomingDepartWithBus();
         $bus = $depart->buses()->firstOrFail();
 
-        $this->actingAs(User::factory()->create())
+        $this->actingAs($this->createUserWithFullAccess())
             ->get(route('back-office.departs.index'))
             ->assertSee('openBusSeats('.$bus->id.')', false)
             ->assertSee('Sièges du bus');
@@ -540,7 +540,7 @@ class DepartListPageTest extends TestCase
             'price' => 3550,
         ]));
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(DepartList::class)
             ->call('openBusBookingsTransfer', $sourceBus->id)
             ->assertSet('showBusTransferModal', true)
@@ -568,7 +568,7 @@ class DepartListPageTest extends TestCase
             'closed' => false,
         ]);
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(DepartList::class)
             ->call('openBusBookingsTransfer', $sourceBus->id)
             ->set('transferTargetBusId', $targetBus->id)
@@ -585,7 +585,7 @@ class DepartListPageTest extends TestCase
         $depart = $this->createUpcomingDepartWithBus();
         $bus = $depart->buses()->firstOrFail();
 
-        $this->actingAs(User::factory()->create())
+        $this->actingAs($this->createUserWithFullAccess())
             ->get(route('back-office.departs.index'))
             ->assertSee('openBusBookingsTransfer('.$bus->id.')', false)
             ->assertSee('Transférer les réservations');
@@ -596,7 +596,7 @@ class DepartListPageTest extends TestCase
         ['depart' => $depart, 'seats' => $seats] = $this->createUpcomingDepartWithBusSeats();
         $bus = $depart->buses()->firstOrFail();
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(DepartList::class)
             ->call('askToDeleteBus', $bus->id)
             ->assertSet('showDeleteBusModal', true)
@@ -612,7 +612,7 @@ class DepartListPageTest extends TestCase
     {
         ['bus' => $bus] = $this->createUpcomingDepartWithOnePaidSeatedPassenger();
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(DepartList::class)
             ->call('askToDeleteBus', $bus->id)
             ->call('confirmDeleteBus')
@@ -626,7 +626,7 @@ class DepartListPageTest extends TestCase
         $depart = $this->createUpcomingDepartWithBus();
         $bus = $depart->buses()->firstOrFail();
 
-        $this->actingAs(User::factory()->create())
+        $this->actingAs($this->createUserWithFullAccess())
             ->get(route('back-office.departs.index'))
             ->assertSee('askToDeleteBus('.$bus->id.')', false)
             ->assertSee('Supprimer le bus');
@@ -638,14 +638,14 @@ class DepartListPageTest extends TestCase
         $bus = $depart->buses()->firstOrFail();
         $this->assertFalse((bool) $bus->closed);
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(DepartList::class)
             ->call('toggleBusClosed', $bus->id)
             ->assertSee('ont été clôturées');
 
         $this->assertTrue((bool) $bus->fresh()->closed);
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(DepartList::class)
             ->call('toggleBusClosed', $bus->id)
             ->assertSee('ont été réouvertes');
@@ -658,7 +658,7 @@ class DepartListPageTest extends TestCase
         $depart = $this->createUpcomingDepartWithBus();
         $bus = $depart->buses()->firstOrFail();
 
-        $this->actingAs(User::factory()->create())
+        $this->actingAs($this->createUserWithFullAccess())
             ->get(route('back-office.departs.index'))
             ->assertSee('toggleBusClosed('.$bus->id.')', false)
             ->assertSee('Clôturer les réservations');
@@ -668,7 +668,7 @@ class DepartListPageTest extends TestCase
     {
         ['bus' => $bus, 'ticket' => $ticket] = $this->createUpcomingDepartWithOnePaidSeatedPassenger();
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(DepartList::class)
             ->call('openBusTicketSales', $bus->id)
             ->assertSet('showTicketSalesModal', true)
@@ -686,7 +686,7 @@ class DepartListPageTest extends TestCase
         ['depart' => $depart, 'bus' => $bus, 'ticket' => $ticket] = $this->createUpcomingDepartWithOnePaidSeatedPassenger();
 
         // Départ scope: DepartController@ticketSales, no bus id.
-        $component = Livewire::actingAs(User::factory()->create())
+        $component = Livewire::actingAs($this->createUserWithFullAccess())
             ->test(DepartList::class)
             ->call('openTicketSales', $depart->id)
             ->assertSet('ticketSalesBusId', null)
@@ -705,7 +705,7 @@ class DepartListPageTest extends TestCase
         ['depart' => $depart, 'bus' => $bus] = $this->createUpcomingDepartWithOnePaidSeatedPassenger();
         $pointDepName = $depart->trajet->pointDeps()->firstOrFail()->name;
 
-        $component = Livewire::actingAs(User::factory()->create())
+        $component = Livewire::actingAs($this->createUserWithFullAccess())
             ->test(DepartList::class)
             ->call('openBookingsRepartition', $depart->id, $bus->id)
             ->assertSet('bookingsRepartitionBusId', $bus->id)
@@ -733,7 +733,7 @@ class DepartListPageTest extends TestCase
     {
         ['depart' => $depart, 'otherBus' => $otherBus] = $this->createUpcomingDepartWithBusStopSchedules();
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(DepartList::class)
             ->call('openScheduleManagement', $depart->id, $otherBus->id)
             ->assertSet('scheduleManagementScope', 'bus:'.$otherBus->id)
@@ -745,7 +745,7 @@ class DepartListPageTest extends TestCase
     {
         ['depart' => $depart, 'customer' => $customer] = $this->createUpcomingDepartWithOnePaidSeatedPassenger();
 
-        $response = $this->actingAs(User::factory()->create())
+        $response = $this->actingAs($this->createUserWithFullAccess())
             ->get(route('back-office.departs.bookings-export', $depart->id));
 
         $response->assertOk();
@@ -803,7 +803,7 @@ class DepartListPageTest extends TestCase
     {
         ['bus' => $bus, 'customer' => $customer] = $this->createUpcomingDepartWithOnePaidSeatedPassenger();
 
-        $response = $this->actingAs(User::factory()->create())
+        $response = $this->actingAs($this->createUserWithFullAccess())
             ->get(route('back-office.buses.bookings-export', ['bus' => $bus->id, 'paye' => 1, 'format' => 'text']));
 
         $response->assertOk();
@@ -818,7 +818,7 @@ class DepartListPageTest extends TestCase
     {
         $this->createUpcomingDepartWithBus();
 
-        $response = $this->actingAs(User::factory()->create())
+        $response = $this->actingAs($this->createUserWithFullAccess())
             ->get(route('back-office.departs.index'));
 
         $response->assertOk();
@@ -834,7 +834,7 @@ class DepartListPageTest extends TestCase
     {
         ['bus' => $bus] = $this->createUpcomingDepartWithOnePaidSeatedPassenger();
 
-        $response = $this->actingAs(User::factory()->create())
+        $response = $this->actingAs($this->createUserWithFullAccess())
             ->get(route('back-office.buses.bookings-export', $bus->id));
 
         $response->assertOk();
@@ -849,7 +849,7 @@ class DepartListPageTest extends TestCase
         $depart = $this->createUpcomingDepartWithBus();
         $bus = $depart->buses()->firstOrFail();
 
-        Sanctum::actingAs(User::factory()->create());
+        Sanctum::actingAs($this->createUserWithFullAccess());
 
         $response = $this->getJson('/api/departs');
 
@@ -867,7 +867,7 @@ class DepartListPageTest extends TestCase
     {
         $this->createUpcomingDepartWithBus();
 
-        $response = $this->actingAs(User::factory()->create())
+        $response = $this->actingAs($this->createUserWithFullAccess())
             ->get(route('back-office.departs.index'));
 
         $response->assertOk();
@@ -890,7 +890,7 @@ class DepartListPageTest extends TestCase
     {
         $this->createUpcomingDepartWithBus();
 
-        $response = $this->actingAs(User::factory()->create())
+        $response = $this->actingAs($this->createUserWithFullAccess())
             ->get(route('back-office.departs.index'));
 
         $response->assertOk();
@@ -902,7 +902,7 @@ class DepartListPageTest extends TestCase
     {
         ['depart' => $depart] = $this->createUpcomingDepartWithOnePaidSeatedPassenger();
 
-        Sanctum::actingAs(User::factory()->create());
+        Sanctum::actingAs($this->createUserWithFullAccess());
 
         $this->getJson("/api/departs/{$depart->id}/bookings_for_export")
             ->assertOk()

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\BackOffice;
 
+use App\Enums\PermissionName;
 use App\Livewire\BackOffice\BusBookings;
 use App\Models\Booking;
 use App\Models\Bus;
@@ -12,7 +13,6 @@ use App\Models\PointDep;
 use App\Models\Seat;
 use App\Models\Ticket;
 use App\Models\Trajet;
-use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
@@ -157,7 +157,7 @@ class BusBookingsPageTest extends TestCase
     {
         ['bus' => $bus, 'customer' => $customer] = $this->createBusWithOnePassenger();
 
-        $response = $this->actingAs(User::factory()->create())
+        $response = $this->actingAs($this->createUserWithFullAccess())
             ->get(route('back-office.buses.bookings', $bus));
 
         $response->assertOk();
@@ -201,7 +201,8 @@ class BusBookingsPageTest extends TestCase
             ]);
         }
 
-        Livewire::test(BusBookings::class, ['bus' => $bus])
+        Livewire::actingAs($this->createUserWithFullAccess())
+            ->test(BusBookings::class, ['bus' => $bus])
             ->assertSee('Serigne Fallou SEYE')
             ->assertSee('Babacar SEYE')
             ->assertDontSee('serigne fallou seye');
@@ -247,7 +248,8 @@ class BusBookingsPageTest extends TestCase
         $this->attachWaveTicket($highSeatBooking, 'TX-HIGH');
         $highSeatBooking->seat()->associate($highBusSeat)->save();
 
-        Livewire::test(BusBookings::class, ['bus' => $bus])
+        Livewire::actingAs($this->createUserWithFullAccess())
+            ->test(BusBookings::class, ['bus' => $bus])
             ->assertSeeInOrder([
                 $this->displayedName($newestUnpaidCustomer),
                 $this->displayedName($oldestUnpaidCustomer),
@@ -260,7 +262,8 @@ class BusBookingsPageTest extends TestCase
     {
         ['bus' => $bus, 'booking' => $booking] = $this->createBusWithOnePassenger();
 
-        Livewire::test(BusBookings::class, ['bus' => $bus])
+        Livewire::actingAs($this->createUserWithFullAccess())
+            ->test(BusBookings::class, ['bus' => $bus])
             ->assertSee('Payer')
             ->assertSee('Wave')
             ->assertSee('OM')
@@ -290,7 +293,8 @@ class BusBookingsPageTest extends TestCase
             'closed' => false,
         ]);
 
-        Livewire::test(BusBookings::class, ['bus' => $bus])
+        Livewire::actingAs($this->createUserWithFullAccess())
+            ->test(BusBookings::class, ['bus' => $bus])
             ->assertSee('Aucune réservation');
     }
 
@@ -298,7 +302,8 @@ class BusBookingsPageTest extends TestCase
     {
         ['bus' => $bus, 'booking' => $booking] = $this->createBusWithOnePassenger();
 
-        Livewire::test(BusBookings::class, ['bus' => $bus])
+        Livewire::actingAs($this->createUserWithFullAccess())
+            ->test(BusBookings::class, ['bus' => $bus])
             ->call('askToConfirmBookingCancellation', $booking->id)
             ->assertSet('showConfirmationModal', true)
             ->assertSet('pendingBookingId', $booking->id)
@@ -313,7 +318,8 @@ class BusBookingsPageTest extends TestCase
     {
         ['bus' => $bus, 'booking' => $booking, 'customer' => $customer] = $this->createBusWithOnePassenger();
 
-        Livewire::test(BusBookings::class, ['bus' => $bus])
+        Livewire::actingAs($this->createUserWithFullAccess())
+            ->test(BusBookings::class, ['bus' => $bus])
             ->call('askToConfirmBookingCancellation', $booking->id)
             ->call('confirmPendingAction')
             ->assertSet('showConfirmationModal', false)
@@ -324,11 +330,49 @@ class BusBookingsPageTest extends TestCase
         $this->assertSoftDeleted($booking);
     }
 
+    public function test_cancelling_a_booking_is_refused_without_a_cancellation_permission(): void
+    {
+        ['bus' => $bus, 'booking' => $booking] = $this->createBusWithOnePassenger();
+
+        Livewire::actingAs($this->createUserWithPermissions([PermissionName::RefundTicket->value]))
+            ->test(BusBookings::class, ['bus' => $bus])
+            ->call('askToConfirmBookingCancellation', $booking->id)
+            ->call('confirmPendingAction')
+            ->assertSee('Action non autorisée');
+
+        $this->assertNotSoftDeleted($booking);
+    }
+
+    public function test_the_cancel_unpaid_permission_does_not_allow_cancelling_a_paid_booking(): void
+    {
+        ['bus' => $unpaidBus, 'booking' => $unpaidBooking] = $this->createBusWithOnePassenger();
+        ['bus' => $paidBus, 'booking' => $paidBooking] = $this->createBusWithOnePassenger();
+        $this->attachWaveTicket($paidBooking);
+
+        $agent = $this->createUserWithPermissions([PermissionName::CancelUnpaidBooking->value]);
+
+        Livewire::actingAs($agent)
+            ->test(BusBookings::class, ['bus' => $unpaidBus])
+            ->call('askToConfirmBookingCancellation', $unpaidBooking->id)
+            ->call('confirmPendingAction');
+
+        $this->assertSoftDeleted($unpaidBooking);
+
+        Livewire::actingAs($agent)
+            ->test(BusBookings::class, ['bus' => $paidBus])
+            ->call('askToConfirmBookingCancellation', $paidBooking->id)
+            ->call('confirmPendingAction')
+            ->assertSee('Action non autorisée');
+
+        $this->assertNotSoftDeleted($paidBooking->fresh());
+    }
+
     public function test_paying_a_ticket_asks_for_confirmation_before_charging(): void
     {
         ['bus' => $bus, 'booking' => $booking] = $this->createBusWithOnePassenger();
 
-        Livewire::test(BusBookings::class, ['bus' => $bus])
+        Livewire::actingAs($this->createUserWithFullAccess())
+            ->test(BusBookings::class, ['bus' => $bus])
             ->call('askToConfirmTicketPayment', $booking->id)
             ->assertSet('showConfirmationModal', true)
             ->assertSet('pendingActionName', 'collect-ticket-payment')
@@ -342,7 +386,7 @@ class BusBookingsPageTest extends TestCase
     {
         ['booking' => $booking] = $this->createBusWithOnePassenger();
 
-        $response = $this->actingAs(User::factory()->create())
+        $response = $this->actingAs($this->createUserWithFullAccess())
             ->post(route('back-office.bookings.trigger-payment-request', [$booking, 'paypal']));
 
         $response->assertRedirect();
@@ -353,7 +397,8 @@ class BusBookingsPageTest extends TestCase
     {
         ['bus' => $bus, 'booking' => $booking] = $this->createBusWithOnePassenger();
 
-        Livewire::test(BusBookings::class, ['bus' => $bus])
+        Livewire::actingAs($this->createUserWithFullAccess())
+            ->test(BusBookings::class, ['bus' => $bus])
             ->assertSee('Informations réservation')
             ->assertSee((string) $booking->id)
             // No ticket yet: no transaction id, no group, no download button.
@@ -367,7 +412,8 @@ class BusBookingsPageTest extends TestCase
         ['bus' => $bus, 'booking' => $booking] = $this->createBusWithOnePassenger();
         $this->attachWaveTicket($booking, 'cos-2600kqw0r1h1c');
 
-        Livewire::test(BusBookings::class, ['bus' => $bus])
+        Livewire::actingAs($this->createUserWithFullAccess())
+            ->test(BusBookings::class, ['bus' => $bus])
             ->assertSee('cos-2600kqw0r1h1c')
             ->assertSee('Rembourser')
             ->assertSee('Télécharger le ticket')
@@ -379,7 +425,8 @@ class BusBookingsPageTest extends TestCase
         ['bus' => $bus, 'booking' => $booking] = $this->createBusWithOnePassenger();
         $this->attachWaveTicket($booking, 'CASH-0001', paymentMethod: 'cash');
 
-        Livewire::test(BusBookings::class, ['bus' => $bus])
+        Livewire::actingAs($this->createUserWithFullAccess())
+            ->test(BusBookings::class, ['bus' => $bus])
             ->assertSee('Télécharger le ticket')
             ->assertDontSee('Rembourser');
     }
@@ -389,7 +436,8 @@ class BusBookingsPageTest extends TestCase
         ['bus' => $bus, 'booking' => $booking] = $this->createBusWithOnePassenger();
         $this->attachWaveTicket($booking);
 
-        Livewire::test(BusBookings::class, ['bus' => $bus])
+        Livewire::actingAs($this->createUserWithFullAccess())
+            ->test(BusBookings::class, ['bus' => $bus])
             ->call('askToConfirmRefund', $booking->id)
             ->assertSet('showConfirmationModal', true)
             ->assertSet('pendingBookingId', $booking->id)
@@ -404,7 +452,7 @@ class BusBookingsPageTest extends TestCase
         ['booking' => $booking, 'customer' => $customer] = $this->createBusWithOnePassenger();
         $ticket = $this->attachWaveTicket($booking);
 
-        $response = $this->actingAs(User::factory()->create())
+        $response = $this->actingAs($this->createUserWithFullAccess())
             ->get(route('back-office.bookings.ticket', $booking));
 
         $response->assertOk();
@@ -418,7 +466,7 @@ class BusBookingsPageTest extends TestCase
     {
         ['booking' => $booking] = $this->createBusWithOnePassenger();
 
-        $this->actingAs(User::factory()->create())
+        $this->actingAs($this->createUserWithFullAccess())
             ->get(route('back-office.bookings.ticket', $booking))
             ->assertNotFound();
     }
@@ -428,7 +476,8 @@ class BusBookingsPageTest extends TestCase
         ['bus' => $bus, 'booking' => $booking] = $this->createBusWithOnePassenger();
         $targetBus = $this->createUpcomingDepartWithBus(busName: 'Bus Destination Beta');
 
-        Livewire::test(BusBookings::class, ['bus' => $bus])
+        Livewire::actingAs($this->createUserWithFullAccess())
+            ->test(BusBookings::class, ['bus' => $bus])
             ->call('openBookingTransferModal', $booking->id)
             ->assertSet('showTransferModal', true)
             ->assertSet('transferBookingId', $booking->id)
@@ -444,7 +493,8 @@ class BusBookingsPageTest extends TestCase
         ['bus' => $bus, 'booking' => $booking, 'customer' => $customer] = $this->createBusWithOnePassenger();
         $targetBus = $this->createUpcomingDepartWithBus();
 
-        Livewire::test(BusBookings::class, ['bus' => $bus])
+        Livewire::actingAs($this->createUserWithFullAccess())
+            ->test(BusBookings::class, ['bus' => $bus])
             ->call('openBookingTransferModal', $booking->id)
             ->call('transferBookingToBus', $targetBus->id)
             ->assertSet('showTransferModal', false)
@@ -463,7 +513,8 @@ class BusBookingsPageTest extends TestCase
         // A full target bus (no free seats): the legacy controller rejects the transfer.
         $targetBus = $this->createUpcomingDepartWithBus(numberOfSeats: 0);
 
-        Livewire::test(BusBookings::class, ['bus' => $bus])
+        Livewire::actingAs($this->createUserWithFullAccess())
+            ->test(BusBookings::class, ['bus' => $bus])
             ->call('openBookingTransferModal', $booking->id)
             ->call('transferBookingToBus', $targetBus->id)
             ->assertSet('showTransferModal', true)
@@ -481,7 +532,8 @@ class BusBookingsPageTest extends TestCase
             ->where('trajet_id', '!=', $bookingTrajet->id)
             ->firstOrFail();
 
-        Livewire::test(BusBookings::class, ['bus' => $bus])
+        Livewire::actingAs($this->createUserWithFullAccess())
+            ->test(BusBookings::class, ['bus' => $bus])
             ->call('openBookingEditModal', $booking->id)
             ->assertSet('showEditModal', true)
             ->assertSet('editBookingId', $booking->id)
@@ -499,7 +551,8 @@ class BusBookingsPageTest extends TestCase
         $newPointDep = $trajet->pointDeps()->where('id', '!=', $booking->point_dep_id)->firstOrFail();
         $newDestination = $trajet->destinations()->where('id', '!=', $booking->destination_id)->firstOrFail();
 
-        Livewire::test(BusBookings::class, ['bus' => $bus])
+        Livewire::actingAs($this->createUserWithFullAccess())
+            ->test(BusBookings::class, ['bus' => $bus])
             ->call('openBookingEditModal', $booking->id)
             ->set('editPointDepId', $newPointDep->id)
             ->set('editDestinationId', $newDestination->id)
@@ -521,7 +574,8 @@ class BusBookingsPageTest extends TestCase
             ->where('trajet_id', '!=', $booking->depart->trajet_id)
             ->firstOrFail();
 
-        Livewire::test(BusBookings::class, ['bus' => $bus])
+        Livewire::actingAs($this->createUserWithFullAccess())
+            ->test(BusBookings::class, ['bus' => $bus])
             ->call('openBookingEditModal', $booking->id)
             ->set('editPointDepId', $foreignPointDep->id)
             ->call('saveBookingEdit')
@@ -538,7 +592,7 @@ class BusBookingsPageTest extends TestCase
         $newPointDep = $trajet->pointDeps()->where('id', '!=', $booking->point_dep_id)->firstOrFail();
         $newDestination = $trajet->destinations()->where('id', '!=', $booking->destination_id)->firstOrFail();
 
-        Sanctum::actingAs(User::factory()->create());
+        Sanctum::actingAs($this->createUserWithFullAccess());
 
         $this->putJson("/api/bookings/{$booking->id}", [
             'point_dep_id' => $newPointDep->id,
@@ -558,7 +612,7 @@ class BusBookingsPageTest extends TestCase
             ->where('trajet_id', '!=', $booking->depart->trajet_id)
             ->firstOrFail();
 
-        Sanctum::actingAs(User::factory()->create());
+        Sanctum::actingAs($this->createUserWithFullAccess());
 
         $this->putJson("/api/bookings/{$booking->id}", [
             'point_dep_id' => $foreignPointDep->id,
@@ -572,7 +626,7 @@ class BusBookingsPageTest extends TestCase
     {
         ['bus' => $bus, 'booking' => $booking] = $this->createBusWithOnePassenger();
 
-        Sanctum::actingAs(User::factory()->create());
+        Sanctum::actingAs($this->createUserWithFullAccess());
 
         $response = $this->getJson("/api/buses/{$bus->id}/bookings");
 

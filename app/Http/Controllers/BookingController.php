@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\PermissionName;
 use App\Manager\BookingManager;
 use App\Manager\TicketManager;
 use App\Models\Booking;
@@ -183,6 +184,9 @@ class BookingController extends Controller
      */
     public function destroy(Booking $booking)
     {
+        ($booking->hasTicket() ? PermissionName::CancelPaidBooking : PermissionName::CancelUnpaidBooking)
+            ->authorizeForCurrentUser();
+
         $this->cancelBooking($booking);
 
         return response()->noContent();
@@ -264,6 +268,8 @@ class BookingController extends Controller
 
     public function transferBooking(Booking $booking, Bus $targetBus)
     {
+        PermissionName::TransferPastBooking->authorizeForCurrentUser();
+
         if ($booking->bus->id == $targetBus->id) {
             return response()->json(['message' => 'Vous ne pouvez pas transférer une réservation sur le même bus'], 422);
         }
@@ -309,6 +315,8 @@ class BookingController extends Controller
 
     public function sendScheduleNotification(Booking $booking, Request $request)
     {
+        PermissionName::SendMessages->authorizeForCurrentUser();
+
         $data = $request->validate([
             'message' => 'required|string',
         ]);
@@ -320,6 +328,8 @@ class BookingController extends Controller
 
     public function refundTicket(Booking $booking)
     {
+        PermissionName::RefundTicket->authorizeForCurrentUser();
+
         if (! $booking->hasTicket()) {
             return response()->json(['message' => "Cette réservation n'a pas de ticket à rembourser"], 422);
         }

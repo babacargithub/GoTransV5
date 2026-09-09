@@ -2,6 +2,7 @@
 
 namespace App\Livewire\BackOffice;
 
+use App\Enums\PermissionName;
 use App\Http\Controllers\BusController;
 use App\Http\Controllers\DepartController;
 use App\Http\Resources\DepartResource;
@@ -332,6 +333,12 @@ class DepartList extends Component
             return;
         }
 
+        if (! PermissionName::DeleteBus->allowedForCurrentUser()) {
+            session()->flash('error', 'Action non autorisée : la permission « '.PermissionName::DeleteBus->defaultLabel().' » est requise.');
+
+            return;
+        }
+
         $bus = Bus::findOrFail($busId);
         $busName = $bus->name;
 
@@ -624,6 +631,12 @@ class DepartList extends Component
             'scheduleManagementRows.*.rendezVousSchedule.required' => "L'heure de rendez-vous est obligatoire.",
             'scheduleManagementRows.*.rendezVousSchedule.date_format' => "L'heure de rendez-vous doit être au format HH:MM.",
         ]);
+
+        if (! PermissionName::UpdateSchedules->allowedForCurrentUser()) {
+            $this->scheduleManagementFlashMessage = 'Action non autorisée : la permission « '.PermissionName::UpdateSchedules->defaultLabel().' » est requise.';
+
+            return;
+        }
 
         $depart = Depart::findOrFail($this->scheduleManagementDepartId);
 

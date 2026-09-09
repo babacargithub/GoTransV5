@@ -6,7 +6,6 @@ use App\Livewire\BackOffice\CreateDepart;
 use App\Models\Depart;
 use App\Models\Horaire;
 use App\Models\Trajet;
-use App\Models\User;
 use App\Models\Vehicule;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Carbon;
@@ -27,7 +26,7 @@ class CreateDepartPageTest extends TestCase
 
     public function test_the_depart_list_links_to_the_create_page(): void
     {
-        $this->actingAs(User::factory()->create())
+        $this->actingAs($this->createUserWithFullAccess())
             ->get(route('back-office.departs.index'))
             ->assertOk()
             ->assertSee(route('back-office.departs.create'), false);
@@ -39,7 +38,7 @@ class CreateDepartPageTest extends TestCase
         $horaire = Horaire::query()->firstOrFail();
         $vehicule = Vehicule::query()->firstOrFail();
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(CreateDepart::class)
             ->assertOk()
             ->assertSee('Trajet')
@@ -58,7 +57,7 @@ class CreateDepartPageTest extends TestCase
 
     public function test_the_placeholder_option_is_not_disabled_so_it_stays_visible_when_nothing_is_chosen(): void
     {
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(CreateDepart::class)
             ->assertOk()
             ->assertSeeHtml('<option value="" selected class="placeholder">Choisir un trajet</option>')
@@ -69,7 +68,7 @@ class CreateDepartPageTest extends TestCase
     {
         $vehicule = Vehicule::query()->firstOrFail();
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(CreateDepart::class)
             ->set('vehiculeId', $vehicule->id)
             ->assertSet('numberOfSeats', $vehicule->nombre_place);
@@ -77,7 +76,7 @@ class CreateDepartPageTest extends TestCase
 
     public function test_it_validates_required_fields(): void
     {
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(CreateDepart::class)
             ->set('busName', '')
             ->set('selectedDepartureDates', [])
@@ -101,7 +100,7 @@ class CreateDepartPageTest extends TestCase
         $firstDate = Carbon::today()->addDays(3)->toDateString();
         $secondDate = Carbon::today()->addDays(10)->toDateString();
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(CreateDepart::class)
             ->set('trajetId', $trajet->id)
             ->set('horaireId', $horaire->id)
@@ -140,7 +139,7 @@ class CreateDepartPageTest extends TestCase
         $horaire = Horaire::query()->firstOrFail();
         $vehicule = Vehicule::query()->where('default', true)->firstOrFail();
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(CreateDepart::class)
             ->set('trajetId', $trajet->id)
             ->set('horaireId', $horaire->id)

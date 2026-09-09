@@ -6,7 +6,6 @@ use App\Livewire\BackOffice\EditDepart;
 use App\Models\Depart;
 use App\Models\Horaire;
 use App\Models\Trajet;
-use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Carbon;
 use Laravel\Sanctum\Sanctum;
@@ -40,7 +39,7 @@ class EditDepartPageTest extends TestCase
     {
         $depart = $this->createUpcomingDepart();
 
-        $this->actingAs(User::factory()->create())
+        $this->actingAs($this->createUserWithFullAccess())
             ->get(route('back-office.departs.index'))
             ->assertOk()
             ->assertSee(route('back-office.departs.edit', $depart->id), false);
@@ -50,7 +49,7 @@ class EditDepartPageTest extends TestCase
     {
         $depart = $this->createUpcomingDepart();
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(EditDepart::class, ['depart' => $depart])
             ->assertOk()
             ->assertSet('departName', $depart->getRawOriginal('name'))
@@ -67,7 +66,7 @@ class EditDepartPageTest extends TestCase
         $newDate = Carbon::today()->addDays(12)->toDateString();
         $eveningHoraire = Horaire::query()->where('periode', Horaire::PERIODE_NUIT)->firstOrFail();
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(EditDepart::class, ['depart' => $depart])
             ->set('departName', 'Départ modifié')
             ->set('departureDate', $newDate)
@@ -93,7 +92,7 @@ class EditDepartPageTest extends TestCase
     {
         $depart = $this->createUpcomingDepart();
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(EditDepart::class, ['depart' => $depart])
             ->set('departName', '')
             ->set('departureDate', '')
@@ -111,7 +110,7 @@ class EditDepartPageTest extends TestCase
     {
         $depart = $this->createUpcomingDepart();
 
-        Sanctum::actingAs(User::factory()->create());
+        Sanctum::actingAs($this->createUserWithFullAccess());
 
         $this->putJson("/api/departs/{$depart->id}", [
             'name' => 'Départ via API',

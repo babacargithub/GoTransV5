@@ -2,6 +2,8 @@
 
 namespace App\Enums;
 
+use Illuminate\Auth\Access\AuthorizationException;
+
 /**
  * The catalogue of application permissions.
  *
@@ -75,5 +77,32 @@ enum PermissionName: string
     public static function values(): array
     {
         return array_map(static fn (self $permission): string => $permission->value, self::cases());
+    }
+
+    /**
+     * Whether the currently authenticated user may perform this action.
+     *
+     * Goes through the Gate, so a user holding {@see self::FullAccess} passes
+     * every check (see App\Providers\AuthServiceProvider).
+     */
+    public function allowedForCurrentUser(): bool
+    {
+        return auth()->check() && auth()->user()->can($this->value);
+    }
+
+    /**
+     * Assert the currently authenticated user may perform this action, aborting
+     * with a 403 otherwise. Used to guard sensitive controller and Livewire
+     * actions with an implicit "OR full-access".
+     *
+     * @throws AuthorizationException
+     */
+    public function authorizeForCurrentUser(): void
+    {
+        if (! $this->allowedForCurrentUser()) {
+            throw new AuthorizationException(
+                'Action non autorisée : la permission « '.$this->defaultLabel().' » est requise.'
+            );
+        }
     }
 }

@@ -7,7 +7,6 @@ use App\Models\Depart;
 use App\Models\Horaire;
 use App\Models\Itinerary;
 use App\Models\Trajet;
-use App\Models\User;
 use App\Models\Vehicule;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Laravel\Sanctum\Sanctum;
@@ -47,7 +46,7 @@ class AddBusToDepartPageTest extends TestCase
             'closed' => false,
         ]);
 
-        $this->actingAs(User::factory()->create())
+        $this->actingAs($this->createUserWithFullAccess())
             ->get(route('back-office.departs.index'))
             ->assertOk()
             ->assertSee(route('back-office.departs.add-bus', $depart->id), false);
@@ -59,7 +58,7 @@ class AddBusToDepartPageTest extends TestCase
         $vehicule = Vehicule::query()->firstOrFail();
         $itinerary = Itinerary::query()->firstOrFail();
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(AddBusToDepart::class, ['depart' => $depart])
             ->assertOk()
             ->assertSee('Véhicule transport')
@@ -78,7 +77,7 @@ class AddBusToDepartPageTest extends TestCase
         $depart = $this->createUpcomingDepart();
         $vehicule = Vehicule::query()->firstOrFail();
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(AddBusToDepart::class, ['depart' => $depart])
             ->set('vehiculeId', $vehicule->id)
             ->assertSet('numberOfSeats', $vehicule->nombre_place)
@@ -90,7 +89,7 @@ class AddBusToDepartPageTest extends TestCase
         $depart = $this->createUpcomingDepart();
         $defaultVehicule = Vehicule::query()->where('default', true)->firstOrFail();
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(AddBusToDepart::class, ['depart' => $depart])
             ->set('vehiculeId', $defaultVehicule->id)
             ->set('name', 'Bus Nouveau')
@@ -125,7 +124,7 @@ class AddBusToDepartPageTest extends TestCase
         ]);
         $defaultVehicule = Vehicule::query()->where('default', true)->firstOrFail();
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(AddBusToDepart::class, ['depart' => $depart])
             ->set('vehiculeId', $defaultVehicule->id)
             ->set('name', 'Bus Doublon')
@@ -142,7 +141,7 @@ class AddBusToDepartPageTest extends TestCase
     {
         $depart = $this->createUpcomingDepart();
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(AddBusToDepart::class, ['depart' => $depart])
             ->call('save')
             ->assertHasErrors([
@@ -158,7 +157,7 @@ class AddBusToDepartPageTest extends TestCase
         $depart = $this->createUpcomingDepart();
         $defaultVehicule = Vehicule::query()->where('default', true)->firstOrFail();
 
-        Sanctum::actingAs(User::factory()->create());
+        Sanctum::actingAs($this->createUserWithFullAccess());
 
         $this->postJson("/api/departs/{$depart->id}/add_bus", [
             'name' => 'Bus API',

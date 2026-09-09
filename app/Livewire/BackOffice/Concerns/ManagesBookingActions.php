@@ -2,6 +2,7 @@
 
 namespace App\Livewire\BackOffice\Concerns;
 
+use App\Enums\PermissionName;
 use App\Http\Controllers\BookingController;
 use App\Models\Booking;
 use App\Models\Bus;
@@ -84,6 +85,22 @@ trait ManagesBookingActions
     {
         $this->flashStatusMessage = null;
         $this->flashErrorMessage = null;
+    }
+
+    /**
+     * Guard a permission-gated row action. Returns false (and flashes an error)
+     * when the current user lacks the permission; a `full-access` holder always
+     * passes.
+     */
+    private function ensurePermittedOrFlash(PermissionName $requiredPermission): bool
+    {
+        if ($requiredPermission->allowedForCurrentUser()) {
+            return true;
+        }
+
+        $this->flashErrorMessage = 'Action non autorisée : la permission « '.$requiredPermission->defaultLabel().' » est requise.';
+
+        return false;
     }
 
     /* ================= annuler / rembourser ================= */
@@ -196,6 +213,14 @@ trait ManagesBookingActions
             return;
         }
 
+        $requiredPermission = $booking->hasTicket()
+            ? PermissionName::CancelPaidBooking
+            : PermissionName::CancelUnpaidBooking;
+
+        if (! $this->ensurePermittedOrFlash($requiredPermission)) {
+            return;
+        }
+
         $customerFullName = normalize_passenger_display_name($booking->customer->full_name);
 
         try {
@@ -215,6 +240,10 @@ trait ManagesBookingActions
         $booking = $this->resolveBookingForActionOrFlash($bookingId);
 
         if ($booking === null) {
+            return;
+        }
+
+        if (! $this->ensurePermittedOrFlash(PermissionName::RefundTicket)) {
             return;
         }
 
@@ -329,6 +358,10 @@ trait ManagesBookingActions
         $booking = $this->resolveBookingForActionOrFlash($this->transferBookingId);
 
         if ($booking === null) {
+            return;
+        }
+
+        if (! $this->ensurePermittedOrFlash(PermissionName::TransferPastBooking)) {
             return;
         }
 

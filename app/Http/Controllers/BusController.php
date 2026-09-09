@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\PermissionName;
 use App\Http\Resources\BookingForExportResource;
 use App\Manager\BusManager;
 use App\Models\Booking;
@@ -86,7 +87,8 @@ class BusController extends Controller
      */
     public function update(Request $request, Bus $bus)
     {
-        //
+        PermissionName::EditBus->authorizeForCurrentUser();
+
         $validated = $request->validate([
             'name' => 'string',
             'nombre_place' => 'integer',
@@ -106,6 +108,8 @@ class BusController extends Controller
      */
     public function destroy(Bus $bus)
     {
+        PermissionName::DeleteBus->authorizeForCurrentUser();
+
         if ($bus->bookings()->count() > 0) {
             return response()->json(['message' => 'Le bus que vous voulez supprimer contient des réservations, il faut les transférer d\'abord
             '], 422);
@@ -149,6 +153,9 @@ class BusController extends Controller
         $validate = $request->validate([
             'closed' => 'required|boolean',
         ]);
+
+        ($validate['closed'] ? PermissionName::CloseBus : PermissionName::UncloseBus)->authorizeForCurrentUser();
+
         $bus->closed = $validate['closed'];
         $bus->save();
         $bus->refresh();
@@ -180,6 +187,8 @@ class BusController extends Controller
 
     public function transferBookings(Bus $sourceBus, Request $request)
     {
+        PermissionName::TransferPastBooking->authorizeForCurrentUser();
+
         $validated = $request->validate([
             'targetBusId' => 'required|integer',
             'numberOfBookingsToTransfer' => 'required|integer',

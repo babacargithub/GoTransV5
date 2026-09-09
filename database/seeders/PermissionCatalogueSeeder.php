@@ -21,6 +21,12 @@ class PermissionCatalogueSeeder extends Seeder
     {
         $guardName = config('auth.defaults.guard', 'web');
 
+        $everyPermissionExists = Permission::whereIn('name', PermissionName::values())->count() === count(PermissionName::cases());
+
+        if ($everyPermissionExists && Role::where('name', 'super-admin')->exists()) {
+            return;
+        }
+
         foreach (PermissionName::cases() as $permissionName) {
             $permission = Permission::findOrCreate($permissionName->value, $guardName);
 
