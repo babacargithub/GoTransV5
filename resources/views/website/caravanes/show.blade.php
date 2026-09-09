@@ -17,6 +17,7 @@
 
         $baseCard = [
             'depart_id' => $depart['id'],
+            'name' => $depart['name'],
             'date_label' => ucfirst($departDate->translatedFormat('l j F Y')),
             'time' => $departDate->format('H\hi'),
             'promotional_message' => ($depart['show_promotional_message'] ?? false) ? ($depart['promotional_message'] ?? null) : null,
@@ -116,10 +117,10 @@
                             </svg>
                             <div class="flex-1 min-w-0">
                                 <p class="font-semibold text-base leading-snug break-words text-brand-navy">
-                                    {{ $trip['date_label'] }}
+                                    {{ $trip['name'] }}
                                 </p>
                                 <p class="text-sm text-muted-foreground mt-0.5">
-                                    {{ $trip['bus_type'] }}
+                                    {{ $trip['date_label'] }}
                                     @if ($trip['climatise'])
                                         · Climatisé
                                     @endif
