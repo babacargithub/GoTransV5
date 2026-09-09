@@ -44,6 +44,11 @@
   --color-error: oklch(58% 0.2 27);
   --color-error-foreground: oklch(98% 0.01 264);
 
+  /* Brand colors — public website only (additive; back-office is unaffected) */
+  --color-brand-cyan: #1DC8FE;
+  --color-brand-navy: #062380;
+  --color-brand-white: #FFFFFF;
+
   /* Spacing scale */
   --spacing-0: 0;
   --spacing-1: 0.25rem;

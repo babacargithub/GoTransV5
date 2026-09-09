@@ -49,6 +49,27 @@ Route::domain(config('app.gp_domain'))->group(function () {
     })->name('gp_booking');
 });
 
+/*
+ * Public website (customer-facing). Its files live under resources/views/website/
+ * and app/Livewire/Website/, mirroring the back-office structure.
+ */
+Route::domain(config('app.public_website_domain'))->name('website.')->group(function () {
+    Route::get('/', function () {
+        return view('website.home', [
+            'trajets' => Trajet::query()->orderBy('name')->get(),
+        ]);
+    })->name('home');
+
+    // Per-trajet page: lists that trajet's upcoming départs. Resolved by SEO slug.
+    // Public URL segment is "caravanes" — the word customers (and SEO) use for a trajet;
+    // internally the concept stays "trajet". The départ listing is built later — placeholder for now.
+    Route::get('caravanes/{trajet:slug}', function (Trajet $trajet) {
+        return view('website.caravanes.show', [
+            'trajet' => $trajet,
+        ]);
+    })->name('caravanes.show');
+});
+
 Route::get('/', function () {
     return view('homepage');
 })->name('home');

@@ -14,7 +14,8 @@ The app has 2 sections and 2 different targets
   destined for back office users and will be accessed through a different domain !
 - Section two: the public website where travels/customers make their bookings and buy tickets ! They will also 
   download their tickets ! The website lists the current "departs" and allow customers to choose their depart and 
-  make their booking. It will be also accessed via a different domain !
+  make their booking. It will be also accessed via a different domain ! For this public website app, SEO is of 
+  uppermost importance as we are in a very competitive field ! So each page must be highly SEO optimized !
 This application is a Laravel application running on PHP 8.4. You are an expert with the Laravel ecosystem. Always use the APIs that match the installed major version of each package — do not assume a version.
 
 Before relying on a package's API, confirm its installed version:
