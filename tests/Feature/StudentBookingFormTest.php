@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Livewire\Website\StudentBooking;
+use App\Manager\BookingManager;
 use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\Depart;
@@ -140,6 +141,56 @@ class StudentBookingFormTest extends TestCase
             ->assertHasErrors('passengers.0.full_name')
             ->set('passengers.0.full_name', 'Awa Diop')
             ->assertHasNoErrors('passengers.0.full_name');
+    }
+
+    public function test_a_last_name_with_an_apostrophe_or_space_is_rejected_before_submission(): void
+    {
+        // The legacy backend validates the customer's last name as `alpha_num`, so the form must
+        // catch "N'Diaye" / "Ba Sow" itself instead of letting confirmBooking blow up.
+        ['depart' => $depart, 'pointDep' => $pointDep] = $this->createBookableDepart();
+
+        Livewire::test(StudentBooking::class, ['depart' => $depart])
+            ->set('passengersCount', 1)
+            ->set('passengers.0.full_name', "Awa N'Diaye")
+            ->set('passengers.0.phone_number', '771234567')
+            ->set('passengers.0.point_dep_id', $pointDep->id)
+            ->set('paymentMethod', 'wave')
+            ->call('reviewBooking')
+            ->assertHasErrors('passengers.0.full_name')
+            ->assertSet('showSummary', false);
+    }
+
+    public function test_a_backend_rejection_shows_a_form_error_and_never_leaves_the_modal_stuck(): void
+    {
+        $this->fakeWaveCheckout();
+        ['trajet' => $trajet, 'depart' => $depart, 'pointDep' => $pointDep] = $this->createBookableDepart();
+
+        // A passenger who already has a booking on this trajet -> the backend's "déjà réservé" branch.
+        $phone = '77'.random_int(1000000, 9999999);
+        $existingCustomer = Customer::create(['prenom' => 'Awa', 'nom' => 'Diop', 'phone_number' => $phone, 'last_active' => now()]);
+        Booking::create([
+            'customer_id' => $existingCustomer->id,
+            'depart_id' => $depart->id,
+            'bus_id' => $depart->buses()->first()->id,
+            'point_dep_id' => $pointDep->id,
+            'destination_id' => Destination::where('trajet_id', $trajet->id)->value('id'),
+            'paye' => false,
+            'group_id' => (int) BookingManager::generateBookingGroupId(),
+        ]);
+
+        Livewire::test(StudentBooking::class, ['depart' => $depart])
+            ->set('passengersCount', 1)
+            ->set('passengers.0.full_name', 'Awa Diop')
+            ->set('passengers.0.phone_number', $phone)
+            ->set('passengers.0.point_dep_id', $pointDep->id)
+            ->set('paymentMethod', 'wave')
+            ->call('reviewBooking')
+            ->call('acknowledgeSummary')
+            ->call('confirmBooking')
+            ->assertSet('showSummary', false)
+            ->assertSet('showNonRefundableWarning', false)
+            ->assertNoRedirect()
+            ->assertSet('formError', fn ($error) => filled($error));
     }
 
     public function test_a_duplicate_phone_number_in_the_form_is_rejected(): void

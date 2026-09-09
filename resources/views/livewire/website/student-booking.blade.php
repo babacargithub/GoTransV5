@@ -150,6 +150,12 @@
                     @endif
                 </div>
 
+                @if ($formError)
+                    <div class="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+                        {{ $formError }}
+                    </div>
+                @endif
+
                 <button
                     type="submit"
                     class="w-full rounded-full bg-brand-cyan px-6 py-3 font-semibold text-brand-navy active:brightness-95 disabled:opacity-60"

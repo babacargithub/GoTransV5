@@ -13,6 +13,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Routing\Route as RoutingRoute;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
 
@@ -222,12 +223,25 @@ class StudentBooking extends Component
             return;
         }
 
+        // Close the summary/warning modal up front: from here on the outcome is either a redirect
+        // to payment or a form-level error banner — the modal must never stay stuck on screen.
+        $this->resetBookingStepState();
+
         try {
             $mobileRequest = $this->buildValidatedMobileBookingRequest();
         } catch (HttpResponseException $exception) {
             $this->formError = data_get($exception->getResponse()->getData(true), 'message')
                 ?? "Votre réservation n'a pas pu être enregistrée.";
-            $this->resetBookingStepState();
+
+            return;
+        } catch (ValidationException $exception) {
+            $this->formError = $exception->validator->errors()->first()
+                ?: 'Certaines informations des passagers sont invalides.';
+
+            return;
+        } catch (\Throwable $exception) {
+            report($exception);
+            $this->formError = "Votre réservation n'a pas pu être enregistrée. Veuillez vérifier les informations saisies.";
 
             return;
         }
@@ -426,8 +440,11 @@ class StudentBooking extends Component
             return 'La longueur du nom doit être au minimum de 2 caractères.';
         }
 
-        if (! preg_match('/^[a-zA-ZàâäéèêëïîôöùûüÿçÀÂÄÉÈÊËÏÎÔÖÙÛÜŸÇ.\'-]+$/u', $lastName)) {
-            return 'Le nom doit contenir uniquement des lettres.';
+        // Same character set the mobile app enforces on the "nom" AND what the backend
+        // accepts (Customer last_name is validated `alpha_num`): letters only, no apostrophe,
+        // space or hyphen — so "N'Diaye" / "Ba Sow" must be typed "Ndiaye" / "Basow".
+        if (! preg_match('/^[a-zA-Z.éèÈÉ]+$/u', $lastName)) {
+            return 'Le nom doit contenir uniquement des lettres de A à Z (sans apostrophe ni espace).';
         }
 
         if (strlen($firstName) < 2) {
