@@ -38,7 +38,13 @@
                             wire:key="sidebar-bus-{{ $loop->parent->index }}-{{ $loop->index }}"
                         >
                             <div class="flex min-w-0 items-center gap-1.5">
-                                <flux:text class="truncate font-medium">{{ $sidebarBus['name'] }}</flux:text>
+                                <a
+                                    href="{{ route('back-office.buses.bookings', $sidebarBus['id']) }}"
+                                    wire:navigate
+                                    class="truncate font-medium text-zinc-800 underline-offset-2 hover:text-accent hover:underline dark:text-zinc-200"
+                                >
+                                    {{ $sidebarBus['name'] }}
+                                </a>
 
                                 @if ($sidebarBus['closed'])
                                     <flux:tooltip content="Fermé">

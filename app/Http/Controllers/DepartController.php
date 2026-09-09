@@ -381,6 +381,7 @@ class DepartController extends Controller
                 $ticketsSoldCount = $bus->bookings->whereNotNull('ticket_id')->count();
                 $hasSeatsLeft = $bookedSeatsCount < $bus->nombre_place;
                 $busData[] = [
+                    'id' => $bus->id,
                     'bus' => $bus->name,
                     'name' => $bus->name,
                     'bookingsCount' => $bookingsCount,

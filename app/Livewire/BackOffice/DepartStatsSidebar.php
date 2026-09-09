@@ -20,7 +20,7 @@ class DepartStatsSidebar extends Component
     /**
      * Upcoming départs and, per bus, their booking counts.
      *
-     * @return array<int, array{depart: string, buses: array<int, array{name: string, bookingsCount: int, bookedSeatsCount: int, ticketsSoldCount: int, closed: bool, hasSeatsLeft: bool}>}>
+     * @return array<int, array{depart: string, buses: array<int, array{id: int, name: string, bookingsCount: int, bookedSeatsCount: int, ticketsSoldCount: int, closed: bool, hasSeatsLeft: bool}>}>
      */
     #[Computed]
     public function departStatsRows(): array
@@ -32,6 +32,7 @@ class DepartStatsSidebar extends Component
                 'depart' => (string) $departRow['depart'],
                 'buses' => collect($departRow['buses'] ?? [])
                     ->map(fn (array $busRow): array => [
+                        'id' => (int) $busRow['id'],
                         'name' => (string) $busRow['name'],
                         'bookingsCount' => (int) $busRow['bookingsCount'],
                         'bookedSeatsCount' => (int) $busRow['bookedSeatsCount'],

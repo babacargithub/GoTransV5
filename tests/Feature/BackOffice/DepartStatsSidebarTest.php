@@ -50,6 +50,16 @@ class DepartStatsSidebarTest extends TestCase
             ->assertSee('réservation(s) au total');
     }
 
+    public function test_each_bus_name_links_to_its_bookings_page(): void
+    {
+        $depart = $this->createUpcomingDepartWithBus();
+        $bus = $depart->buses()->firstOrFail();
+
+        Livewire::actingAs(User::factory()->create())
+            ->test(DepartStatsSidebar::class)
+            ->assertSeeHtml('href="'.route('back-office.buses.bookings', $bus->id).'"');
+    }
+
     public function test_a_closed_bus_shows_a_lock_icon_next_to_its_name(): void
     {
         $depart = $this->createUpcomingDepartWithBus();
