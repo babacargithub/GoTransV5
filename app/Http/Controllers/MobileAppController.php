@@ -64,12 +64,20 @@ class MobileAppController extends Controller
 
     }
 
-    public function listeDepartsTrajet(Trajet $trajet)
+    public function listeDepartsTrajet(Trajet $trajet, \Illuminate\Http\Request $request)
     {
+        $trajetDepartsResource = new MobileTrajetDepartsResource($trajet);
 
-        return response()->json(new MobileTrajetDepartsResource($trajet));
+        // The public website reuses the exact same depart-fetching logic as the mobile app; only
+        // the presentation differs. The legacy mobile JSON response below is left untouched.
+        if ($request->routeIs('website.*')) {
+            return view('website.caravanes.show', [
+                'trajet' => $trajet,
+                'trajetDeparts' => $trajetDepartsResource->resolve($request),
+            ]);
+        }
 
-
+        return response()->json($trajetDepartsResource);
     }
 
     /**

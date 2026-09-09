@@ -3,6 +3,7 @@
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\BusController;
 use App\Http\Controllers\DepartController;
+use App\Http\Controllers\MobileAppController;
 use App\Http\Controllers\TicketController;
 use App\Livewire\BackOffice\AddBusToDepart;
 use App\Livewire\BackOffice\AppParamsPage;
@@ -62,12 +63,10 @@ Route::domain(config('app.public_website_domain'))->name('website.')->group(func
 
     // Per-trajet page: lists that trajet's upcoming départs. Resolved by SEO slug.
     // Public URL segment is "caravanes" — the word customers (and SEO) use for a trajet;
-    // internally the concept stays "trajet". The départ listing is built later — placeholder for now.
-    Route::get('caravanes/{trajet:slug}', function (Trajet $trajet) {
-        return view('website.caravanes.show', [
-            'trajet' => $trajet,
-        ]);
-    })->name('caravanes.show');
+    // internally the concept stays "trajet". Reuses MobileAppController@listeDepartsTrajet
+    // (same logic as api/mobile/departs/trajet/{trajet}), which branches on the route.
+    Route::get('caravanes/{trajet:slug}', [MobileAppController::class, 'listeDepartsTrajet'])
+        ->name('caravanes.show');
 });
 
 Route::get('/', function () {

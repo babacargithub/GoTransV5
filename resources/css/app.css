@@ -48,6 +48,7 @@
   --color-brand-cyan: #1DC8FE;
   --color-brand-navy: #062380;
   --color-brand-white: #FFFFFF;
+  --color-line: oklch(92% 0.006 240);
 
   /* Spacing scale */
   --spacing-0: 0;
