@@ -24,6 +24,8 @@ use App\Livewire\BackOffice\UserAccessManagement;
 use App\Livewire\BackOffice\VehiculeList;
 use App\Livewire\BackOffice\WavePaymentsPage;
 use App\Livewire\Profile\Edit;
+use App\Livewire\Website\BookingGroupShow;
+use App\Livewire\Website\StudentBooking;
 use App\Models\Trajet;
 use Illuminate\Support\Facades\Route;
 
@@ -67,6 +69,13 @@ Route::domain(config('app.public_website_domain'))->name('website.')->group(func
     // (same logic as api/mobile/departs/trajet/{trajet}), which branches on the route.
     Route::get('caravanes/{trajet:slug}', [MobileAppController::class, 'listeDepartsTrajet'])
         ->name('caravanes.show');
+
+    // Student booking funnel — collects the passengers then hands the payload to the
+    // untouched mobile booking backend. Transactional page: noindex.
+    Route::get('reserver/{depart}', StudentBooking::class)->name('bookings.create');
+
+    // Public booking page, addressed by the group's shared UUID (not the numeric group_id).
+    Route::get('reservations/{uuid}', BookingGroupShow::class)->name('bookings.show');
 });
 
 Route::get('/', function () {

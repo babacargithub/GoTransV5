@@ -179,14 +179,22 @@
                                 </svg>
                                 Partager
                             </a>
-                            {{-- TODO: wire to the booking flow once it is built. --}}
-                            <button
-                                type="button"
-                                @disabled($trip['unavailable'])
-                                class="bg-brand-cyan text-brand-navy font-semibold px-6 py-2.5 rounded-full active:brightness-95 disabled:opacity-60 disabled:cursor-not-allowed"
-                            >
-                                Réserver
-                            </button>
+                            @if ($trip['unavailable'])
+                                <button
+                                    type="button"
+                                    disabled
+                                    class="bg-brand-cyan text-brand-navy font-semibold px-6 py-2.5 rounded-full opacity-60 cursor-not-allowed"
+                                >
+                                    Réserver
+                                </button>
+                            @else
+                                <a
+                                    href="{{ route('website.bookings.create', array_filter(['depart' => $trip['depart_id'], 'bus_id' => $trip['bus_id']])) }}"
+                                    class="bg-brand-cyan text-brand-navy font-semibold px-6 py-2.5 rounded-full active:brightness-95"
+                                >
+                                    Réserver
+                                </a>
+                            @endif
                         </div>
                     </div>
                 </div>
