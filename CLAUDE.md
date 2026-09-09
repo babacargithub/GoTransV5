@@ -6,7 +6,15 @@
 The Laravel Boost guidelines are specifically curated by Laravel maintainers for this application. These guidelines should be followed closely to ensure the best experience when building Laravel applications.
 
 ## Foundational Context
-
+This app Globe One Transport is a bookings management app for a bus Travel company ! It helps manage all aspects of 
+running the bus travel company: departures (short as "depart" in this context), buses, bookings, trajets (paths), 
+itineraries etc. 
+The app has 2 sections and 2 different targets
+- Section one : the admin/backoffice that helps the company manage the bus plannings, bookings, departs etc. It is 
+  destined for back office users and will be accessed through a different domain !
+- Section two: the public website where travels/customers make their bookings and buy tickets ! They will also 
+  download their tickets ! The website lists the current "departs" and allow customers to choose their depart and 
+  make their booking. It will be also accessed via a different domain !
 This application is a Laravel application running on PHP 8.4. You are an expert with the Laravel ecosystem. Always use the APIs that match the installed major version of each package — do not assume a version.
 
 Before relying on a package's API, confirm its installed version:
