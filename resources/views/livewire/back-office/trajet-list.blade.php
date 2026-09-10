@@ -28,9 +28,17 @@
     @else
         <div class="space-y-3">
             @foreach ($this->trajetRows as $trajetRow)
-                <flux:card class="flex flex-wrap items-center justify-between gap-4" wire:key="trajet-{{ $trajetRow['id'] }}">
+                <flux:card
+                    class="flex flex-wrap items-center justify-between gap-4 {{ $trajetRow['disabled'] ? 'opacity-60' : '' }}"
+                    wire:key="trajet-{{ $trajetRow['id'] }}"
+                >
                     <div class="min-w-0">
-                        <flux:heading size="lg">{{ $trajetRow['name'] }}</flux:heading>
+                        <div class="flex items-center gap-2">
+                            <flux:heading size="lg">{{ $trajetRow['name'] }}</flux:heading>
+                            @if ($trajetRow['disabled'])
+                                <flux:badge size="sm" color="zinc">Désactivé</flux:badge>
+                            @endif
+                        </div>
                         <flux:text class="mt-1 text-sm">
                             @if ($trajetRow['departureCity'] || $trajetRow['arrivalCity'])
                                 {{ $trajetRow['departureCity'] ?? '?' }} → {{ $trajetRow['arrivalCity'] ?? '?' }}
@@ -41,6 +49,12 @@
                     </div>
 
                     <div class="flex flex-wrap items-center gap-2">
+                        <flux:switch
+                            wire:model.live="trajetActiveStates.{{ $trajetRow['id'] }}"
+                            wire:key="trajet-active-switch-{{ $trajetRow['id'] }}"
+                            :label="$trajetRow['disabled'] ? 'Désactivé' : 'Actif'"
+                        />
+
                         <flux:tooltip content="Gérer les points de départ">
                             <flux:badge size="lg" color="blue" icon="map-pin" wire:click="openPointDepsDialog({{ $trajetRow['id'] }})">
                                 {{ $trajetRow['pointDepsCount'] }} point(s) de départ
@@ -341,6 +355,13 @@
                     <flux:error name="editTrajetLength" />
                 </flux:field>
             </div>
+
+            <flux:field>
+                <flux:label>Position d'affichage</flux:label>
+                <flux:input type="number" min="0" wire:model="editTrajetDisplayPosition" />
+                <flux:description>Ordre de tri sur le site public (0 en premier).</flux:description>
+                <flux:error name="editTrajetDisplayPosition" />
+            </flux:field>
 
             <div class="flex items-center justify-end gap-2">
                 <flux:button variant="ghost" wire:click="closeEditTrajet">Annuler</flux:button>

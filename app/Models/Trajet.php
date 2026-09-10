@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
@@ -26,8 +27,24 @@ class Trajet extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'name', 'public_name', 'length', 'end_point', 'start_point', 'deleted_at', 'departure_city', 'arrival_city', 'code', 'slug',
+        'name', 'public_name', 'length', 'end_point', 'start_point', 'deleted_at', 'departure_city', 'arrival_city', 'code', 'slug', 'disabled', 'display_position',
     ];
+
+    protected $casts = [
+        'disabled' => 'boolean',
+        'display_position' => 'integer',
+    ];
+
+    /**
+     * Trajets shown to the public (website + booking listings): not disabled,
+     * ordered by their configured display position then name.
+     */
+    public function scopePubliclyVisible(Builder $query): Builder
+    {
+        return $query->where('disabled', false)
+            ->orderBy('display_position')
+            ->orderBy('name');
+    }
 
     protected static function booted(): void
     {

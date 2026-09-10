@@ -29,6 +29,8 @@ use App\Livewire\Website\StudentBooking;
 use App\Models\Trajet;
 use Illuminate\Support\Facades\Route;
 
+// Public, unauthenticated ticket download page: anyone with the group_id can view/download the tickets.
+Route::get('/tickets/group/{groupId}', [TicketController::class, 'showGroupTickets'])->name('tickets.group.show');
 Route::domain(config('app.concours_domain'))->group(function () {
     Route::get('/', function () {
         return view('concoursefs.concours');
@@ -59,7 +61,7 @@ Route::domain(config('app.gp_domain'))->group(function () {
 Route::domain(config('app.public_website_domain'))->name('website.')->group(function () {
     Route::get('/', function () {
         return view('website.home', [
-            'trajets' => Trajet::query()->orderBy('name')->get(),
+            'trajets' => Trajet::query()->publiclyVisible()->get(),
         ]);
     })->name('home');
 
@@ -85,9 +87,6 @@ Route::domain(config('app.public_website_domain'))->name('website.')->group(func
 Route::get('/', function () {
     return view('homepage');
 })->name('home');
-
-// Public, unauthenticated ticket download page: anyone with the group_id can view/download the tickets.
-Route::get('/tickets/group/{groupId}', [TicketController::class, 'showGroupTickets'])->name('tickets.group.show');
 
 Route::middleware(['auth:sanctum', 'verified'])->group(function () {
     Route::get('/dashboard', function () {

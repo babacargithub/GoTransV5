@@ -27,6 +27,15 @@ use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 #[Layout('components.layouts.back-office')]
 class TrajetList extends Component
 {
+    /**
+     * Per-trajet "actif" switch state, keyed by trajet id. `true` means the trajet
+     * is active (its `disabled` column is `false`). Bound with `wire:model.live`
+     * so flipping a row's switch fires {@see self::updatedTrajetActiveStates()}.
+     *
+     * @var array<int, bool>
+     */
+    public array $trajetActiveStates = [];
+
     /* ---- trajet edit / delete ---- */
 
     public bool $showEditTrajetModal = false;
@@ -44,6 +53,8 @@ class TrajetList extends Component
     public ?string $editTrajetCode = null;
 
     public ?float $editTrajetLength = null;
+
+    public int $editTrajetDisplayPosition = 0;
 
     public ?string $editTrajetErrorMessage = null;
 
@@ -97,16 +108,35 @@ class TrajetList extends Component
 
     public ?string $destinationFormErrorMessage = null;
 
+    public function mount(): void
+    {
+        $this->syncTrajetActiveStates();
+    }
+
+    /**
+     * Rebuild the per-row "actif" switch state from the trajets' `disabled` column.
+     */
+    private function syncTrajetActiveStates(): void
+    {
+        $this->trajetActiveStates = Trajet::query()
+            ->orderBy('display_position')
+            ->orderBy('name')
+            ->pluck('disabled', 'id')
+            ->map(fn (bool $disabled): bool => ! $disabled)
+            ->all();
+    }
+
     /**
      * Every trajet with its point de départ and destination counts.
      *
-     * @return array<int, array{id: int, name: string, publicName: string|null, departureCity: string|null, arrivalCity: string|null, pointDepsCount: int, destinationsCount: int}>
+     * @return array<int, array{id: int, name: string, publicName: string|null, departureCity: string|null, arrivalCity: string|null, displayPosition: int, disabled: bool, pointDepsCount: int, destinationsCount: int}>
      */
     #[Computed]
     public function trajetRows(): array
     {
         return Trajet::query()
             ->withCount(['pointDeps', 'destinations'])
+            ->orderBy('display_position')
             ->orderBy('name')
             ->get()
             ->map(fn (Trajet $trajet): array => [
@@ -115,10 +145,28 @@ class TrajetList extends Component
                 'publicName' => $trajet->public_name,
                 'departureCity' => $trajet->departure_city,
                 'arrivalCity' => $trajet->arrival_city,
+                'displayPosition' => $trajet->display_position,
+                'disabled' => $trajet->disabled,
                 'pointDepsCount' => $trajet->point_deps_count,
                 'destinationsCount' => $trajet->destinations_count,
             ])
             ->all();
+    }
+
+    /**
+     * Persist a row's "actif" switch: `disabled` is the inverse of the switch value.
+     * Public website listings hide disabled trajets.
+     */
+    public function updatedTrajetActiveStates(bool $isActive, string $trajetId): void
+    {
+        $trajet = Trajet::findOrFail((int) $trajetId);
+        $trajet->update(['disabled' => ! $isActive]);
+
+        unset($this->trajetRows);
+
+        session()->flash('status', $trajet->disabled
+            ? 'Le trajet « '.$trajet->name.' » a été désactivé et n\'apparaît plus sur le site public.'
+            : 'Le trajet « '.$trajet->name.' » a été réactivé.');
     }
 
     /* ================= trajet edit / delete ================= */
@@ -134,6 +182,7 @@ class TrajetList extends Component
         $this->editTrajetArrivalCity = $trajet->arrival_city;
         $this->editTrajetCode = $trajet->code;
         $this->editTrajetLength = $trajet->length !== null ? (float) $trajet->length : null;
+        $this->editTrajetDisplayPosition = (int) $trajet->display_position;
         $this->editTrajetErrorMessage = null;
         $this->resetValidation();
         $this->showEditTrajetModal = true;
@@ -161,6 +210,7 @@ class TrajetList extends Component
             'editTrajetArrivalCity' => ['nullable', 'string', 'max:255'],
             'editTrajetCode' => ['nullable', 'string', 'max:255', Rule::unique('trajets', 'code')->ignore($this->editingTrajetId)],
             'editTrajetLength' => ['nullable', 'numeric', 'min:0'],
+            'editTrajetDisplayPosition' => ['required', 'integer', 'min:0'],
         ], attributes: [
             'editTrajetName' => 'nom',
             'editTrajetPublicName' => 'nom public',
@@ -168,6 +218,7 @@ class TrajetList extends Component
             'editTrajetArrivalCity' => "ville d'arrivée",
             'editTrajetCode' => 'code',
             'editTrajetLength' => 'distance',
+            'editTrajetDisplayPosition' => "position d'affichage",
         ]);
 
         $trajet = Trajet::findOrFail($this->editingTrajetId);
@@ -188,6 +239,10 @@ class TrajetList extends Component
 
             return;
         }
+
+        // `display_position` is a new column with no legacy controller path — persist it
+        // directly, like the `disabled` row toggle does.
+        $trajet->update(['display_position' => $this->editTrajetDisplayPosition]);
 
         unset($this->trajetRows);
         $this->closeEditTrajet();
@@ -240,6 +295,7 @@ class TrajetList extends Component
         }
 
         unset($this->trajetRows);
+        $this->syncTrajetActiveStates();
         session()->flash('status', 'Le trajet « '.$trajetName.' » a été supprimé.');
     }
 

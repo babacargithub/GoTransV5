@@ -51,6 +51,22 @@ class TrajetListPageTest extends TestCase
             ->assertSee('1 destination(s)');
     }
 
+    public function test_toggling_a_row_switch_disables_and_re_enables_the_trajet(): void
+    {
+        $trajet = $this->createTrajet();
+
+        $component = Livewire::actingAs(User::factory()->create())
+            ->test(TrajetList::class)
+            ->assertSet('trajetActiveStates.'.$trajet->id, true)
+            ->set('trajetActiveStates.'.$trajet->id, false);
+
+        $this->assertTrue($trajet->fresh()->disabled);
+
+        $component->set('trajetActiveStates.'.$trajet->id, true);
+
+        $this->assertFalse($trajet->fresh()->disabled);
+    }
+
     public function test_editing_a_trajet_updates_it_through_the_legacy_controller(): void
     {
         $trajet = $this->createTrajet();
@@ -66,6 +82,34 @@ class TrajetListPageTest extends TestCase
             ->assertSet('showEditTrajetModal', false);
 
         $this->assertSame('Nouveau nom public', $trajet->fresh()->public_name);
+    }
+
+    public function test_editing_a_trajet_saves_its_display_position(): void
+    {
+        $trajet = $this->createTrajet();
+
+        Livewire::actingAs(User::factory()->create())
+            ->test(TrajetList::class)
+            ->call('openEditTrajet', $trajet->id)
+            ->assertSet('editTrajetDisplayPosition', 0)
+            ->set('editTrajetDisplayPosition', 5)
+            ->call('saveEditedTrajet')
+            ->assertHasNoErrors()
+            ->assertSet('showEditTrajetModal', false);
+
+        $this->assertSame(5, $trajet->fresh()->display_position);
+    }
+
+    public function test_editing_a_trajet_rejects_a_negative_display_position(): void
+    {
+        $trajet = $this->createTrajet();
+
+        Livewire::actingAs(User::factory()->create())
+            ->test(TrajetList::class)
+            ->call('openEditTrajet', $trajet->id)
+            ->set('editTrajetDisplayPosition', -1)
+            ->call('saveEditedTrajet')
+            ->assertHasErrors(['editTrajetDisplayPosition']);
     }
 
     public function test_deleting_a_trajet_removes_it(): void

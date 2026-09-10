@@ -37,6 +37,42 @@ class PublicWebsiteTrajetPageTest extends TestCase
         $response->assertSee($this->websiteUrl('/caravanes/'.$trajet->slug), false);
     }
 
+    public function test_the_home_page_hides_disabled_trajets(): void
+    {
+        $visibleTrajet = $this->createTrajet(['name' => 'Caravane visible '.uniqid()]);
+        $disabledTrajet = $this->createTrajet(['name' => 'Caravane cachée '.uniqid(), 'disabled' => true]);
+
+        $response = $this->get($this->websiteUrl('/'));
+
+        $response->assertStatus(200);
+        $response->assertSee($visibleTrajet->name);
+        $response->assertDontSee($disabledTrajet->name);
+    }
+
+    public function test_the_home_page_orders_trajets_by_display_position(): void
+    {
+        $second = $this->createTrajet(['name' => 'AAA Caravane '.uniqid(), 'display_position' => 2]);
+        $first = $this->createTrajet(['name' => 'ZZZ Caravane '.uniqid(), 'display_position' => 1]);
+
+        $response = $this->get($this->websiteUrl('/'));
+
+        $response->assertSeeInOrder([$first->name, $second->name]);
+    }
+
+    public function test_a_disabled_trajet_caravane_page_returns_404(): void
+    {
+        $trajet = $this->createTrajet(['disabled' => true]);
+
+        $this->get($this->websiteUrl('/caravanes/'.$trajet->slug))->assertNotFound();
+    }
+
+    public function test_the_mobile_departs_endpoint_still_serves_a_disabled_trajet(): void
+    {
+        $trajet = $this->createTrajet(['disabled' => true]);
+
+        $this->getJson('/api/mobile/departs/trajet/'.$trajet->id)->assertStatus(200);
+    }
+
     public function test_a_caravane_page_resolves_by_slug_and_reuses_the_mobile_resource(): void
     {
         $trajet = $this->createTrajet();
