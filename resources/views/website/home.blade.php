@@ -14,21 +14,29 @@
                 Aucune caravane disponible pour le moment.
             </p>
         @else
-            <ul class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <ul class="grid gap-3 sm:grid-cols-2">
                 @foreach ($trajets as $trajet)
                     <li>
-                        <a
-                            href="{{ route('website.caravanes.show', $trajet) }}"
-                            class="flex h-full flex-col gap-2 rounded-lg border border-brand-navy/15 bg-brand-white p-5 transition-colors hover:border-brand-cyan hover:bg-brand-cyan/10"
-                        >
-                            <span class="text-lg font-semibold text-brand-navy">
-                                {{ $trajet->public_name ?? $trajet->name }}
-                            </span>
-                            @if ($trajet->departure_city && $trajet->arrival_city)
-                                <span class="text-sm text-brand-navy/70">
-                                    {{ $trajet->departure_city }} → {{ $trajet->arrival_city }}
+                        <a href="{{ route('website.caravanes.show', $trajet) }}" class="caravane-row group">
+                            <div class="min-w-0 flex-1">
+                                <span class="block truncate font-semibold text-brand-navy">
+                                    {{ $trajet->public_name ?? $trajet->name }}
                                 </span>
-                            @endif
+
+                                @if ($trajet->departure_city && $trajet->arrival_city)
+                                    <span class="mt-1 flex items-center gap-1.5 text-sm text-brand-navy/70">
+                                        <x-website.icon.map-pin class="h-4 w-4 flex-shrink-0 text-brand-navy" />
+                                        <span class="truncate">{{ $trajet->departure_city_label }}</span>
+
+                                        <x-website.icon.arrow-right class="h-3.5 w-3.5 flex-shrink-0 text-brand-navy/50" />
+
+                                        <x-website.icon.flag class="h-4 w-4 flex-shrink-0 text-brand-navy" />
+                                        <span class="truncate">{{ $trajet->arrival_city_label }}</span>
+                                    </span>
+                                @endif
+                            </div>
+
+                            <x-website.icon.chevron-right class="h-5 w-5 flex-shrink-0 text-brand-navy/40 transition-transform group-hover:translate-x-0.5 group-hover:text-brand-navy" />
                         </a>
                     </li>
                 @endforeach

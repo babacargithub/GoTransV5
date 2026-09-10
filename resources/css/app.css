@@ -178,6 +178,22 @@
     @apply bg-card text-card-foreground rounded-lg border border-border transition-all duration-200;
   }
 
+  /* Public website — a single trajet ("caravane") in the home listing.
+     Navy 4px accent bar on the left + a soft navy-tinted shadow; on hover the
+     bar turns cyan and the shadow lifts. */
+  .caravane-row {
+    @apply flex h-full items-center gap-3 rounded-lg border border-brand-navy/10 bg-brand-white px-4 py-3 transition-all;
+    border-left-width: 4px;
+    border-left-color: var(--color-brand-navy);
+    box-shadow: 0 2px 10px rgba(6, 35, 128, 0.12);
+  }
+
+  .caravane-row:hover {
+    @apply bg-brand-cyan/5;
+    border-left-color: var(--color-brand-cyan);
+    box-shadow: 0 4px 16px rgba(6, 35, 128, 0.18);
+  }
+
   .card-interactive {
     @apply bg-card text-card-foreground rounded-lg border border-border transition-all duration-200 cursor-pointer hover:border-primary hover:shadow-sm active:bg-secondary;
   }

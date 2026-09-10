@@ -36,6 +36,41 @@ class Trajet extends Model
     ];
 
     /**
+     * Display aliases for stored city names, keyed by the canonical (upper-cased)
+     * value. The `departure_city` / `arrival_city` columns keep the canonical
+     * name — it is what search matches on and what the back office edits — while
+     * the public website shows the alias through the `*_city_label` accessors.
+     *
+     * @var array<string, string>
+     */
+    public const CITY_LABEL_ALIASES = [
+        'SAINT-LOUIS' => 'UGB',
+    ];
+
+    /**
+     * Map a stored city name to its public-facing alias, leaving unknown names
+     * untouched.
+     */
+    public static function cityLabel(?string $city): ?string
+    {
+        if ($city === null) {
+            return null;
+        }
+
+        return self::CITY_LABEL_ALIASES[mb_strtoupper(trim($city))] ?? $city;
+    }
+
+    public function getDepartureCityLabelAttribute(): ?string
+    {
+        return self::cityLabel($this->departure_city);
+    }
+
+    public function getArrivalCityLabelAttribute(): ?string
+    {
+        return self::cityLabel($this->arrival_city);
+    }
+
+    /**
      * Trajets shown to the public (website + booking listings): not disabled,
      * ordered by their configured display position then name.
      */

@@ -59,6 +59,30 @@ class PublicWebsiteTrajetPageTest extends TestCase
         $response->assertSeeInOrder([$first->name, $second->name]);
     }
 
+    public function test_the_home_page_shows_the_ugb_alias_for_a_saint_louis_city(): void
+    {
+        $trajet = $this->createTrajet([
+            'name' => 'Caravane alias '.uniqid(),
+            'departure_city' => 'DAKAR',
+            'arrival_city' => 'SAINT-LOUIS',
+        ]);
+
+        $response = $this->get($this->websiteUrl('/'));
+
+        $response->assertSee('UGB');
+        $response->assertDontSee('SAINT-LOUIS');
+        // The stored value is untouched.
+        $this->assertSame('SAINT-LOUIS', $trajet->fresh()->arrival_city);
+    }
+
+    public function test_trajet_city_label_maps_saint_louis_to_ugb_and_leaves_others_alone(): void
+    {
+        $this->assertSame('UGB', Trajet::cityLabel('SAINT-LOUIS'));
+        $this->assertSame('UGB', Trajet::cityLabel(' saint-louis '));
+        $this->assertSame('DAKAR', Trajet::cityLabel('DAKAR'));
+        $this->assertNull(Trajet::cityLabel(null));
+    }
+
     public function test_a_disabled_trajet_caravane_page_returns_404(): void
     {
         $trajet = $this->createTrajet(['disabled' => true]);
