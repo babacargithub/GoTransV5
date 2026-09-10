@@ -1,6 +1,7 @@
 ---
 paths:
   - resources/views/components/layouts/back-office.blade.php
+  - resources/views/components/layouts/website.blade.php
 ---
 
 # Layouts
@@ -17,3 +18,8 @@ The left flux:sidebar is no longer a placeholder. It embeds <livewire:back-offic
 It rebuilds the legacy Vue sidebar: per upcoming départ, each bus with its réservations / sièges réservés / billets vendus counts, from the untouched DepartController@bookingsCount (legacy `departs/bookings_counts`). Self-contained: wire:poll.60s + a manual refresh button, so it does not re-render when the host full-page component updates.
 
 Sidebar is widened on desktop via `lg:w-96` on the flux:sidebar (Flux's default w-64 is a low-specificity :where() rule, so a plain class overrides it). Items are deliberately roomy (bordered blocks, space-y). Still a direct child of <body>.
+
+## Public website header nav + footer are fixed in the shared layout
+Header nav is 3 hard-coded links: Voyages (website.home), Yobanté (website.yobante), Aide (website.aide). No brand emoji — text logo only. Mobile menu is a pure-CSS toggle: `#menu-principal-toggle` checkbox + white hamburger `<label>` (`md:hidden`), nav uses `peer-checked:flex md:flex` (no Alpine, so plain blade pages work too).
+yobante/aide are `Route::view` placeholder pages (resources/views/website/{yobante,aide}.blade.php).
+Footer: contacts 77 127 35 35 / 77 116 30 03 (tel:+221…), address "Campus Social UGB en face village B", copyright "© {year} TEKKI PUB SARL. Tous droits réservés." (company is TEKKI PUB SARL, not the site name).

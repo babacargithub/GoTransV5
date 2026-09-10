@@ -72,17 +72,31 @@
     </a>
 
     <header class="bg-brand-cyan text-brand-navy">
-        <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between gap-4">
-            <a href="{{ route('website.home') }}" class="flex items-center gap-2 font-bold text-lg" rel="home">
-                <span aria-hidden="true">🚌</span>
-                <span>{{ $siteName }}</span>
+        <div class="max-w-5xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-4">
+            <a href="{{ route('website.home') }}" class="font-bold text-lg" rel="home">
+                {{ $siteName }}
             </a>
 
-            @isset($navigation)
-                <nav aria-label="Navigation principale" class="text-sm">
-                    {{ $navigation }}
-                </nav>
-            @endisset
+            {{-- Pure-CSS mobile menu toggle: the checkbox drives `peer-checked` on the nav below. --}}
+            <input type="checkbox" id="menu-principal-toggle" class="peer hidden">
+            <label
+                for="menu-principal-toggle"
+                class="md:hidden cursor-pointer text-brand-white"
+                aria-label="Ouvrir le menu de navigation"
+            >
+                <svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+            </label>
+
+            <nav
+                aria-label="Navigation principale"
+                class="hidden w-full flex-col gap-3 text-sm font-medium peer-checked:flex md:flex md:w-auto md:flex-row md:items-center md:gap-6"
+            >
+                <a href="{{ route('website.home') }}" class="hover:underline">Voyages</a>
+                <a href="{{ route('website.yobante') }}" class="hover:underline">Yobanté</a>
+                <a href="{{ route('website.aide') }}" class="hover:underline">Aide</a>
+            </nav>
         </div>
     </header>
 
@@ -91,9 +105,23 @@
     </main>
 
     <footer class="bg-brand-cyan text-brand-navy text-sm">
-        <div class="max-w-5xl mx-auto px-4 py-8 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <p>&copy; {{ date('Y') }} {{ $siteName }}. Tous droits réservés.</p>
-            <p class="opacity-80">Transport de voyageurs — Saint-Louis · Dakar</p>
+        <div class="max-w-5xl mx-auto px-4 py-8 flex flex-col gap-6 sm:flex-row sm:justify-between">
+            <div class="flex flex-col gap-1">
+                <p class="font-semibold uppercase tracking-wide">Contact</p>
+                <a href="tel:+221771273535" class="hover:underline">77 127 35 35</a>
+                <a href="tel:+221771163003" class="hover:underline">77 116 30 03</a>
+            </div>
+
+            <address class="not-italic flex flex-col gap-1 sm:max-w-xs sm:text-right">
+                <p class="font-semibold uppercase tracking-wide">Adresse</p>
+                <p>Campus Social UGB en face village B</p>
+            </address>
+        </div>
+
+        <div class="border-t border-brand-navy/15">
+            <div class="max-w-5xl mx-auto px-4 py-4">
+                <p>&copy; {{ date('Y') }} TEKKI PUB SARL. Tous droits réservés.</p>
+            </div>
         </div>
     </footer>
 </body>

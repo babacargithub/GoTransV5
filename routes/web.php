@@ -63,6 +63,10 @@ Route::domain(config('app.public_website_domain'))->name('website.')->group(func
         ]);
     })->name('home');
 
+    // Secondary sections linked from the header navigation. Placeholder content for now.
+    Route::view('yobante', 'website.yobante')->name('yobante');
+    Route::view('aide', 'website.aide')->name('aide');
+
     // Per-trajet page: lists that trajet's upcoming départs. Resolved by SEO slug.
     // Public URL segment is "caravanes" — the word customers (and SEO) use for a trajet;
     // internally the concept stays "trajet". Reuses MobileAppController@listeDepartsTrajet
