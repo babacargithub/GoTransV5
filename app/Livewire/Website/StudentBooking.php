@@ -263,8 +263,7 @@ class StudentBooking extends Component
         $groupId = data_get($responseData, 'group_id');
 
         if ($groupId === null || ($paymentResponse instanceof PaymentResponseResource && ! $paymentResponse->isOK())) {
-            $this->formError = data_get($responseData, 'message')
-                ?? "Le paiement n'a pas pu être initié. Veuillez réessayer dans un instant.";
+            $this->formError = $this->paymentInitiationErrorMessage($paymentResponse, $responseData);
             $this->resetBookingStepState();
 
             return;
@@ -567,6 +566,28 @@ class StudentBooking extends Component
     /* --------------------------------------------------------------------- */
     /*  Small helpers */
     /* --------------------------------------------------------------------- */
+
+    /**
+     * Turns a failed payment initiation into a message the customer can act on: the reason the
+     * gateway (Wave / Orange Money) itself returned, then the backend's own message, and only
+     * as a last resort a generic "try again". Mirrors how the mobile app surfaces
+     * PaymentResponseHandler.getOmPaymentError() rather than a canned string.
+     *
+     * @param  array<string, mixed>  $responseData
+     */
+    private function paymentInitiationErrorMessage(mixed $paymentResponse, array $responseData): string
+    {
+        if ($paymentResponse instanceof PaymentResponseResource) {
+            $gatewayErrorMessage = $paymentResponse->paymentGatewayErrorMessage();
+
+            if (filled($gatewayErrorMessage)) {
+                return $gatewayErrorMessage;
+            }
+        }
+
+        return data_get($responseData, 'message')
+            ?: "Le paiement n'a pas pu être initié. Veuillez réessayer dans un instant.";
+    }
 
     private function totalTicketPrice(): float
     {

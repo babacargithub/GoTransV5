@@ -260,6 +260,58 @@ class StudentBookingFormTest extends TestCase
         $this->assertTrue(Customer::where('phone_number', '771234567')->exists());
     }
 
+    public function test_a_wave_gateway_error_is_shown_to_the_customer_verbatim(): void
+    {
+        Http::fake([
+            'api.wave.com/*' => Http::response([
+                'code' => 'insufficient-funds',
+                'message' => "Le portefeuille marchand n'a pas assez de fonds.",
+            ], 422),
+            '*' => Http::response([], 500),
+        ]);
+        ['depart' => $depart, 'pointDep' => $pointDep] = $this->createBookableDepart();
+
+        Livewire::test(StudentBooking::class, ['depart' => $depart])
+            ->set('passengersCount', 1)
+            ->set('passengers.0.full_name', 'Awa Diop')
+            ->set('passengers.0.phone_number', '771234567')
+            ->set('passengers.0.point_dep_id', $pointDep->id)
+            ->set('paymentMethod', 'wave')
+            ->call('reviewBooking')
+            ->call('acknowledgeSummary')
+            ->call('confirmBooking')
+            ->assertNoRedirect()
+            ->assertSet('formError', "Le portefeuille marchand n'a pas assez de fonds.");
+    }
+
+    public function test_an_orange_money_gateway_error_is_shown_to_the_customer_verbatim(): void
+    {
+        Http::fake([
+            'api.orange-sonatel.com/oauth/token' => Http::response([
+                'access_token' => 'test-token',
+                'expires_in' => 3600,
+            ], 200),
+            'api.orange-sonatel.com/api/eWallet/v1/payments' => Http::response([
+                'detail' => 'Le solde du compte Orange Money est insuffisant.',
+            ], 400),
+            '*' => Http::response([], 500),
+        ]);
+        ['depart' => $depart, 'pointDep' => $pointDep] = $this->createBookableDepart();
+
+        Livewire::test(StudentBooking::class, ['depart' => $depart])
+            ->set('passengersCount', 1)
+            ->set('passengers.0.full_name', 'Awa Diop')
+            ->set('passengers.0.phone_number', '771234567')
+            ->set('passengers.0.point_dep_id', $pointDep->id)
+            ->set('paymentMethod', 'om')
+            ->set('orangeMoneyNumber', '771234567')
+            ->call('reviewBooking')
+            ->call('acknowledgeSummary')
+            ->call('confirmBooking')
+            ->assertNoRedirect()
+            ->assertSet('formError', 'Le solde du compte Orange Money est insuffisant.');
+    }
+
     public function test_orange_money_requires_the_paying_number(): void
     {
         ['depart' => $depart, 'pointDep' => $pointDep] = $this->createBookableDepart();

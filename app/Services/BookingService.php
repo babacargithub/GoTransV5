@@ -32,9 +32,7 @@ class BookingService
     public function __construct(
         private readonly TicketManager $ticketManager,
         private readonly TrajetService $trajetService,
-    )
-    {
-    }
+    ) {}
 
     /**
      * Handles a GP multi-passenger booking request, including the optional round-trip leg.
@@ -52,22 +50,22 @@ class BookingService
             try {
                 $outboundBus = $outboundDepart->getBusForBooking(climatise: true);
             } catch (ModelNotFoundException $e) {
-                return response()->json(["message" => "Aucun bus  disponible pour ce départ"], 422);
+                return response()->json(['message' => 'Aucun bus  disponible pour ce départ'], 422);
             }
 
             if ($outboundBus == null) {
-                return response()->json(["message" => "Aucun bus disponible pour ce départ"], 422);
+                return response()->json(['message' => 'Aucun bus disponible pour ce départ'], 422);
             }
 
             $passengers = $this->resolveOrCreatePassengerCustomers($validated['passengers']);
             // Per-passenger boarding point (falls back to the leg-wide point_dep_id, then to the
             // trajet's default) — lets travellers in the same origin city board at different stops.
             $passengerPointDepIds = collect($validated['passengers'])
-                ->map(fn(array $passenger) => isset($passenger['point_dep_id']) ? (int)$passenger['point_dep_id'] : null)
+                ->map(fn (array $passenger) => isset($passenger['point_dep_id']) ? (int) $passenger['point_dep_id'] : null)
                 ->values();
-            $isRoundTrip = (bool)($validated['is_round_trip'] ?? false);
+            $isRoundTrip = (bool) ($validated['is_round_trip'] ?? false);
             $sharedGroupId = BookingManager::generateBookingGroupId();
-            $roundTripId = $isRoundTrip ? (string)Str::uuid() : null;
+            $roundTripId = $isRoundTrip ? (string) Str::uuid() : null;
 
             $outboundLegResult = $this->buildBookingsForLeg(
                 depart: $outboundDepart,
@@ -91,13 +89,13 @@ class BookingService
             if ($isRoundTrip) {
                 $returnDepart = $this->trajetService->resolveReturnDepart($outboundDepart, $validated['return_depart_id'] ?? null, $validated['return_date']);
                 if ($returnDepart == null) {
-                    return response()->json(["message" => "Aucun départ retour trouvé pour cette date"], 422);
+                    return response()->json(['message' => 'Aucun départ retour trouvé pour cette date'], 422);
                 }
 
                 try {
-                    $returnBus = $this->trajetService->assertReturnDepartBookable($returnDepart, (int)$validated['passenger_count']);
+                    $returnBus = $this->trajetService->assertReturnDepartBookable($returnDepart, (int) $validated['passenger_count']);
                 } catch (\RuntimeException $e) {
-                    return response()->json(["message" => $e->getMessage()], 422);
+                    return response()->json(['message' => $e->getMessage()], 422);
                 }
 
                 $returnLegResult = $this->buildBookingsForLeg(
@@ -121,12 +119,11 @@ class BookingService
                 $allBookings = array_merge($allBookings, $returnLegResult);
             }
 
-            return $this->processGroupBookings($outboundDepart, $request, $allBookings, payment_method: $validated["payment_method"]);
+            return $this->processGroupBookings($outboundDepart, $request, $allBookings, payment_method: $validated['payment_method']);
         } catch (\Exception $e) {
-            return response()->json(["message" => "Une erreur s'est produite lors du traitement de la réservation: " . $e->getMessage()], 422);
+            return response()->json(['message' => "Une erreur s'est produite lors du traitement de la réservation: ".$e->getMessage()], 422);
         }
     }
-
 
     /**
      * Calculates the exact per-leg and total ticket prices for a (potential) GP round-trip booking,
@@ -145,7 +142,7 @@ class BookingService
      * traveller who actually chose a (typically cheaper) mid-route boarding point.
      *
      * @throws \RuntimeException When a depart has no bookable bus, or return_depart_id doesn't
-     *                            belong to the outbound trajet's reverse trajet.
+     *                           belong to the outbound trajet's reverse trajet.
      */
     public function calculatePriceForGpBooking(
         int $departId,
@@ -154,8 +151,7 @@ class BookingService
         ?int $returnDepartId,
         ?int $pointDepId = null,
         ?Collection $passengerPointDepIds = null,
-    ): array
-    {
+    ): array {
         $outboundDepart = Depart::findOrFail($departId);
         $outboundBus = $this->resolveBusForPricing($outboundDepart, 'départ');
         $outboundTicketPrice = $this->calculateGpLegTicketPrice($outboundDepart, $outboundBus, $passengerCount, $pointDepId, $passengerPointDepIds);
@@ -194,6 +190,7 @@ class BookingService
             $pointDep = $this->determinePointDepartAndDestinations($depart, $resolvedPointDepId)['point_dep'];
             $total += $this->ticketManager->calculateTicketPrice($bus, $pointDep, forGp: true);
         }
+
         return $total;
     }
 
@@ -239,13 +236,13 @@ class BookingService
      * Builds the (unsaved) Booking models for one leg (outbound or return) of a GP multi-passenger booking,
      * resolving seats and reusing any already-existing unpaid booking for the same customer/bus.
      *
-     * @param Collection $passengers Customer models, or arrays with id/full_name for passengers booked under an existing customer's name.
-     * @param int|null $pointDepId Traveller-chosen boarding point (possibly a mid-route city), resolved by the
-     *                             search endpoint. Null falls back to the trajet's default GP pickup point.
-     *                             Used for any passenger that doesn't have its own entry in $passengerPointDepIds.
-     * @param Collection|null $passengerPointDepIds Per-passenger boarding point overrides, aligned by index with
-     *                                               $passengers — lets travellers sharing an origin city board
-     *                                               at different stops. A null entry falls back to $pointDepId.
+     * @param  Collection  $passengers  Customer models, or arrays with id/full_name for passengers booked under an existing customer's name.
+     * @param  int|null  $pointDepId  Traveller-chosen boarding point (possibly a mid-route city), resolved by the
+     *                                search endpoint. Null falls back to the trajet's default GP pickup point.
+     *                                Used for any passenger that doesn't have its own entry in $passengerPointDepIds.
+     * @param  Collection|null  $passengerPointDepIds  Per-passenger boarding point overrides, aligned by index with
+     *                                                 $passengers — lets travellers sharing an origin city board
+     *                                                 at different stops. A null entry falls back to $pointDepId.
      * @return Booking[]|JsonResponse
      */
     private function buildBookingsForLeg(
@@ -265,26 +262,26 @@ class BookingService
         foreach ($passengers as $index => $passenger) {
             $booking = new Booking([
                 'referer_id' => $validated['referer_id'] ?? 0,
-                'booked_with_platform' => $validated['booked_with_platform'] ?? "web",
+                'booked_with_platform' => $validated['booked_with_platform'] ?? 'web',
             ]);
             $booking->depart()->associate($depart);
             $booking->bus()->associate($bus);
             if ($passenger instanceof Customer) {
                 $booking->customer()->associate($passenger);
             } else {
-                $booking->customer_id = $passenger["id"];
-                $booking->booked_for_customer = $passenger["full_name"];
+                $booking->customer_id = $passenger['id'];
+                $booking->booked_for_customer = $passenger['full_name'];
             }
             $resolvedPointDepId = $passengerPointDepIds?->get($index) ?? $pointDepId;
             $pointDepartAndDestination = $this->determinePointDepartAndDestinations($depart, $resolvedPointDepId);
-            $booking->point_dep()->associate($pointDepartAndDestination["point_dep"]);
-            $booking->destination()->associate($pointDepartAndDestination["destination"]);
+            $booking->point_dep()->associate($pointDepartAndDestination['point_dep']);
+            $booking->destination()->associate($pointDepartAndDestination['destination']);
             $booking->paye = false;
             // buildBookingsForLeg is only ever called from handleGpMultiPassengerBooking (the dedicated
             // GP booking flow) — always mark it "for_gp" rather than trusting the client to send the
             // 'source: gp' header on this request too, otherwise the booking silently prices at the
             // regular (non-GP) rate while calculatePriceForGpBooking's preview always shows the GP rate.
-            $booking->comment = "for_gp";
+            $booking->comment = 'for_gp';
             $booking->group_id = $groupId;
             $booking->round_trip_id = $roundTripId;
             $booking->trip_leg = $tripLeg;
@@ -293,7 +290,7 @@ class BookingService
 
         if ($selectedSeatNumbers !== null && count($selectedSeatNumbers) > 0) {
             if (count($selectedSeatNumbers) != count($bookings)) {
-                return response()->json(["message" => "Le nombre de sièges sélectionnés ne correspond pas au nombre de passagers"], 422);
+                return response()->json(['message' => 'Le nombre de sièges sélectionnés ne correspond pas au nombre de passagers'], 422);
             }
             $seats = collect($selectedSeatNumbers)->map(function ($seatNumber) use ($bus) {
                 $seat = $bus->seats()
@@ -304,6 +301,7 @@ class BookingService
                 if ($seat == null) {
                     throw new \RuntimeException("Le siège numéro $seatNumber n'existe pas ou n'est pas disponible");
                 }
+
                 return $seat;
             });
         } else {
@@ -322,8 +320,8 @@ class BookingService
             $existingBookings = Booking::where('customer_id', $booking->customer_id)
                 ->where('bus_id', $booking->bus_id)
                 ->whereNull('ticket_id')
-                ->whereNull("deleted_at")
-                ->whereNull("deletion_timestamp")
+                ->whereNull('deleted_at')
+                ->whereNull('deletion_timestamp')
                 ->get();
             $hasExistingBooking = $existingBookings->isNotEmpty();
             foreach ($existingBookings as $existingBooking) {
@@ -364,7 +362,7 @@ class BookingService
     /**
      * Resolves the customer record for each raw passenger input, creating one if needed.
      *
-     * @param array $passengers Raw passenger input arrays (full_name, first_name, last_name, phone_number).
+     * @param  array  $passengers  Raw passenger input arrays (full_name, first_name, last_name, phone_number).
      * @return Collection Customer models, or arrays with id/full_name when the phone number belongs to an already-registered customer.
      */
     private function resolveOrCreatePassengerCustomers(array $passengers): Collection
@@ -376,15 +374,15 @@ class BookingService
                     'prenom' => $passenger['first_name'],
                     'nom' => $passenger['last_name'],
                     'phone_number' => $passenger['phone_number'],
-                    "customer_category_id" => CustomerCategory::where('abrv', "GP")->first()?->id,
+                    'customer_category_id' => CustomerCategory::where('abrv', 'GP')->first()?->id,
                 ]);
             }
 
             return [
-                "id" => $customer->id,
+                'id' => $customer->id,
                 'prenom' => $passenger['first_name'],
                 'nom' => $passenger['last_name'],
-                "full_name" => $passenger['first_name'] . " " . $passenger['last_name'],
+                'full_name' => $passenger['first_name'].' '.$passenger['last_name'],
                 'phone_number' => $passenger['phone_number'],
             ];
         });
@@ -395,10 +393,10 @@ class BookingService
      * @throws ConnectionException
      * @throws GuzzleException
      */
-    public function processGroupBookings(Depart $depart, Request $request, array $bookings = [], $payment_method = null, $platform = "mobile")
+    public function processGroupBookings(Depart $depart, Request $request, array $bookings = [], $payment_method = null, $platform = 'mobile')
     {
         if (count($bookings) == 0) {
-            throw new \InvalidArgumentException("Aucune réservation à enregistrer ");
+            throw new \InvalidArgumentException('Aucune réservation à enregistrer ');
         }
         DB::transaction(function () use ($bookings) {
             foreach ($bookings as $booking) {
@@ -416,69 +414,76 @@ class BookingService
         $main_booking_id = $bookings[0]->id;
         $totalTicketPrice = $this->ticketManager->calculatePriceForMultipleBookings($bookings, $payment_method, $platform)['totalPrice'];
         $payment_method = strtolower($payment_method);
-        if ($payment_method == "wave") {
+        if ($payment_method == 'wave') {
             $metadata = [
-                "amount" => '' . $totalTicketPrice,
-                "client_reference" => [
+                'amount' => ''.$totalTicketPrice,
+                'client_reference' => [
                     'type' => 'multiple_booking',
                     'group_id' => $group_id,
-                    "depart_id" => $depart->id],
-                "error_url" => WavePaiementController::getEndpointForRedirect() . '/#/multiple_bookings/' . $group_id,
-                "success_url" => WavePaiementController::getEndpointForRedirect() . '/#/multiple_bookings/' . $group_id,
+                    'depart_id' => $depart->id],
+                'error_url' => WavePaiementController::getEndpointForRedirect().'/#/multiple_bookings/'.$group_id,
+                'success_url' => WavePaiementController::getEndpointForRedirect().'/#/multiple_bookings/'.$group_id,
             ];
 
             $wavePaiementResponse = $waveController->getPaymentUrl($metadata);
             if ($wavePaiementResponse->isOK()) {
-                $ticketPayment = new TicketPayment();
-                $ticketPayment->payement_method = "wave";
+                $ticketPayment = new TicketPayment;
+                $ticketPayment->payement_method = 'wave';
                 $ticketPayment->status = TicketPayment::STATUS_PENDING;
                 $ticketPayment->montant = $totalTicketPrice;
-                $ticketPayment->meta_data = json_encode($metadata["client_reference"]);
+                $ticketPayment->meta_data = json_encode($metadata['client_reference']);
                 $ticketPayment->group_id = $group_id;
                 $ticketPayment->is_for_multiple_booking = true;
                 $ticketPayment->save();
             }
             $wavePaiementResponse->data['group_id'] = $group_id;
             $wavePaiementResponse->data['main_booking_id'] = $main_booking_id;
-            $wavePaiementResponse->data['paymentMethod'] = "om";
+            $wavePaiementResponse->data['paymentMethod'] = 'om';
+
             return $wavePaiementResponse;
-        } else if ($payment_method == "om") {
+        } elseif ($payment_method == 'om') {
             $metadata = [
-                "amount" => $totalTicketPrice,
-                //TODO om number to be defined
-                "customer" => $request->input("om_number"),
-                "metadata" => [
-                    "group_id" => $group_id,
-                    "type" => "multiple_booking",
-                    "depart_id" => $depart->id,
-                    "bookings" => json_encode(array_map(function (Booking $booking) {
+                'amount' => $totalTicketPrice,
+                // TODO om number to be defined
+                'customer' => $request->input('om_number'),
+                'metadata' => [
+                    'group_id' => $group_id,
+                    'type' => 'multiple_booking',
+                    'depart_id' => $depart->id,
+                    'bookings' => json_encode(array_map(function (Booking $booking) {
                         return $booking->id;
-                    }, $bookings))
+                    }, $bookings)),
                 ],
             ];
 
             $paymentResponse = $omPaymentController->initOMPayment($metadata);
             if ($paymentResponse->isOK()) {
-                $ticketPayment = new TicketPayment();
-                $ticketPayment->payement_method = "om";
+                $ticketPayment = new TicketPayment;
+                $ticketPayment->payement_method = 'om';
                 $ticketPayment->montant = $totalTicketPrice;
                 $ticketPayment->status = TicketPayment::STATUS_PENDING;
-                $ticketPayment->phone_number = $request->input("om_number");
-                $ticketPayment->meta_data = json_encode($metadata["metadata"]);
+                $ticketPayment->phone_number = $request->input('om_number');
+                $ticketPayment->meta_data = json_encode($metadata['metadata']);
                 $ticketPayment->group_id = $group_id;
                 $ticketPayment->is_for_multiple_booking = true;
                 $ticketPayment->save();
             } else {
-                Log::log("error", "Erreur lors de l'initialisation du paiement pour le groupe $group_id");
-                return response()->json(["message" => "Erreur lors de l'initialisation du paiement "], 422);
+                $gatewayErrorMessage = $paymentResponse->paymentGatewayErrorMessage();
+                Log::log('error', "Erreur lors de l'initialisation du paiement pour le groupe $group_id : "
+                    .($gatewayErrorMessage ?? 'raison inconnue'));
+
+                return response()->json([
+                    'message' => $gatewayErrorMessage ?? "Erreur lors de l'initialisation du paiement",
+                ], 422);
             }
 
             $paymentResponse->data['group_id'] = $group_id;
             $paymentResponse->data['main_booking_id'] = $main_booking_id;
-            $paymentResponse->data['paymentMethod'] = "om";
+            $paymentResponse->data['paymentMethod'] = 'om';
+
             return $paymentResponse;
         } else {
-            return response()->json(["message" => "Méthode de paiement non supportée"], 422);
+            return response()->json(['message' => 'Méthode de paiement non supportée'], 422);
         }
     }
 
@@ -496,11 +501,11 @@ class BookingService
             ? $this->resolveChosenPointDepForTrajet($pointDepId, $depart->trajet_id)
             : $this->resolveDefaultGpPointDep($depart->trajet_id);
 
-        //TODO change this later
-        $defaultDestination = Destination::where("id", ($depart->trajet_id == Trajet::UGB_DAKAR ? 2 : 3))
+        // TODO change this later
+        $defaultDestination = Destination::where('id', ($depart->trajet_id == Trajet::UGB_DAKAR ? 2 : 3))
             ->firstOrFail();
 
-        return ["point_dep" => $defaultPointDep, "destination" => $defaultDestination];
+        return ['point_dep' => $defaultPointDep, 'destination' => $defaultDestination];
     }
 
     /**
@@ -510,12 +515,12 @@ class BookingService
      */
     private function resolveChosenPointDepForTrajet(int $pointDepId, int $trajetId): PointDep
     {
-        $pointDep = PointDep::where("id", $pointDepId)
-            ->where("trajet_id", $trajetId)
+        $pointDep = PointDep::where('id', $pointDepId)
+            ->where('trajet_id', $trajetId)
             ->first();
 
         if ($pointDep === null) {
-            throw new \RuntimeException("Le point de départ sélectionné ne correspond pas à ce trajet");
+            throw new \RuntimeException('Le point de départ sélectionné ne correspond pas à ce trajet');
         }
 
         return $pointDep;
@@ -527,11 +532,11 @@ class BookingService
      */
     private function resolveDefaultGpPointDep(int $trajetId): PointDep
     {
-        //TODO change this later
+        // TODO change this later
         return match ($trajetId) {
             Trajet::UGB_DAKAR => PointDep::findOrFail(40),
             Trajet::DAKAR_UGB => PointDep::findOrFail(2),
-            default => PointDep::where("trajet_id", $trajetId)->firstOrFail(),
+            default => PointDep::where('trajet_id', $trajetId)->firstOrFail(),
         };
     }
 }
