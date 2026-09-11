@@ -3,8 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\Depart;
+use App\Models\HeureDepart;
+use App\Models\PointDep;
 use App\Models\Trajet;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class PublicWebsiteTrajetPageTest extends TestCase
@@ -97,7 +100,29 @@ class PublicWebsiteTrajetPageTest extends TestCase
         $this->getJson('/api/mobile/departs/trajet/'.$trajet->id)->assertStatus(200);
     }
 
-    public function test_a_caravane_page_resolves_by_slug_and_reuses_the_mobile_resource(): void
+    private function createVisibleUpcomingDepart(Trajet $trajet, array $busOverrides = []): Depart
+    {
+        $depart = Depart::create([
+            'name' => 'DEPART WEB '.uniqid(),
+            'date' => now()->addDays(5),
+            'trajet_id' => $trajet->id,
+            'visibilite' => Depart::VISIBILITE_ALL_CUSTOMERS,
+            'closed' => false,
+            'locked' => false,
+            'canceled' => false,
+        ]);
+
+        $depart->buses()->create(array_merge([
+            'name' => 'Bus Web Test',
+            'nombre_place' => 50,
+            'ticket_price' => 4200,
+            'closed' => false,
+        ], $busOverrides));
+
+        return $depart->fresh();
+    }
+
+    public function test_a_caravane_page_resolves_by_slug_and_exposes_its_departs(): void
     {
         $trajet = $this->createTrajet();
 
@@ -109,6 +134,95 @@ class PublicWebsiteTrajetPageTest extends TestCase
         $response->assertViewHas('trajetDeparts', fn (array $data) => array_key_exists('departs', $data));
         $response->assertSee('Départs — '.$trajet->name);
         $response->assertSee("Aucun départ n'est programmé", false);
+    }
+
+    public function test_the_caravane_page_does_not_embed_pickup_times_and_loads_them_lazily(): void
+    {
+        $trajet = $this->createTrajet();
+        $depart = $this->createVisibleUpcomingDepart($trajet);
+        $bus = $depart->buses()->first();
+        $pointDep = PointDep::create(['name' => 'Gare Routière Lazy '.uniqid(), 'trajet_id' => $trajet->id]);
+        HeureDepart::create([
+            'depart_id' => $depart->id,
+            'bus_id' => $bus->id,
+            'point_dep_id' => $pointDep->id,
+            'heureDepart' => '07:30',
+        ]);
+
+        $response = $this->get($this->websiteUrl('/caravanes/'.$trajet->slug));
+
+        $response->assertStatus(200);
+        // The pickup point is fetched only when the visitor expands "Heures de départ".
+        $response->assertDontSee($pointDep->name);
+        $response->assertSee('data-schedule-url', false);
+        $response->assertSee(route('website.caravanes.schedule', ['depart' => $depart->id]).'?bus='.$bus->id, false);
+    }
+
+    public function test_the_caravane_page_runs_a_bounded_number_of_queries_regardless_of_depart_count(): void
+    {
+        $trajet = $this->createTrajet();
+        for ($departNumber = 1; $departNumber <= 6; $departNumber++) {
+            $this->createVisibleUpcomingDepart($trajet);
+        }
+
+        DB::enableQueryLog();
+        $this->get($this->websiteUrl('/caravanes/'.$trajet->slug))->assertStatus(200);
+        $queryCount = count(DB::getQueryLog());
+        DB::disableQueryLog();
+
+        // The lean resource eager-loads départs + buses in a handful of queries; the old mobile
+        // resource issued several per bus (hundreds on a busy trajet).
+        $this->assertLessThan(40, $queryCount, "Caravane page ran {$queryCount} queries");
+    }
+
+    public function test_the_caravane_schedule_endpoint_returns_a_bus_pickup_schedule_as_json(): void
+    {
+        $trajet = $this->createTrajet();
+        $depart = $this->createVisibleUpcomingDepart($trajet);
+        $bus = $depart->buses()->first();
+        $pointDep = PointDep::create([
+            'name' => 'Gare de Thiès '.uniqid(),
+            'trajet_id' => $trajet->id,
+            'arret_bus' => 'Devant la station',
+        ]);
+        HeureDepart::create([
+            'depart_id' => $depart->id,
+            'bus_id' => $bus->id,
+            'point_dep_id' => $pointDep->id,
+            'heureDepart' => '06:15',
+        ]);
+
+        $response = $this->getJson($this->websiteUrl('/caravanes/horaires/'.$depart->id.'?bus='.$bus->id));
+
+        $response->assertStatus(200);
+        $response->assertExactJson([[
+            'name' => $pointDep->name,
+            'arret_bus' => 'Devant la station',
+            'schedule' => '06h15',
+        ]]);
+    }
+
+    public function test_the_caravane_schedule_endpoint_falls_back_to_the_depart_schedule(): void
+    {
+        $trajet = $this->createTrajet();
+        $depart = $this->createVisibleUpcomingDepart($trajet);
+        $bus = $depart->buses()->first();
+        $pointDep = PointDep::create(['name' => 'Arrêt Départ '.uniqid(), 'trajet_id' => $trajet->id]);
+        // A départ-wide pickup time only — the bus has none of its own.
+        HeureDepart::create([
+            'depart_id' => $depart->id,
+            'point_dep_id' => $pointDep->id,
+            'heureDepart' => '08:00',
+        ]);
+
+        $response = $this->getJson($this->websiteUrl('/caravanes/horaires/'.$depart->id.'?bus='.$bus->id));
+
+        $response->assertStatus(200);
+        $response->assertExactJson([[
+            'name' => $pointDep->name,
+            'arret_bus' => null,
+            'schedule' => '08h00',
+        ]]);
     }
 
     public function test_a_caravane_page_shows_a_visible_upcoming_depart_with_its_bus_price(): void

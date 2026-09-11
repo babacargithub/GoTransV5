@@ -19,14 +19,13 @@ class Bus extends Model
         'closed',
         'closed_at',
         'deleted_at',
-        "nombre_place",
-        "ticket_price",
-        "gp_ticket_price",
-        "vehicule_id",
-        "visibilite",
-        "itinerary_id",
-        "agent_numbers",
-
+        'nombre_place',
+        'ticket_price',
+        'gp_ticket_price',
+        'vehicule_id',
+        'visibilite',
+        'itinerary_id',
+        'agent_numbers',
 
     ];
 
@@ -34,49 +33,63 @@ class Bus extends Model
     {
         return $this->belongsTo(Depart::class);
     }
+
     public function vehicule(): BelongsTo
     {
         return $this->belongsTo(Vehicule::class);
 
     }
+
     public function seats(): HasMany
     {
         return $this->hasMany(BusSeat::class);
     }
+
     public function bookings(): HasMany
     {
         return $this->hasMany(Booking::class);
 
     }
-    public function heuresDeparts() : HasMany
+
+    public function heuresDeparts(): HasMany
     {
         return $this->hasMany(HeureDepart::class);
     }
+
     public function seatsLeft(): int
     {
-           return $this->seats()
-               ->whereNotExists(function ($query) {
-                   $query->select('id')
-                       ->from('bookings')
-                       ->whereColumn('bookings.seat_id', 'bus_seats.id')
-                       ->whereNull('bookings.deleted_at');
-               })
-               ->count();
+        // Callers that eager-load the free-seat count (withCount('seats as available_seats_count'
+        // ...') — e.g. the public website's CaravaneDepartsResource) skip the per-bus query.
+        if (array_key_exists('available_seats_count', $this->attributes)) {
+            return (int) $this->attributes['available_seats_count'];
+        }
+
+        return $this->seats()
+            ->whereNotExists(function ($query) {
+                $query->select('id')
+                    ->from('bookings')
+                    ->whereColumn('bookings.seat_id', 'bus_seats.id')
+                    ->whereNull('bookings.deleted_at');
+            })
+            ->count();
 
     }
+
     public function numberOfBookedSeats(): int
     {
         return $this->bookings()->whereNotNull('seat_id')->count();
 
     }
+
     public function isFull(): bool
     {
-        return $this->seatsLeft() <= 0 ;
+        return $this->seatsLeft() <= 0;
 
     }
+
     public function isClosed(): bool
     {
-        return (bool)$this->closed || (bool) $this->depart->closed;
+        return (bool) $this->closed || (bool) $this->depart->closed;
 
     }
 
@@ -85,6 +98,7 @@ class Bus extends Model
         return $this->seatsLeft() >= $numberOfBookings;
 
     }
+
     public function getAvailableSeats(): Collection
     {
         return $this->seats()
@@ -95,28 +109,31 @@ class Bus extends Model
                     ->whereNull('bookings.deleted_at');
             })
             ->lockForUpdate()
-            ->orderBy("bus_seats.seat_id","asc")->get();
+            ->orderBy('bus_seats.seat_id', 'asc')->get();
 
     }
+
     public function getOneAvailableSeat(): BusSeat
     {
         $availableSeat = $this->getAvailableSeats()->first();
-        if ($availableSeat == null){
-            throw new ModelNotFoundException("Aucun siège trouvé dans ce bus ".$this->full_name);
+        if ($availableSeat == null) {
+            throw new ModelNotFoundException('Aucun siège trouvé dans ce bus '.$this->full_name);
         }
+
         return $availableSeat;
 
-
     }
-    public function numberOfTicketsSold() : int
+
+    public function numberOfTicketsSold(): int
     {
         // bookings that have tickets
         return $this->bookings()->whereNotNull('ticket_id')->count();
     }
+
     public function getFullNameAttribute(): string
     {
 
-        return $this->depart->identifier(with_trajet_prefix: true) . ' - ' . $this->name;
+        return $this->depart->identifier(with_trajet_prefix: true).' - '.$this->name;
 
     }
 
@@ -143,6 +160,7 @@ class Bus extends Model
     {
         return $this->agent_numbers ?: (string) $fallback;
     }
+
     // add global scope filter buses for departs that are not cancelled
     protected static function boot(): void
     {
@@ -153,51 +171,56 @@ class Bus extends Model
             });
         });
     }
-    public function close() : self
+
+    public function close(): self
     {
         $this->closed = true;
         $this->closed_at = now();
 
         return $this;
     }
-    public function open() : self
+
+    public function open(): self
     {
         $this->closed = false;
         $this->closed_at = null;
 
         return $this;
     }
+
     public function waitingCustomers(): HasMany
     {
         return $this->hasMany(WaitingCustomer::class);
 
     }
+
     public function pointDeparts(): HasMany
     {
         return $this->hasMany(PointDepBus::class);
 
     }
+
     public function destinations(): HasMany
     {
         return $this->hasMany(DestinationBus::class);
 
     }
+
     public function getClimatiseAttribute(): bool
     {
         return $this->vehicule?->vehicule_type == Vehicule::VEHICULE_TYPE_CLIMATISE;
     }
+
     public function getTicketPriceAttribute(): int
     {
-        if (is_request_for_gp_customers()){
-            if ($this->attributes["gp_ticket_price"] == null){
+        if (is_request_for_gp_customers()) {
+            if ($this->attributes['gp_ticket_price'] == null) {
                 // TODO make this dynamic later
                 return 6600;
-            }
-            else{
+            } else {
                 return max($this->attributes['gp_ticket_price'], $this->attributes['ticket_price']);
             }
-        }
-        else{
+        } else {
             return $this->attributes['ticket_price'];
         }
     }
@@ -207,11 +230,9 @@ class Bus extends Model
         return $this->belongsTo(Itinerary::class);
     }
 
-
-
     protected $casts = [
         'closed' => 'boolean',
-        'closed_at' => 'datetime'
+        'closed_at' => 'datetime',
 
     ];
 }

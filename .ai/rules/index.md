@@ -6,6 +6,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 | --- | --- |
 | app/Livewire/Auth/** | .ai/rules/auth.md |
 | app/Livewire/BackOffice/** | .ai/rules/back-office.md |
+| app/Http/Resources/CaravaneDepartsResource.php,app/Http/Resources/MobileTrajetDepartsResource.php,app/Models/Depart.php,app/Http/Controllers/MobileAppController.php,resources/views/website/caravanes/show.blade.php | .ai/rules/caravanes.md |
 | app/Http/Controllers/** | .ai/rules/controllers.md |
 | resources/views/components/layouts/back-office.blade.php, resources/views/components/layouts/website.blade.php | .ai/rules/layouts.md |
 | app/Models/Trajet.php | .ai/rules/models.md |

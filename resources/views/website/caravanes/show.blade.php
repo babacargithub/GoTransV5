@@ -1,6 +1,4 @@
 @php
-    use App\Models\Bus;
-    use App\Models\Depart;
     use Illuminate\Support\Carbon;
 
     $trajetLabel = $trajet->public_name ?? $trajet->name;
@@ -8,7 +6,7 @@
         ? "{$trajet->departure_city} vers {$trajet->arrival_city}"
         : $trajetLabel;
 
-    // Flatten the mobile resource (départ -> buses) into one bookable "trip" card per bus,
+    // Flatten CaravaneDepartsResource (départ -> buses) into one bookable "trip" card per bus,
     // matching the mobile app's departure list.
     $tripCards = collect($trajetDeparts['departs'] ?? [])->flatMap(function (array $depart) {
         $departDate = Carbon::parse($depart['date'])->locale('fr');
@@ -44,41 +42,6 @@
             'unavailable' => $departUnavailable || ($bus['full'] ?? false) || ($bus['closed'] ?? false),
         ]))->all();
     })->values();
-
-    // "Heures de départ" = the pickup schedule of the bus shown on the card (its own heure_departs
-    // when set, otherwise the départ's — same resolution as the mobile app's per-bus times).
-    $mapHeureDepart = fn ($heureDepart) => [
-        'name' => $heureDepart->pointDep?->name,
-        'arret_bus' => $heureDepart->pointDep?->arret_bus,
-        'schedule' => $heureDepart->heureDepart?->format('H\hi'),
-    ];
-    $onlyRealStops = fn ($stop) => filled($stop['name']) && filled($stop['schedule']);
-
-    $busSchedules = Bus::query()
-        ->whereIn('id', $tripCards->pluck('bus_id')->filter()->unique())
-        ->with(['heuresDeparts' => fn ($query) => $query->orderBy('heureDepart'), 'heuresDeparts.pointDep'])
-        ->get()
-        ->mapWithKeys(fn ($bus) => [
-            $bus->id => $bus->heuresDeparts->map($mapHeureDepart)->filter($onlyRealStops)->values(),
-        ]);
-
-    $departFallbackSchedules = Depart::query()
-        ->whereIn('id', $tripCards->pluck('depart_id')->filter()->unique())
-        ->with(['heuresDeparts' => fn ($query) => $query->orderBy('heureDepart'), 'heuresDeparts.pointDep'])
-        ->get()
-        ->mapWithKeys(fn ($depart) => [
-            $depart->id => $depart->heuresDeparts->map($mapHeureDepart)->filter($onlyRealStops)->values(),
-        ]);
-
-    $tripCards = $tripCards->map(function (array $trip) use ($busSchedules, $departFallbackSchedules) {
-        $schedules = collect($busSchedules->get($trip['bus_id']) ?? []);
-        if ($schedules->isEmpty()) {
-            $schedules = collect($departFallbackSchedules->get($trip['depart_id']) ?? []);
-        }
-        $trip['schedules'] = $schedules;
-
-        return $trip;
-    });
 @endphp
 
 <x-layouts.website
@@ -121,35 +84,30 @@
                                 </p>
                                 <p class="text-sm text-muted-foreground mt-0.5">
                                     {{ $trip['date_label'] }}
-                                    @if ($trip['climatise'])
-                                        · Climatisé
-                                    @endif
                                     @if ($trip['unavailable'])
                                         · {{ $trip['is_passed'] ? 'Terminé' : 'Complet' }}
                                     @endif
                                 </p>
+                                <p class="text-xs text-muted-foreground">
+                                    {{ $trip['bus_type'] }}@if ($trip['climatise']) · Climatisé@endif
+                                </p>
 
-                                <details class="mt-1.5 group">
+                                <details
+                                    class="mt-1.5 group"
+                                    data-schedule
+                                    data-schedule-url="{{ route('website.caravanes.schedule', ['depart' => $trip['depart_id']]) }}{{ $trip['bus_id'] ? '?bus='.$trip['bus_id'] : '' }}"
+                                    data-schedule-fallback="Départ à {{ $trip['time'] }}"
+                                >
                                     <summary class="flex items-center gap-1.5 text-brand-navy text-xs font-semibold cursor-pointer list-none active:text-brand-cyan">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                             <circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 2"/>
                                         </svg>
                                         <span>Heures de départ</span>
                                     </summary>
-                                    <ul class="mt-2 divide-y divide-line text-xs">
-                                        @forelse ($trip['schedules'] as $stop)
-                                            <li class="flex items-start justify-between gap-3 py-1.5">
-                                                <span class="min-w-0">
-                                                    <span class="text-brand-navy">{{ $stop['name'] }}</span>
-                                                    @if (! empty($stop['arret_bus']))
-                                                        <span class="block text-muted-foreground">{{ $stop['arret_bus'] }}</span>
-                                                    @endif
-                                                </span>
-                                                <span class="shrink-0 font-semibold text-brand-navy">{{ $stop['schedule'] }}</span>
-                                            </li>
-                                        @empty
-                                            <li class="py-1.5 text-muted-foreground">Départ à {{ $trip['time'] }}</li>
-                                        @endforelse
+                                    {{-- Filled in on first expand by the @push('scripts') block; this
+                                         fallback is what no-JS visitors and failed fetches see. --}}
+                                    <ul class="mt-2 divide-y divide-line text-xs" data-schedule-list>
+                                        <li class="py-1.5 text-muted-foreground">Départ à {{ $trip['time'] }}</li>
                                     </ul>
                                 </details>
 
@@ -206,4 +164,72 @@
             @endforelse
         </div>
     </section>
+
+    @push('scripts')
+        <script>
+            // Lazy-load a départ card's pickup schedule the first time the visitor expands it,
+            // so the caravane page itself runs no per-départ schedule queries.
+            document.querySelectorAll('details[data-schedule]').forEach(function (details) {
+                details.addEventListener('toggle', function onToggle() {
+                    if (! details.open || details.dataset.scheduleLoaded) {
+                        return;
+                    }
+                    details.dataset.scheduleLoaded = 'true';
+
+                    var list = details.querySelector('[data-schedule-list]');
+                    var fallback = details.dataset.scheduleFallback;
+
+                    var renderMessage = function (message) {
+                        list.innerHTML = '<li class="py-1.5 text-muted-foreground"></li>';
+                        list.firstChild.textContent = message;
+                    };
+
+                    fetch(details.dataset.scheduleUrl, { headers: { 'Accept': 'application/json' } })
+                        .then(function (response) {
+                            if (! response.ok) {
+                                throw new Error('Unable to load schedule');
+                            }
+                            return response.json();
+                        })
+                        .then(function (stops) {
+                            if (! Array.isArray(stops) || stops.length === 0) {
+                                renderMessage(fallback);
+                                return;
+                            }
+
+                            list.innerHTML = '';
+                            stops.forEach(function (stop) {
+                                var row = document.createElement('li');
+                                row.className = 'flex items-start justify-between gap-3 py-1.5';
+
+                                var left = document.createElement('span');
+                                left.className = 'min-w-0';
+                                var name = document.createElement('span');
+                                name.className = 'text-brand-navy';
+                                name.textContent = stop.name || '';
+                                left.appendChild(name);
+                                if (stop.arret_bus) {
+                                    var arret = document.createElement('span');
+                                    arret.className = 'block text-muted-foreground';
+                                    arret.textContent = stop.arret_bus;
+                                    left.appendChild(arret);
+                                }
+
+                                var time = document.createElement('span');
+                                time.className = 'shrink-0 font-semibold text-brand-navy';
+                                time.textContent = stop.schedule || '';
+
+                                row.appendChild(left);
+                                row.appendChild(time);
+                                list.appendChild(row);
+                            });
+                        })
+                        .catch(function () {
+                            details.dataset.scheduleLoaded = '';
+                            renderMessage(fallback);
+                        });
+                });
+            });
+        </script>
+    @endpush
 </x-layouts.website>

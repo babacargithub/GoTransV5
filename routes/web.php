@@ -76,6 +76,11 @@ Route::domain(config('app.public_website_domain'))->name('website.')->group(func
     Route::get('caravanes/{trajet:slug}', [MobileAppController::class, 'listeDepartsTrajet'])
         ->name('caravanes.show');
 
+    // Pickup schedule for one départ card, fetched on demand when a visitor expands
+    // "Heures de départ" (keeps the caravane page itself free of per-départ schedule queries).
+    Route::get('caravanes/horaires/{depart}', [MobileAppController::class, 'caravaneDepartSchedule'])
+        ->name('caravanes.schedule');
+
     // Student booking funnel — collects the passengers then hands the payload to the
     // untouched mobile booking backend. Transactional page: noindex.
     Route::get('reserver/{depart}', StudentBooking::class)->name('bookings.create');
