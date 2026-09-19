@@ -58,12 +58,6 @@ class Bus extends Model
 
     public function seatsLeft(): int
     {
-        // Callers that eager-load the free-seat count (withCount('seats as available_seats_count'
-        // ...') — e.g. the public website's CaravaneDepartsResource) skip the per-bus query.
-        if (array_key_exists('available_seats_count', $this->attributes)) {
-            return (int) $this->attributes['available_seats_count'];
-        }
-
         return $this->seats()
             ->whereNotExists(function ($query) {
                 $query->select('id')
@@ -83,6 +77,12 @@ class Bus extends Model
 
     public function isFull(): bool
     {
+        // Callers that eager-load a `has_available_seat` existence flag (withExists — e.g. the
+        // public website's CaravaneDepartsResource) skip the per-bus seat query entirely.
+        if (array_key_exists('has_available_seat', $this->attributes)) {
+            return ! $this->attributes['has_available_seat'];
+        }
+
         return $this->seatsLeft() <= 0;
 
     }

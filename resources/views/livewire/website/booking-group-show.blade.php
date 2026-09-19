@@ -117,7 +117,10 @@
                         wire:target="payWithWave"
                         class="w-full rounded-full bg-brand-cyan px-6 py-3 font-semibold text-brand-navy active:brightness-95 disabled:opacity-60"
                     >
-                        <span wire:loading.remove wire:target="payWithWave">Payer par Wave</span>
+                        <span wire:loading.remove wire:target="payWithWave" class="inline-flex items-center justify-center gap-2">
+                            <img src="{{ asset('images/payments/wave.png') }}" alt="" class="h-5 w-5 rounded-full object-contain">
+                            Payer par Wave
+                        </span>
                         <span wire:loading wire:target="payWithWave">Initialisation…</span>
                     </button>
 
@@ -142,7 +145,10 @@
                             wire:target="payWithOrangeMoney"
                             class="mt-2 w-full rounded-full border border-brand-navy/20 px-6 py-2.5 font-semibold active:brightness-95 disabled:opacity-60"
                         >
-                            <span wire:loading.remove wire:target="payWithOrangeMoney">Payer par Orange Money</span>
+                            <span wire:loading.remove wire:target="payWithOrangeMoney" class="inline-flex items-center justify-center gap-2">
+                                <img src="{{ asset('images/payments/orange-money.png') }}" alt="" class="h-5 w-5 rounded-full object-contain">
+                                Payer par Orange Money
+                            </span>
                             <span wire:loading wire:target="payWithOrangeMoney">Initialisation…</span>
                         </button>
                     </div>

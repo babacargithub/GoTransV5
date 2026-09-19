@@ -5,6 +5,9 @@ use App\Http\Controllers\BusController;
 use App\Http\Controllers\DepartController;
 use App\Http\Controllers\MobileAppController;
 use App\Http\Controllers\TicketController;
+use App\Http\Middleware\CachePublicHtmlResponse;
+use App\Http\Middleware\EncryptCookies;
+use App\Http\Middleware\VerifyCsrfToken;
 use App\Livewire\BackOffice\AddBusToDepart;
 use App\Livewire\BackOffice\AppParamsPage;
 use App\Livewire\BackOffice\BusBookings;
@@ -27,7 +30,10 @@ use App\Livewire\Profile\Edit;
 use App\Livewire\Website\BookingGroupShow;
 use App\Livewire\Website\StudentBooking;
 use App\Models\Trajet;
+use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
+use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Route;
+use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 // Public, unauthenticated ticket download page: anyone with the group_id can view/download the tickets.
 Route::get('/tickets/group/{groupId}', [TicketController::class, 'showGroupTickets'])->name('tickets.group.show');
@@ -59,30 +65,51 @@ Route::domain(config('app.gp_domain'))->group(function () {
  * and app/Livewire/Website/, mirroring the back-office structure.
  */
 Route::domain(config('app.public_website_domain'))->name('website.')->group(function () {
-    Route::get('/', function () {
-        return view('website.home', [
-            'trajets' => Trajet::query()->publiclyVisible()->get(),
-        ]);
-    })->name('home');
 
-    // Secondary sections linked from the header navigation. Placeholder content for now.
-    Route::view('yobante', 'website.yobante')->name('yobante');
-    Route::view('aide', 'website.aide')->name('aide');
+    /*
+     * Read-only, anonymous, SEO pages. They carry no session and set no cookies, so the whole
+     * session/cookie/CSRF part of the `web` group is stripped — that alone removes two `sessions`
+     * queries and the cookie-encryption pass from every hit. SubstituteBindings stays (the slug
+     * binding). The caravane list + home also get CachePublicHtmlResponse (full-HTML cache).
+     */
+    Route::withoutMiddleware([
+        EncryptCookies::class,
+        AddQueuedCookiesToResponse::class,
+        StartSession::class,
+        ShareErrorsFromSession::class,
+        VerifyCsrfToken::class,
+    ])->group(function () {
 
-    // Per-trajet page: lists that trajet's upcoming départs. Resolved by SEO slug.
-    // Public URL segment is "caravanes" — the word customers (and SEO) use for a trajet;
-    // internally the concept stays "trajet". Reuses MobileAppController@listeDepartsTrajet
-    // (same logic as api/mobile/departs/trajet/{trajet}), which branches on the route.
-    Route::get('caravanes/{trajet:slug}', [MobileAppController::class, 'listeDepartsTrajet'])
-        ->name('caravanes.show');
+        Route::middleware(CachePublicHtmlResponse::class)->group(function () {
+            Route::get('/', function () {
+                return view('website.home', [
+                    'trajets' => Trajet::query()->publiclyVisible()->get(),
+                ]);
+            })->name('home');
 
-    // Pickup schedule for one départ card, fetched on demand when a visitor expands
-    // "Heures de départ" (keeps the caravane page itself free of per-départ schedule queries).
-    Route::get('caravanes/horaires/{depart}', [MobileAppController::class, 'caravaneDepartSchedule'])
-        ->name('caravanes.schedule');
+            // Secondary sections linked from the header navigation. Placeholder content for now.
+            Route::view('yobante', 'website.yobante')->name('yobante');
+            Route::view('aide', 'website.aide')->name('aide');
+
+            // Per-trajet page: lists that trajet's upcoming départs. Resolved by SEO slug.
+            // Public URL segment is "caravanes" — the word customers (and SEO) use for a trajet;
+            // internally the concept stays "trajet". Reuses MobileAppController@listeDepartsTrajet
+            // (same logic as api/mobile/departs/trajet/{trajet}), which branches on the route.
+            Route::get('caravanes/{trajet:slug}', [MobileAppController::class, 'listeDepartsTrajet'])
+                ->name('caravanes.show');
+        });
+
+        // Pickup schedule for one départ card, fetched on demand when a visitor expands
+        // "Heures de départ" (keeps the caravane page itself free of per-départ schedule queries).
+        // Not full-HTML cached: tiny JSON, and its data (heure_departs) is outside the cache
+        // invalidation set.
+        Route::get('caravanes/horaires/{depart}', [MobileAppController::class, 'caravaneDepartSchedule'])
+            ->name('caravanes.schedule');
+    });
 
     // Student booking funnel — collects the passengers then hands the payload to the
-    // untouched mobile booking backend. Transactional page: noindex.
+    // untouched mobile booking backend. Transactional page: noindex. Keeps the full `web`
+    // stack (Livewire needs session + CSRF).
     Route::get('reserver/{depart}', StudentBooking::class)->name('bookings.create');
 
     // Public booking page, addressed by the group's shared UUID (not the numeric group_id).

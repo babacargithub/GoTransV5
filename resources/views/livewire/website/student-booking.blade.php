@@ -120,10 +120,12 @@
                     <div class="mt-2 grid grid-cols-2 gap-3">
                         <label class="flex cursor-pointer items-center gap-2 rounded-xl border border-brand-navy/20 bg-white px-3 py-2.5 has-[:checked]:border-brand-cyan has-[:checked]:ring-1 has-[:checked]:ring-brand-cyan">
                             <input type="radio" value="wave" wire:model.live="paymentMethod" class="accent-brand-cyan">
+                            <img src="{{ asset('images/payments/wave.png') }}" alt="" class="h-6 w-6 rounded-full object-contain">
                             <span class="font-medium">Wave</span>
                         </label>
                         <label class="flex cursor-pointer items-center gap-2 rounded-xl border border-brand-navy/20 bg-white px-3 py-2.5 has-[:checked]:border-brand-cyan has-[:checked]:ring-1 has-[:checked]:ring-brand-cyan">
                             <input type="radio" value="om" wire:model.live="paymentMethod" class="accent-brand-cyan">
+                            <img src="{{ asset('images/payments/orange-money.png') }}" alt="" class="h-6 w-6 rounded-full object-contain">
                             <span class="font-medium">Orange Money</span>
                         </label>
                     </div>

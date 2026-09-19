@@ -19,9 +19,9 @@ use Illuminate\Support\Collection;
  * The mobile app's {@see MobileTrajetDepartsResource} carries per-bus point départs, destinations,
  * attachments and discount fields the website never renders, and resolves them with a query per bus
  * (hundreds of queries on a busy trajet). This resource returns only the fields the caravane page
- * uses and eager-loads everything it needs, while reusing the same bus-selection rule
- * ({@see Depart::getBusesForBooking()}). Départ pickup times are loaded lazily by the page
- * (MobileAppController::caravaneDepartSchedule()), not here.
+ * uses and eager-loads everything it needs in 3 queries (départs + buses + one shared promo table),
+ * while reusing the same bus-selection rule ({@see Depart::getBusesForBooking()}). Départ pickup
+ * times are loaded lazily by the page (MobileAppController::caravaneDepartSchedule()), not here.
  *
  * @property-read Trajet $resource
  */
@@ -34,7 +34,13 @@ class CaravaneDepartsResource extends JsonResource
     {
         $upcomingDeparts = $this->loadUpcomingDeparts();
         $promotionalMessages = PromotionalMessage::all();
-        $availableVehicules = Vehicule::all();
+
+        // Every vehicle type present on this trajet's buses, id-ordered — the only vehicles
+        // Depart::getBusesForBooking() can match, so deriving them here avoids a Vehicule::all() query.
+        $availableVehicules = $upcomingDeparts
+            ->pluck('buses')->flatten(1)
+            ->pluck('vehicule')->filter()
+            ->unique('id')->sortBy('id')->values();
 
         return [
             'departs' => $upcomingDeparts->map(function (Depart $depart) use ($promotionalMessages, $availableVehicules) {
@@ -47,7 +53,11 @@ class CaravaneDepartsResource extends JsonResource
                     'id' => $depart->id,
                     'name' => $depart->name,
                     'date' => $depart->date->format('Y-m-d H:i:s'),
-                    'is_closed' => $depart->closed,
+                    // No `is_closed`/`full` fields: a full or closed départ/bus stays bookable on
+                    // the website — the backend puts the customer on the waiting list instead of
+                    // rejecting them outright (see StudentBooking's docblock). Only a départ that
+                    // has already left ("is_passed") is a hard block, so that's the only
+                    // availability flag the UI needs.
                     'is_passed' => $depart->isPassed(),
                     'ticket_price' => $bookableBuses->first()?->ticket_price,
                     'show_promotional_message' => $promotionalMessage !== null && ! $promotionalMessage->paused,
@@ -57,8 +67,6 @@ class CaravaneDepartsResource extends JsonResource
                         'name' => $bus->vehicule?->name ?? 'Bus ordinaire',
                         'climatise' => (bool) $bus->vehicule?->climatise,
                         'ticket_price' => $bus->ticket_price,
-                        'full' => $bus->isFull(),
-                        'closed' => $bus->isClosed(),
                     ])->values()->all(),
                 ];
             })->values()->all(),
@@ -66,8 +74,11 @@ class CaravaneDepartsResource extends JsonResource
     }
 
     /**
-     * Upcoming départs visible to customers, with their buses (and each bus's vehicle + a
-     * precomputed free-seat count so {@see Bus::isFull()} needs no per-bus query).
+     * Upcoming départs visible to customers, with their buses + each bus's vehicle and a
+     * `has_available_seat` flag (an EXISTS probe, cheaper than counting) so {@see Bus::isFull()}
+     * needs no per-bus query. That flag isn't exposed in the output (see toArray()) — it's still
+     * loaded because {@see Depart::getBusesForBooking()} calls isFull() internally to prefer an
+     * open bus when several share the same vehicle type.
      *
      * @return EloquentCollection<int, Depart>
      */
@@ -77,8 +88,8 @@ class CaravaneDepartsResource extends JsonResource
             ->where('date', '>=', now())
             ->whereIn('visibilite', [Depart::VISIBILITE_ALL_CUSTOMERS, Depart::VISIBILITE_ST_CUSTOMERS_ONLY])
             ->orderBy('date')
-            ->with(['buses' => fn ($query) => $query->with('vehicule')->withCount([
-                'seats as available_seats_count' => fn ($seatsQuery) => $seatsQuery->whereNotExists(
+            ->with(['buses' => fn ($query) => $query->with('vehicule')->withExists([
+                'seats as has_available_seat' => fn ($seatsQuery) => $seatsQuery->whereNotExists(
                     fn ($bookingQuery) => $bookingQuery->select('id')
                         ->from('bookings')
                         ->whereColumn('bookings.seat_id', 'bus_seats.id')
@@ -95,10 +106,10 @@ class CaravaneDepartsResource extends JsonResource
     }
 
     /**
-     * @param  EloquentCollection<int, Vehicule>  $availableVehicules
+     * @param  Collection<int, Vehicule>  $availableVehicules
      * @return Collection<int, Bus>
      */
-    private function resolveBookableBuses(Depart $depart, EloquentCollection $availableVehicules): Collection
+    private function resolveBookableBuses(Depart $depart, Collection $availableVehicules): Collection
     {
         try {
             return $depart->getBusesForBooking($availableVehicules);

@@ -10,7 +10,10 @@
     // matching the mobile app's departure list.
     $tripCards = collect($trajetDeparts['departs'] ?? [])->flatMap(function (array $depart) {
         $departDate = Carbon::parse($depart['date'])->locale('fr');
-        $departUnavailable = ($depart['is_closed'] ?? false) || ($depart['is_passed'] ?? false);
+        // A départ/bus stays bookable when it's full or closed — the backend puts the customer
+        // on the waiting list instead of rejecting them (see StudentBooking's docblock), so
+        // neither state greys out the card. Only a départ that has already left is a hard block.
+        $departUnavailable = (bool) ($depart['is_passed'] ?? false);
         $buses = collect($depart['buses'] ?? []);
 
         $baseCard = [
@@ -39,7 +42,7 @@
             'bus_type' => $bus['name'] ?? 'Bus',
             'climatise' => (bool) ($bus['climatise'] ?? false),
             'price' => $bus['ticket_price'] ?? $depart['ticket_price'] ?? null,
-            'unavailable' => $departUnavailable || ($bus['full'] ?? false) || ($bus['closed'] ?? false),
+            'unavailable' => $departUnavailable,
         ]))->all();
     })->values();
 @endphp
@@ -84,8 +87,10 @@
                                 </p>
                                 <p class="text-sm text-muted-foreground mt-0.5">
                                     {{ $trip['date_label'] }}
+                                    {{-- unavailable is driven solely by is_passed now — full/closed
+                                         buses stay bookable, see $departUnavailable above. --}}
                                     @if ($trip['unavailable'])
-                                        · {{ $trip['is_passed'] ? 'Terminé' : 'Complet' }}
+                                        · Terminé
                                     @endif
                                 </p>
                                 <p class="text-xs text-muted-foreground">

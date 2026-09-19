@@ -2,7 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Models\Booking;
+use App\Models\Customer;
 use App\Models\Depart;
+use App\Models\Destination;
 use App\Models\HeureDepart;
 use App\Models\PointDep;
 use App\Models\Trajet;
@@ -256,6 +259,69 @@ class PublicWebsiteTrajetPageTest extends TestCase
         $response->assertDontSee('Sélectionnez un bus pour continuer');
     }
 
+    public function test_a_full_bus_still_shows_an_active_reserver_link(): void
+    {
+        // createVisibleUpcomingDepart's bus has no bus_seats rows at all, so it has zero free
+        // seats — i.e. it's "full". The website must still offer it as bookable: the backend
+        // waitlists the customer instead of rejecting the booking outright.
+        $trajet = $this->createTrajet();
+        $depart = $this->createVisibleUpcomingDepart($trajet);
+        $bus = $depart->buses()->first();
+        $this->assertTrue($bus->isFull());
+
+        $response = $this->get($this->websiteUrl('/caravanes/'.$trajet->slug));
+
+        $response->assertStatus(200);
+        $response->assertDontSee('cursor-not-allowed', false);
+        $response->assertSee(
+            route('website.bookings.create', ['depart' => $depart->id, 'bus_id' => $bus->id]),
+            false,
+        );
+    }
+
+    public function test_a_closed_bus_still_shows_an_active_reserver_link(): void
+    {
+        // Closing a bus/départ is a back-office action, not a "sold out" signal — same treatment
+        // as "full": the customer can still start a booking and the backend decides what to do.
+        $trajet = $this->createTrajet();
+        $depart = $this->createVisibleUpcomingDepart($trajet, ['closed' => true]);
+        $bus = $depart->buses()->first();
+        $this->assertTrue($bus->isClosed());
+
+        $response = $this->get($this->websiteUrl('/caravanes/'.$trajet->slug));
+
+        $response->assertStatus(200);
+        $response->assertDontSee('cursor-not-allowed', false);
+        $response->assertSee(
+            route('website.bookings.create', ['depart' => $depart->id, 'bus_id' => $bus->id]),
+            false,
+        );
+    }
+
+    public function test_a_passed_departure_shows_as_unavailable(): void
+    {
+        // The only remaining "unavailable" reason: a départ that has already left cannot be
+        // booked, no matter what — full/closed buses stay bookable (see the two tests above).
+        $trajet = $this->createTrajet();
+        $depart = Depart::create([
+            'name' => 'DEPART PASSE '.uniqid(),
+            'date' => now()->subDay(),
+            'trajet_id' => $trajet->id,
+            'visibilite' => Depart::VISIBILITE_ALL_CUSTOMERS,
+            'closed' => false,
+            'locked' => false,
+            'canceled' => false,
+        ]);
+        $depart->buses()->create(['name' => 'Bus Passé', 'nombre_place' => 50, 'ticket_price' => 4200, 'closed' => false]);
+
+        $response = $this->get($this->websiteUrl('/caravanes/'.$trajet->slug));
+
+        $response->assertStatus(200);
+        // A past départ never matches the resource's `date >= now()` filter, so the page simply
+        // shows no upcoming trip for it — this locks in that behaviour rather than a "Complet" row.
+        $response->assertDontSee($depart->name);
+    }
+
     public function test_a_caravane_page_is_not_reachable_by_id(): void
     {
         $trajet = $this->createTrajet();
@@ -281,5 +347,105 @@ class PublicWebsiteTrajetPageTest extends TestCase
 
         $response->assertStatus(200);
         $response->assertJsonStructure(['id', 'name', 'departs', 'pointDeparts', 'destinations']);
+    }
+
+    public function test_the_caravane_page_carries_no_session_cookie(): void
+    {
+        $trajet = $this->createTrajet();
+
+        $response = $this->get($this->websiteUrl('/caravanes/'.$trajet->slug));
+
+        $response->assertStatus(200);
+        // The read-only public pages strip session/cookie middleware entirely.
+        $this->assertFalse($response->headers->has('Set-Cookie'));
+    }
+
+    public function test_the_caravane_page_is_served_from_cache_on_the_second_request(): void
+    {
+        config(['app.public_page_cache_enabled' => true]);
+        $trajet = $this->createTrajet();
+        $depart = $this->createVisibleUpcomingDepart($trajet);
+        $url = $this->websiteUrl('/caravanes/'.$trajet->slug);
+
+        $first = $this->get($url);
+        $first->assertStatus(200);
+        $this->assertSame('MISS', $first->headers->get('X-Cache'));
+
+        DB::enableQueryLog();
+        $second = $this->get($url);
+        $queriesOnHit = count(DB::getQueryLog());
+        DB::disableQueryLog();
+
+        $second->assertStatus(200);
+        $this->assertSame('HIT', $second->headers->get('X-Cache'));
+        // Not a byte-for-byte comparison against $first: Laravel's own RequestHandled listeners
+        // (e.g. Livewire's global asset injector) can mutate a response's content after our
+        // middleware has already cached it, which is cosmetic and unrelated to whether the page
+        // itself was actually served from cache. Assert on the page's own content instead.
+        $second->assertSee($depart->name);
+        // Only the {trajet:slug} route-model binding still runs on a cache hit.
+        $this->assertLessThanOrEqual(1, $queriesOnHit);
+    }
+
+    public function test_the_caravane_page_sends_public_cache_control_headers(): void
+    {
+        config(['app.public_page_cache_enabled' => true, 'app.public_page_cache_ttl' => 60]);
+        $trajet = $this->createTrajet();
+
+        $response = $this->get($this->websiteUrl('/caravanes/'.$trajet->slug));
+
+        // Symfony's ResponseHeaderBag reorders Cache-Control directives, so assert on content
+        // rather than the exact header string.
+        $cacheControl = $response->headers->get('Cache-Control');
+        $this->assertStringContainsString('public', $cacheControl);
+        $this->assertStringContainsString('max-age=60', $cacheControl);
+        $this->assertStringContainsString('s-maxage=60', $cacheControl);
+        $this->assertStringContainsString('stale-while-revalidate=600', $cacheControl);
+    }
+
+    public function test_editing_a_depart_invalidates_the_cached_caravane_page(): void
+    {
+        config(['app.public_page_cache_enabled' => true]);
+        $trajet = $this->createTrajet();
+        $depart = $this->createVisibleUpcomingDepart($trajet);
+        $url = $this->websiteUrl('/caravanes/'.$trajet->slug);
+
+        $this->get($url)->assertSee($depart->name);
+
+        $newName = 'DEPART RENAMED '.uniqid();
+        $depart->update(['name' => $newName]);
+
+        $response = $this->get($url);
+        $this->assertSame('MISS', $response->headers->get('X-Cache'));
+        $response->assertSee($newName);
+    }
+
+    public function test_a_new_booking_does_not_invalidate_the_cached_caravane_page(): void
+    {
+        config(['app.public_page_cache_enabled' => true]);
+        $trajet = $this->createTrajet();
+        $depart = $this->createVisibleUpcomingDepart($trajet);
+        $bus = $depart->buses()->first();
+        $pointDep = PointDep::create(['name' => 'Point '.uniqid(), 'trajet_id' => $trajet->id]);
+        $destination = Destination::create(['name' => 'Destination '.uniqid(), 'trajet_id' => $trajet->id]);
+        $customer = Customer::create(['prenom' => 'Test', 'nom' => 'Client', 'phone_number' => '77'.random_int(1000000, 9999999)]);
+        $url = $this->websiteUrl('/caravanes/'.$trajet->slug);
+
+        $this->get($url)->assertStatus(200);
+
+        Booking::create([
+            'customer_id' => $customer->id,
+            'depart_id' => $depart->id,
+            'bus_id' => $bus->id,
+            'point_dep_id' => $pointDep->id,
+            'destination_id' => $destination->id,
+            'paye' => false,
+            'group_id' => random_int(1, PHP_INT_MAX),
+        ]);
+
+        $response = $this->get($url);
+        // Bookings are deliberately excluded from the invalidation set (see AppServiceProvider) —
+        // seat availability is allowed to lag by up to the cache TTL.
+        $this->assertSame('HIT', $response->headers->get('X-Cache'));
     }
 }

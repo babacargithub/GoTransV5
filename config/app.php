@@ -69,6 +69,15 @@ return [
     'public_website_domain' => env('DOMAIN_PUBLIC_WEBSITE', 'globeonetransport.app'),
 
     /*
+     * Full-HTML response cache for the read-only public website pages (caravane list, home).
+     * Served by App\Http\Middleware\CachePublicHtmlResponse; invalidated on any Départ / Bus /
+     * Trajet / PromotionalMessage / Vehicule change (not on bookings — seat "complet" status is
+     * allowed to lag by up to the TTL, and the booking backend revalidates it anyway).
+     */
+    'public_page_cache_enabled' => env('PUBLIC_PAGE_CACHE_ENABLED', true),
+    'public_page_cache_ttl' => (int) env('PUBLIC_PAGE_CACHE_TTL', 60),
+
+    /*
     |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
