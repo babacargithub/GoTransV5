@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\PermissionName;
 use App\Http\Resources\BookingResource;
 use App\Models\Booking;
 use App\Models\Customer;
@@ -16,11 +17,12 @@ class CustomerController extends Controller
     {
         //
         $customers = Customer::orderByDesc('created_at')->limit(50)->get();
+
         return response()->json($customers->map(function ($customer) {
             return [
                 'id' => $customer->id,
                 'name' => $customer->nom,
-                "full_name" => $customer->full_name,
+                'full_name' => $customer->full_name,
                 'phone' => $customer->phone_number,
                 'email' => $customer->email,
                 'created_at' => $customer->created_at->format('d-m-Y H:i:s'),
@@ -28,12 +30,12 @@ class CustomerController extends Controller
         }));
     }
 
-
     /**
      * Store a newly created resource in storage.
      */
     public function store(Request $request)
     {
+        PermissionName::CreateCustomer->authorizeForCurrentUser();
 
         $validated = $request->validate([
             'nom' => 'required|string',
@@ -49,6 +51,7 @@ class CustomerController extends Controller
         ];
         $customer = new Customer($data);
         $customer->save();
+
         return response()->json($customer);
     }
 
@@ -60,12 +63,14 @@ class CustomerController extends Controller
         //
         return response()->json($customer);
     }
+
     public function findByPhoneNumber(string $phone_number)
     {
         $customer = Customer::where('phone_number', $phone_number)->first();
-        if (!$customer) {
+        if (! $customer) {
             return response()->json(['message' => 'Customer not found'], 404);
         }
+
         return response()->json([
             'id' => $customer->id,
             'name' => $customer->nom,
@@ -78,16 +83,16 @@ class CustomerController extends Controller
                 ->whereDoesntHave('depart', function ($query) {
                     $query->withoutGlobalScope('notCanceled')->where('canceled', true);
                 })
-                ->get())
+                ->get()),
         ]);
     }
-
 
     /**
      * Update the specified resource in storage.
      */
     public function update(Request $request, Customer $customer)
     {
+        PermissionName::UpdateCustomerInfo->authorizeForCurrentUser();
 
         $validated = $request->validate([
             'nom' => 'string',
@@ -100,6 +105,7 @@ class CustomerController extends Controller
             'phone_number' => $validated['phone_number'] ?? $customer->phone_number,
         ];
         $customer->update($data);
+
         return response()->json($customer);
     }
 
@@ -108,27 +114,29 @@ class CustomerController extends Controller
      */
     public function destroy(Customer $customer)
     {
-        //
+        PermissionName::DeleteCustomer->authorizeForCurrentUser();
+
         $customer->delete();
+
         return response()->noContent();
     }
 
     public function getLatestContacts(Request $request)
     {
         $after_id = $request->query('after_id') ?? null;
-        $after_date = $request->query('after_date') ?? "2024-01-01";
+        $after_date = $request->query('after_date') ?? '2024-01-01';
         $query = Customer::selectRaw('CONCAT( prenom," ",nom, " ","#",id) as name, phone_number');
-        if ($after_id != null){
-           $query->where('id',">", $after_id);
-       }
-        elseif ($after_date){
-          $query->whereDate("created_at",
-               ">",$after_date);
-       }
+        if ($after_id != null) {
+            $query->where('id', '>', $after_id);
+        } elseif ($after_date) {
+            $query->whereDate('created_at',
+                '>', $after_date);
+        }
+
         return response()->json(
             $query
                 ->get()
-       );
+        );
 
     }
 }

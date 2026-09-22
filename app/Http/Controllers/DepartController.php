@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\PermissionName;
 use App\Http\Resources\BookingForExportResource;
 use App\Http\Resources\BookingResource;
 use App\Http\Resources\DepartResource;
@@ -28,20 +29,25 @@ use Symfony\Component\HttpFoundation\Response;
 class DepartController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * Display a listing of the resource for the legacy JSON API.
+     *
+     * The Livewire/Flux back office renders the same resource through the
+     * App\Livewire\BackOffice\DepartList full-page component instead.
      */
     public function index()
     {
-        //
-        return DepartResource::collection(Depart::where('date', '>', now())->get());
-    }
+        $upcomingDeparts = Depart::where('date', '>', now())->get();
 
+        return DepartResource::collection($upcomingDeparts);
+    }
 
     /**
      * Store a newly created resource in storage.
      */
     public function store(Request $request)
     {
+        PermissionName::CreateDeparts->authorizeForCurrentUser();
+
         // request payload looks like this
 
         $validated = $request->validate([
@@ -52,7 +58,7 @@ class DepartController extends Controller
             'departs.*.trajet_id' => 'required|integer|exists:trajets,id',
             'departs.*.type_of_bus_to_create' => 'required|string',
             'departs.*.visibilite' => 'required|integer',
-            "departs.*.bus" => 'array',
+            'departs.*.bus' => 'array',
             'departs.*.bus.name' => 'required|string',
             'departs.*.bus.ticket_price' => 'required|numeric',
             'departs.*.bus.gp_ticket_price' => 'required|numeric',
@@ -70,9 +76,9 @@ class DepartController extends Controller
                 'trajet_id' => $depart['trajet_id'],
                 'visibilite' => $depart['visibilite'],
                 'horaire_id' => $depart['horaire_id'],
-                "closed" => false,
-                "canceled" => false,
-                "locked" => false,
+                'closed' => false,
+                'canceled' => false,
+                'locked' => false,
             ]);
         }
         $busInformation = $validated['departs'][0]['bus'];
@@ -80,20 +86,19 @@ class DepartController extends Controller
 
             foreach ($departs as $depart) {
                 $defaultBus = new Bus($busInformation);
-                /** @var  $depart Depart */
+                /** @var $depart Depart */
                 // create seats for bus
                 $date = $depart->date;
                 $depart->date = $date->setTime($depart->horaire->bus_leave_time->hour, $depart->horaire->bus_leave_time->minute);
                 $depart->created_by = User::requiredLoggedInUser()->username;
                 $depart->save();
                 $defaultBus->closed = false;
-                $defaultBus->itinerary_id = $depart->trajet->id == Trajet::DAKAR_UGB && $defaultBus->climatise ? 1:
+                $defaultBus->itinerary_id = $depart->trajet->id == Trajet::DAKAR_UGB && $defaultBus->climatise ? 1 :
                     null;
                 $depart->buses()->save($defaultBus);
                 $busSeats = $this->generateBusSeats($defaultBus);
                 $defaultBus->seats()->createMany($busSeats->toArray());
-                $busStopSchedules = $this->generateDefaultBusStopSchedules($depart, $defaultBus, Horaire::findOrFail
-                ($depart->horaire_id));
+                $busStopSchedules = $this->generateDefaultBusStopSchedules($depart, $defaultBus, Horaire::findOrFail($depart->horaire_id));
                 $depart->heuresDeparts()->createMany($busStopSchedules->toArray());
 
             }
@@ -117,7 +122,8 @@ class DepartController extends Controller
      */
     public function update(Request $request, Depart $depart)
     {
-        //
+        PermissionName::UpdateDeparts->authorizeForCurrentUser();
+
         $validated = $request->validate([
             'name' => 'string',
             'date' => 'date',
@@ -127,6 +133,7 @@ class DepartController extends Controller
         ]);
 
         $depart->update($validated);
+
         return response()->json($depart);
 
     }
@@ -136,20 +143,24 @@ class DepartController extends Controller
      */
     public function destroy(Depart $depart)
     {
-        //
+        PermissionName::CancelDeparts->authorizeForCurrentUser();
+
         return $this->cancelDepart($depart);
     }
 
     public function addBusToDepart(Depart $depart, Request $request)
     {
+        PermissionName::CreateBus->authorizeForCurrentUser();
+
         $validated = $request->validate([
-            "name" => "required|string",
-            "ticket_price" => "required|numeric",
-            "nombre_place" => "required|integer",
-            "vehicule_id" => "required|integer|exists:vehicules,id",
-            "gp_ticket_price" => "numeric",
-            "itinerary_id" => "nullable|integer",
-            "agent_numbers" => "nullable|string",
+            'name' => 'required|string',
+            'ticket_price' => 'required|numeric',
+            'nombre_place' => 'required|integer',
+            'vehicule_id' => 'required|integer|exists:vehicules,id',
+            'gp_ticket_price' => 'nullable|numeric',
+            'itinerary_id' => 'nullable|integer',
+            'agent_numbers' => 'nullable|string',
+            'visibilite' => 'nullable|integer',
         ]);
         // validate name bus is unique for depart
         if ($depart->buses()->where('name', $validated['name'])->exists()) {
@@ -157,19 +168,16 @@ class DepartController extends Controller
                 Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-
-
         $bus = new Bus($validated);
-       DB::transaction(function () use ($depart, $validated, $bus)
-        {
+        DB::transaction(function () use ($depart, $bus) {
 
             $bus->closed = false;
 
             $depart->buses()->save($bus);
-            if ($bus->vehicule_id != Vehicule::where("default",true)->firstOrFail()->id){
-                $point_departs_ids = [2,16,17,39];
-                foreach ($point_departs_ids as $id){
-                    $pointDepBus = new PointDepBus(["bus_id" => $bus->id,"point_dep_id" => $id]);
+            if ($bus->vehicule_id != Vehicule::where('default', true)->firstOrFail()->id) {
+                $point_departs_ids = [2, 16, 17, 39];
+                foreach ($point_departs_ids as $id) {
+                    $pointDepBus = new PointDepBus(['bus_id' => $bus->id, 'point_dep_id' => $id]);
                     $pointDepBus->save();
                 }
 
@@ -181,8 +189,8 @@ class DepartController extends Controller
             $bus->heuresDeparts()->createMany($busStopSchedules->toArray());
 
         });
-       return response()->json($bus,Response::HTTP_CREATED);
 
+        return response()->json($bus, Response::HTTP_CREATED);
 
     }
 
@@ -207,8 +215,8 @@ class DepartController extends Controller
 
         return response()->json($groupingsCount);
 
-
     }
+
     public function busStopSchedules(Depart $depart, Request $request)
     {
         // get all heures departs and point departs
@@ -216,27 +224,28 @@ class DepartController extends Controller
 
         $query = $bus != null ? $bus->heuresDeparts() : $depart->heuresDeparts();
 
-         $query
+        $query
             ->join('point_deps', 'heure_departs.point_dep_id', '=', 'point_deps.id')
-             ->select('heure_departs.*', 'point_deps.position')
+            ->select('heure_departs.*', 'point_deps.position')
             ->orderBy('point_deps.position');
 
         $busStopSchedules = $query->get();
 
-        return response()->json($busStopSchedules->map(function(HeureDepart $busStopSchedule){
+        return response()->json($busStopSchedules->map(function (HeureDepart $busStopSchedule) {
             return [
-                "id" => $busStopSchedule->id,
+                'id' => $busStopSchedule->id,
                 'pointDep' => $busStopSchedule->pointDep->name,
                 'rendezVousPoint' => $busStopSchedule->arretBus,
                 'rendezVousSchedule' => $busStopSchedule->heureDepart->format('H:i'),
-                "disabled" => $busStopSchedule->disabled,
+                'disabled' => $busStopSchedule->disabled,
             ];
         }));
 
-
     }
+
     public function updateBusStopSchedules(Depart $depart, Request $request)
     {
+        PermissionName::UpdateSchedules->authorizeForCurrentUser();
 
         $validated = $request->validate([
             'busStopSchedules' => 'required|array',
@@ -247,19 +256,20 @@ class DepartController extends Controller
             'busStopSchedules.*.disabled' => 'boolean',
         ]);
         $busStopSchedules = collect($validated['busStopSchedules'])
-        ->map(function($busStopSchedule){
-            $data = [
-                'id' => $busStopSchedule['id'],
-                'heureDepart' => $busStopSchedule['rendezVousSchedule'],
-                'arretBus' => $busStopSchedule['rendezVousPoint'],
+            ->map(function ($busStopSchedule) {
+                $data = [
+                    'id' => $busStopSchedule['id'],
+                    'heureDepart' => $busStopSchedule['rendezVousSchedule'],
+                    'arretBus' => $busStopSchedule['rendezVousPoint'],
 
-            ];
-            if (isset($busStopSchedule['disabled'])) {
-                $data['disabled'] = $busStopSchedule['disabled'];
-            }
-            return $data;
-        })->toArray();
-        DB::transaction(function() use ($busStopSchedules){
+                ];
+                if (isset($busStopSchedule['disabled'])) {
+                    $data['disabled'] = $busStopSchedule['disabled'];
+                }
+
+                return $data;
+            })->toArray();
+        DB::transaction(function () use ($busStopSchedules) {
             foreach ($busStopSchedules as $busStopSchedule) {
                 HeureDepart::where('id', $busStopSchedule['id'])
                     ->update([
@@ -270,39 +280,40 @@ class DepartController extends Controller
             }
         });
     }
+
     public function bookingsForNotification(Depart $depart)
     {
 
-        $bookings = $depart->bookings->map(function(Booking $booking){
+        $bookings = $depart->bookings->map(function (Booking $booking) {
             return [
-                "id" => $booking->id,
-                "client" => $booking->customer->nom,
-                "clientShort" => $booking->customer->shortName,
-                "phoneNumber" => $booking->customer->phone_number,
-                "pointDep" => $booking->point_dep->name,
-                "destination" => $booking->destination->name,
-                "bus" => $booking->bus?->name,
-                "schedule" => $booking->formatted_schedule,
-                "formattedSchedule" => $booking->formatted_schedule,
-                "rendezVousPoint" => $booking->point_dep->arret_bus,
-                "seatNumber" => $booking->seat_number,
-                "ticketSoldBy" => $booking->ticket?->soldBy,
-                "hasSeat" => $booking->seat_id != null,
-                "hasTicket" => $booking->ticket_id != null,
+                'id' => $booking->id,
+                'client' => $booking->customer->nom,
+                'clientShort' => $booking->customer->shortName,
+                'phoneNumber' => $booking->customer->phone_number,
+                'pointDep' => $booking->point_dep->name,
+                'destination' => $booking->destination->name,
+                'bus' => $booking->bus?->name,
+                'schedule' => $booking->formatted_schedule,
+                'formattedSchedule' => $booking->formatted_schedule,
+                'rendezVousPoint' => $booking->point_dep->arret_bus,
+                'seatNumber' => $booking->seat_number,
+                'ticketSoldBy' => $booking->ticket?->soldBy,
+                'hasSeat' => $booking->seat_id != null,
+                'hasTicket' => $booking->ticket_id != null,
             ];
         });
 
         return response()->json([
             'depart' => $depart->name,
             'bookings' => $bookings,
-            "buses"=> $depart->buses->map(fn($bus) => $bus->name),
-            "destinations"=> $depart->trajet->destinations->map(fn($destination) => $destination->name),
-            "pointDeparts"=> $depart->trajet->pointDeps->map(fn(PointDep $pointDep) => $pointDep->name),
-
+            'buses' => $depart->buses->map(fn ($bus) => $bus->name),
+            'destinations' => $depart->trajet->destinations->map(fn ($destination) => $destination->name),
+            'pointDeparts' => $depart->trajet->pointDeps->map(fn (PointDep $pointDep) => $pointDep->name),
 
         ]);
 
     }
+
     public function ticketSales(Depart $depart)
     {
         //  Select ticket sales for depart and group by soldBy
@@ -312,21 +323,25 @@ class DepartController extends Controller
             ->selectRaw('tickets.soldBy as soldBy, SUM(tickets.price) as total')
             ->groupBy('tickets.soldBy')
             ->get();
+
         return response()->json($ticketSales);
 
-
     }
+
     public function cancelDepart(Depart $depart)
     {
+        PermissionName::CancelDeparts->authorizeForCurrentUser();
+
         // cancel depart
         if ($depart->bookings()->count() > 0) {
             $depart->cancel();
             $depart->save();
+
             return response()->noContent();
-        }else{
-            DB::transaction(function() use ($depart){
+        } else {
+            DB::transaction(function () use ($depart) {
                 $depart->heuresDeparts()->delete();
-                BusSeat::whereIn("bus_id", $depart->buses->pluck('id'))->delete();
+                BusSeat::whereIn('bus_id', $depart->buses->pluck('id'))->delete();
                 $depart->buses()->delete();
                 $depart->delete();
             });
@@ -337,16 +352,12 @@ class DepartController extends Controller
 
     }
 
-    /**
-     * @param Bus $bus
-     * @return Collection
-     */
-    function generateBusSeats(Bus $bus): Collection
+    public function generateBusSeats(Bus $bus): Collection
     {
-        $seats = Seat::
-            limit($bus->vehicule != null ? $bus->vehicule->nombre_place : $bus->nombre_place)
-            ->orderBy("number")
+        $seats = Seat::limit($bus->vehicule != null ? $bus->vehicule->nombre_place : $bus->nombre_place)
+            ->orderBy('number')
             ->get();
+
         // transform seats to bus seats
         return $seats->map(function (Seat $seat) use ($bus) {
             return new BusSeat([
@@ -370,6 +381,7 @@ class DepartController extends Controller
                 $ticketsSoldCount = $bus->bookings->whereNotNull('ticket_id')->count();
                 $hasSeatsLeft = $bookedSeatsCount < $bus->nombre_place;
                 $busData[] = [
+                    'id' => $bus->id,
                     'bus' => $bus->name,
                     'name' => $bus->name,
                     'bookingsCount' => $bookingsCount,
@@ -381,38 +393,55 @@ class DepartController extends Controller
                 ];
             }
             $data[] = [
-                'depart' => $depart->trajet->code.'-'. $depart->name,
+                'depart' => $depart->trajet->code.'-'.$depart->name,
                 'buses' => $busData,
             ];
         }
+
         return response()->json($data);
 
     }
+
     public function bookings(Depart $depart)
     {
         return response()->json(BookingResource::collection($depart->bookings));
 
-
     }
-    public function bookingsForExport(Depart $depart)
+
+    public function bookingsForExport(Depart $depart, Request $request)
     {
         $query = $depart->bookings()->getQuery();
         $query = Booking::bookingsOrdererByTrajet($depart->trajet, $query);
+        $bookings = $query->with(['seat.seat', 'customer', 'point_dep', 'ticket'])->get();
 
-        return response()->json(BookingForExportResource::collection($query->get()));
+        if ($request->routeIs('back-office.*')) {
+            return $this->filteredBookingsExportResponse(
+                $bookings,
+                $request,
+                'Réservations — '.$depart->identifier(with_trajet_prefix: true),
+                [
+                    'Départ : '.$depart->identifier(with_trajet_prefix: true),
+                    'Date : '.$depart->date->translatedFormat('d F Y à H:i'),
+                ],
+                'reservations-depart-'.$depart->identifier(with_trajet_prefix: true),
+            );
+        }
 
+        return response()->json(BookingForExportResource::collection($bookings));
 
     }
-    public  function  getDataForDepartCreation()
+
+    public function getDataForDepartCreation()
     {
         return response()->json([
             'events' => Event::orderByDesc('date_end')->limit(1)->get(),
             'trajets' => Trajet::all(),
             'horaires' => Horaire::all(),
-            "vehicules" => Vehicule::all(),
+            'vehicules' => Vehicule::all(),
         ]);
 
     }
+
     public function getAutresDeparts()
     {
         $event = Event::orderByDesc('date_end')->firstOrFail();
@@ -421,6 +450,7 @@ class DepartController extends Controller
             ->orderByDesc('date')
             ->limit(30)
             ->get();
+
         return response()->json(DepartResource::collection($departs));
 
     }
@@ -428,7 +458,7 @@ class DepartController extends Controller
     public function waitingCustomers(Depart $depart)
     {
         $customers = $depart->waitingCustomers()->get()
-            ->map(function(WaitingCustomer $waitingCustomer){
+            ->map(function (WaitingCustomer $waitingCustomer) {
                 return [
                     'id' => $waitingCustomer->customer->id,
                     'full_name' => $waitingCustomer->customer->full_name,
@@ -436,6 +466,7 @@ class DepartController extends Controller
                     'created_at' => $waitingCustomer->created_at->format('d/m/Y H:i'),
                 ];
             });
+
         return response()->json($customers);
 
     }
@@ -454,7 +485,7 @@ class DepartController extends Controller
         ]);
     }
 
-    private function  generateDefaultBusStopSchedules(Depart $depart, Bus $bus, Horaire $horaire)
+    private function generateDefaultBusStopSchedules(Depart $depart, Bus $bus, Horaire $horaire)
     {
         $busStopSchedules = [];
         $pointDeps = $depart->trajet->pointDeps;
@@ -462,13 +493,14 @@ class DepartController extends Controller
             $heure_point_dep = $this->determineHeureDepartForPointDepartBasedOnHoraire($horaire, $pointDep);
 
             $busStopSchedules[] = new HeureDepart([
-                "depart_id" => $depart->id,
-                "bus_id" => $bus->id,
+                'depart_id' => $depart->id,
+                'bus_id' => $bus->id,
                 'point_dep_id' => $pointDep->id,
                 'heureDepart' => $heure_point_dep,
                 'arretBus' => $pointDep->arret_bus,
             ]);
         }
+
         return collect($busStopSchedules);
     }
 
@@ -486,23 +518,26 @@ class DepartController extends Controller
                     'date' => $depart->date->format('Y-m-d H:i'),
                     'trajet' => $depart->trajet->name,
                     'is_full' => $depart->isFull(),
-                    'is_closed' => $depart->isClosed()
+                    'is_closed' => $depart->isClosed(),
                 ];
             });
 
         return response()->json($departs);
     }
+
     public function addPointDepsSchedulesForBus(Bus $bus)
     {
+        PermissionName::UpdateSchedules->authorizeForCurrentUser();
+
         $depart = $bus->depart;
         $pointDeps = PointDep::where('trajet_id', $bus->depart->trajet_id)
             ->orderBy('position')
             ->get();
         $busStopSchedules = [];
         foreach ($pointDeps as $pointDep) {
-            if (!$bus->heuresDeparts()->where('point_dep_id', $pointDep->id)->exists()) {
+            if (! $bus->heuresDeparts()->where('point_dep_id', $pointDep->id)->exists()) {
                 $busStopSchedules[] = new HeureDepart([
-                    "bus_id" => $bus->id,
+                    'bus_id' => $bus->id,
                     'depart_id' => $depart->id,
                     'point_dep_id' => $pointDep->id,
                     'heureDepart' => $this->determineHeureDepartForPointDepartBasedOnHoraire($depart->horaire, $pointDep),
@@ -511,15 +546,11 @@ class DepartController extends Controller
             }
         }
         $bus->heuresDeparts()->saveMany($busStopSchedules);
+
         return response()->json($busStopSchedules);
 
     }
 
-    /**
-     * @param Horaire $horaire
-     * @param mixed $pointDep
-     * @return mixed
-     */
     public function determineHeureDepartForPointDepartBasedOnHoraire(Horaire $horaire, mixed $pointDep): mixed
     {
         if ($horaire->periode == Horaire::PERIODE_MATIN) {
@@ -529,11 +560,11 @@ class DepartController extends Controller
         } elseif ($horaire->periode == Horaire::PERIODE_NUIT) {
             $heure_point_dep = $pointDep->heure_point_dep_soir->addHours(11);
         } else {
-            throw new HttpResponseException(response()->json(['message' => Horaire::PERIODE_NUIT . ' '
-                . $horaire->periode . ' Horaire non pris en charge'],
+            throw new HttpResponseException(response()->json(['message' => Horaire::PERIODE_NUIT.' '
+                .$horaire->periode.' Horaire non pris en charge'],
                 Response::HTTP_UNPROCESSABLE_ENTITY));
         }
+
         return $heure_point_dep;
     }
-
 }

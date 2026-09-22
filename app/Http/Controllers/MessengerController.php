@@ -2,17 +2,19 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\PermissionName;
 use App\Models\CallLog;
+use App\Models\Depart;
 use App\Models\Device;
 use App\Models\SmsMessage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Validator;
-use App\Models\Depart;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class MessengerController extends Controller
@@ -20,7 +22,6 @@ class MessengerController extends Controller
     /**
      * Get a batch of SMS messages for a specific device
      *
-     * @param Request $request
      * @return JsonResponse
      */
     public function getSmsBatch(Request $request)
@@ -28,7 +29,7 @@ class MessengerController extends Controller
         $validator = Validator::make($request->all(), [
             'device_id' => 'required|string',
             'device_name' => 'required|string',
-            'batch_size' => 'required|integer|min:1|max:100'
+            'batch_size' => 'required|integer|min:1|max:100',
         ]);
 
         if ($validator->fails()) {
@@ -54,8 +55,7 @@ class MessengerController extends Controller
     /**
      * Update the status of an SMS message
      *
-     * @param Request $request
-     * @return \Illuminate\Http\Response
+     * @return Response
      */
     public function updateSmsStatus(Request $request)
     {
@@ -65,8 +65,8 @@ class MessengerController extends Controller
     /**
      * Update device activity timestamp and ensure it exists
      *
-     * @param string $deviceId
-     * @param string $deviceName
+     * @param  string  $deviceId
+     * @param  string  $deviceName
      * @return void
      */
     private function updateDeviceActivity($deviceId, $deviceName)
@@ -90,7 +90,6 @@ class MessengerController extends Controller
             'phone_number' => 'required|string',
         ]);
 
-
         // Update device last seen timestamp
         $device = Device::firstOrNew(['device_id' => $request->device_id]);
         $device->name = $request->device_name;
@@ -104,29 +103,27 @@ class MessengerController extends Controller
     /**
      * Process device heartbeat
      *
-     * @param Request $request
-     * @return JsonResponse|\Illuminate\Http\Response
+     * @return JsonResponse|Response
      */
     public function sendHeartbeat(Request $request)
     {
-         $request->validate([
+        $request->validate([
             'device_id' => 'required|string',
             'device_name' => 'required|string',
-            'sms_sent_count' => 'required|integer'
+            'sms_sent_count' => 'required|integer',
         ]);
-
 
         // Find the device
         $device = Device::where('device_id', $request->device_id)->first();
 
-        if (!$device) {
+        if (! $device) {
             // If device doesn't exist, create it
-            $device = new Device();
+            $device = new Device;
             $device->device_id = $request->device_id;
             $device->name = $request->device_name;
             $device->last_heartbeat = now();
             $device->save();
-                }
+        }
         $device->last_heartbeat = now();
         $device->save();
 
@@ -139,13 +136,13 @@ class MessengerController extends Controller
     {
         $device = Device::where('device_id', $request->device_id)->first();
 
-        if (!$device) {
+        if (! $device) {
             return response()->json(['message' => 'Device not found'], 404);
         }
 
         $message = $device->messages()->where('status', 'PENDING')->first();
 
-        if (!$message) {
+        if (! $message) {
             return response()->json(['message' => 'No message to send'], 404);
         }
 
@@ -155,7 +152,9 @@ class MessengerController extends Controller
 
     public function createMessages(Request $request)
     {
-        $messages = $request->input("messages");
+        PermissionName::SendMessages->authorizeForCurrentUser();
+
+        $messages = $request->input('messages');
         $devicesCount = Device::count();
 
         if ($devicesCount === 0) {
@@ -177,14 +176,14 @@ class MessengerController extends Controller
                 $device = $devices[$index];
 
                 // Map the messages to have the correct format for createMany
-                $formattedMessages = array_map(function($message) {
+                $formattedMessages = array_map(function ($message) {
                     // Ensure message has all required fields
                     return [
                         'to' => $message['to'] ?? null,
                         'text' => $message['text'] ?? null,
                         'status' => SmsMessage::STATUS_PENDING,
-                      'created_at' => now(),
-                        'updated_at' => now()
+                        'created_at' => now(),
+                        'updated_at' => now(),
                         // Add any other required fields here
                     ];
                 }, $chunk);
@@ -203,18 +202,18 @@ class MessengerController extends Controller
             'device_id' => 'required|string',
             'message_id' => 'required|integer',
             'status' => 'required|string|in:SENT,FAILED',
-            'details' => 'nullable|array'
+            'details' => 'nullable|array',
         ]);
 
         $device = Device::where('device_id', $request->device_id)->first();
 
-        if (!$device) {
+        if (! $device) {
             return response()->json(['message' => 'Device not found'], 404);
         }
 
         $message = $device->messages()->where('id', $request->message_id)->first();
 
-        if (!$message) {
+        if (! $message) {
             return response()->json(['message' => 'Message not found'], 404);
         }
 
@@ -234,13 +233,13 @@ class MessengerController extends Controller
 
         $device = Device::where('device_id', $request->device_id)->first();
 
-        if (!$device) {
+        if (! $device) {
             return response()->json(['message' => 'Device not found'], 404);
         }
 
         $message = $device->messages()->where('id', $request->message_id)->first();
 
-        if (!$message) {
+        if (! $message) {
             return response()->json(['message' => 'Message not found'], 404);
         }
 
@@ -249,107 +248,108 @@ class MessengerController extends Controller
 
         return response()->noContent();
     }
+
     public function getDepartsForBulkSms(Request $request)
     {
         $departs = Depart::query()
-    ->select([
-        'departs.id',
-        DB::raw('CONCAT(trajets.name, " ", departs.name) as name')
-    ])
-    ->join('trajets', 'trajets.id', '=', 'departs.trajet_id')
-    ->withCount(['bookings' => function ($query) {
-        $query->whereNotNull('ticket_id')
-              ->whereNull('bookings.deleted_at');
-    }])
-    ->where('departs.canceled', false)
-    ->orderByDesc('departs.date')
-    ->limit(30)
-    ->get();
+            ->select([
+                'departs.id',
+                DB::raw('CONCAT(trajets.name, " ", departs.name) as name'),
+            ])
+            ->join('trajets', 'trajets.id', '=', 'departs.trajet_id')
+            ->withCount(['bookings' => function ($query) {
+                $query->whereNotNull('ticket_id')
+                    ->whereNull('bookings.deleted_at');
+            }])
+            ->where('departs.canceled', false)
+            ->orderByDesc('departs.date')
+            ->limit(30)
+            ->get();
+
         return response()->json($departs);
     }
 
     public function getDepartCustomersForBulkSms(Request $request, Depart $depart)
     {
         $customers = $depart->bookings()->whereNotNull('ticket_id')
-        ->get()
-        ->map(function($booking) {
-            return [
-                'id' => $booking->id,
-                'name' => $booking->customer->full_name,
-                'phone_number' => $booking->customer->phone_number,
-                "field1" => $booking->point_dep->name,
-                "field2"=> $booking->formatted_schedule,
-                "field3"=> $booking->point_dep->arret_bus,
-                "field4"=> $booking->bus->name,
-                "field5"=> $booking->seat != null ? $booking->seat->number : "N/C",
-            ];
-        });
+            ->get()
+            ->map(function ($booking) {
+                return [
+                    'id' => $booking->id,
+                    'name' => $booking->customer->full_name,
+                    'phone_number' => $booking->customer->phone_number,
+                    'field1' => $booking->point_dep->name,
+                    'field2' => $booking->formatted_schedule,
+                    'field3' => $booking->point_dep->arret_bus,
+                    'field4' => $booking->bus->name,
+                    'field5' => $booking->seat != null ? $booking->seat->number : 'N/C',
+                ];
+            });
+
         return response()->json($customers);
     }
 
     /**
      * Get a list of all files in the storage directory
-     * 
+     *
      * @return JsonResponse
      */
     public function getBatchExcelFiles()
     {
         // Specify the directory where your files are stored
         $files = Storage::disk('public')->files('batch_excel_files');
-//        $files = glob(public_path('storage/batch_excel_files/*'));
+        //        $files = glob(public_path('storage/batch_excel_files/*'));
 
-        
         $filesList = [];
-        
+
         foreach ($files as $file) {
             $fileName = basename($file);
-//            $fileSize = Storage::size($file);
+            //            $fileSize = Storage::size($file);
             $fileSize = 19920393;
             $mimeType = Storage::mimeType($file);
-            
+
             $filesList[] = [
                 'name' => $fileName,
                 'size' => $fileSize,
                 'type' => $mimeType,
-                'download_url' => route('messenger.download-file', ['filename' => $fileName])
+                'download_url' => route('messenger.download-file', ['filename' => $fileName]),
             ];
         }
-        
+
         return response()->json($filesList);
     }
-    
+
     /**
      * Download a specific file
-     * 
-     * @param string $filename
+     *
      * @return JsonResponse|BinaryFileResponse
      */
     public function downloadFile(string $filename)
     {
-        $path = storage_path('app/public/batch_excel_files/' . $filename);
-        
-        if (!File::exists($path)) {
+        $path = storage_path('app/public/batch_excel_files/'.$filename);
+
+        if (! File::exists($path)) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'File not found'
+                'message' => 'File not found',
             ], 404);
         }
-        
+
         return response()->download($path);
     }
 
     public function callLogs()
     {
         $call_logs = CallLog::limit(100)
-        ->get()
-            ->map(function (CallLog $callLog){
+            ->get()
+            ->map(function (CallLog $callLog) {
                 return [
-                    "phone_number"=>$callLog->caller_phone_number,
-                    "contact_name"=>$callLog->contact_name,
-                    "created_at"=>$callLog->created_at->format("d/m H:i"),
-                    "call_type"=>$callLog->call_type,
-                    //TODO change later
-                    "device_name"=>Device::where("id", $callLog->device_id)?->first()->name
+                    'phone_number' => $callLog->caller_phone_number,
+                    'contact_name' => $callLog->contact_name,
+                    'created_at' => $callLog->created_at->format('d/m H:i'),
+                    'call_type' => $callLog->call_type,
+                    // TODO change later
+                    'device_name' => Device::where('id', $callLog->device_id)?->first()->name,
                 ];
 
             });
