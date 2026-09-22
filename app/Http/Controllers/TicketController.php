@@ -31,9 +31,9 @@ class TicketController extends Controller
         $orangeMoneyBalance = $orangeMoneyController->balance();
 
         return response()->json([
-            "balances_per_payment_methods" => $balancesByPaymentMethods,
-            "wave_balance" => $waveBalance,
-            "orange_money_balance" => intval(json_decode($orangeMoneyBalance->content(),true)["balance"]),
+            'balances_per_payment_methods' => $balancesByPaymentMethods,
+            'wave_balance' => $waveBalance,
+            'orange_money_balance' => intval(json_decode($orangeMoneyBalance->content(), true)['balance']),
 
         ]);
 
@@ -86,6 +86,7 @@ class TicketController extends Controller
     {
         //
     }
+
     /**
      * Public ticket download page for a booking group: renders every ticketed booking in the group
      * as a printable/downloadable ticket card. Unauthenticated by design (see routes/web.php) so
@@ -99,7 +100,7 @@ class TicketController extends Controller
             ->get();
 
         if ($bookings->isEmpty()) {
-            abort(404, "Aucun billet trouvé pour ce groupe de réservations.");
+            abort(404, 'Aucun billet trouvé pour ce groupe de réservations.');
         }
 
         return view('tickets.group', [
@@ -108,26 +109,45 @@ class TicketController extends Controller
         ]);
     }
 
+    /**
+     * Back office single-booking ticket view: renders the one ticketed booking as a printable/
+     * downloadable ticket card, reusing the same view as the public group ticket page. Used by the
+     * "Télécharger le ticket" button in the passengers page reservation details panel.
+     */
+    public function showBookingTicket(Booking $booking)
+    {
+        if ($booking->ticket_id === null) {
+            abort(404, "Cette réservation n'a pas de billet.");
+        }
+
+        $booking->load(['customer', 'seat.seat', 'depart.trajet', 'point_dep', 'destination', 'ticket', 'bus']);
+
+        return view('tickets.group', [
+            'bookings' => collect([$booking]),
+            'groupId' => $booking->group_id,
+        ]);
+    }
+
     public function discounts()
     {
         return response()->json([
-            "discounts" => Discount::all(),
-            "promotionalMessages" => PromotionalMessage::all(),
-            "departs" => Depart::where('date', '>', now())->get()->map(function ($depart) {
+            'discounts' => Discount::all(),
+            'promotionalMessages' => PromotionalMessage::all(),
+            'departs' => Depart::where('date', '>', now())->get()->map(function ($depart) {
                 return [
-                    "id" => $depart->id,
-                    "name" => $depart->identifier(),
+                    'id' => $depart->id,
+                    'name' => $depart->identifier(),
                 ];
             }),
-            "buses"=> Bus::join('departs', 'buses.depart_id', '=', 'departs.id')
+            'buses' => Bus::join('departs', 'buses.depart_id', '=', 'departs.id')
                 ->where('departs.date', '>', now())
                 ->get()
                 ->map(function ($bus) {
                     return [
-                        "id" => $bus->id,
-                        "name" => $bus->full_name,
+                        'id' => $bus->id,
+                        'name' => $bus->full_name,
                     ];
-                })
+                }),
 
         ]);
 

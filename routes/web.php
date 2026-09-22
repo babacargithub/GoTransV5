@@ -1,11 +1,42 @@
 <?php
 
+use App\Http\Controllers\BookingController;
+use App\Http\Controllers\BusController;
 use App\Http\Controllers\DepartController;
+use App\Http\Controllers\MobileAppController;
 use App\Http\Controllers\TicketController;
-use Illuminate\Foundation\Application;
+use App\Http\Middleware\CachePublicHtmlResponse;
+use App\Http\Middleware\EncryptCookies;
+use App\Http\Middleware\VerifyCsrfToken;
+use App\Livewire\BackOffice\AddBusToDepart;
+use App\Livewire\BackOffice\AppParamsPage;
+use App\Livewire\BackOffice\BusBookings;
+use App\Livewire\BackOffice\CaisseBalancesPage;
+use App\Livewire\BackOffice\CreateDepart;
+use App\Livewire\BackOffice\DepartList;
+use App\Livewire\BackOffice\DepartScheduleNotifications;
+use App\Livewire\BackOffice\EditBus;
+use App\Livewire\BackOffice\EditDepart;
+use App\Livewire\BackOffice\EmployeList;
+use App\Livewire\BackOffice\HoraireList;
+use App\Livewire\BackOffice\ItineraireList;
+use App\Livewire\BackOffice\OrangeMoneyPage;
+use App\Livewire\BackOffice\PointDepList;
+use App\Livewire\BackOffice\TrajetList;
+use App\Livewire\BackOffice\UserAccessManagement;
+use App\Livewire\BackOffice\VehiculeList;
+use App\Livewire\BackOffice\WavePaymentsPage;
+use App\Livewire\Profile\Edit;
+use App\Livewire\Website\BookingGroupShow;
+use App\Livewire\Website\StudentBooking;
+use App\Models\Trajet;
+use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
+use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
+use Illuminate\View\Middleware\ShareErrorsFromSession;
 
+// Public, unauthenticated ticket download page: anyone with the group_id can view/download the tickets.
+Route::get('/tickets/group/{groupId}', [TicketController::class, 'showGroupTickets'])->name('tickets.group.show');
 Route::domain(config('app.concours_domain'))->group(function () {
     Route::get('/', function () {
         return view('concoursefs.concours');
@@ -13,7 +44,7 @@ Route::domain(config('app.concours_domain'))->group(function () {
 });
 Route::domain(config('app.gp_domain'))->group(function () {
     Route::get('/', function () {
-        $trajets = \App\Models\Trajet::select(['id', 'name', 'public_name', 'departure_city', 'arrival_city', 'length'])
+        $trajets = Trajet::select(['id', 'name', 'public_name', 'departure_city', 'arrival_city', 'length'])
             ->with(['departs' => function ($query) {
                 $query->where('date', '>=', now())
                     ->where('canceled', false)
@@ -21,7 +52,7 @@ Route::domain(config('app.gp_domain'))->group(function () {
                     ->select(['id', 'trajet_id', 'name', 'date', 'closed', 'locked']);
             }])
             ->get()
-            ->map(fn($trajet) => tap($trajet, fn($t) => $t->length = (float) $t->length));
+            ->map(fn ($trajet) => tap($trajet, fn ($t) => $t->length = (float) $t->length));
 
         return view('gp_booking.gp_booking_index', [
             'trajets' => $trajets,
@@ -29,40 +60,111 @@ Route::domain(config('app.gp_domain'))->group(function () {
     })->name('gp_booking');
 });
 
-/*Route::get('/', function () {
-    return Inertia::render('Welcome', [
-        'canLogin' => Route::has('login'),
-        'canRegister' => Route::has('register'),
-        'laravelVersion' => Application::VERSION,
-        'phpVersion' => PHP_VERSION,
-        "messages"=> \App\Models\Depart::notPassed()->get()->map(function ($point){
-            return $point->name;
-        })
-    ]);
-});*/
-Route::get('/', function () {
-    $trajet = \App\Models\Trajet::first();
-    $messages = app(\App\Http\Controllers\MobileAppController::class)->listeDepartsTrajet($trajet)->getData();
+/*
+ * Public website (customer-facing). Its files live under resources/views/website/
+ * and app/Livewire/Website/, mirroring the back-office structure.
+ */
+Route::domain(config('app.public_website_domain'))->name('website.')->group(function () {
 
+    /*
+     * Read-only, anonymous, SEO pages. They carry no session and set no cookies, so the whole
+     * session/cookie/CSRF part of the `web` group is stripped — that alone removes two `sessions`
+     * queries and the cookie-encryption pass from every hit. SubstituteBindings stays (the slug
+     * binding). The caravane list + home also get CachePublicHtmlResponse (full-HTML cache).
+     */
+    Route::withoutMiddleware([
+        EncryptCookies::class,
+        AddQueuedCookiesToResponse::class,
+        StartSession::class,
+        ShareErrorsFromSession::class,
+        VerifyCsrfToken::class,
+    ])->group(function () {
 
-    return view('home', [
-        'canLogin' => Route::has('login'),
-        'canRegister' => Route::has('register'),
-        'laravelVersion' => \Illuminate\Foundation\Application::VERSION,
-        'phpVersion' => PHP_VERSION,
-        "departs" => $messages->departs,
-    ]);
+        Route::middleware(CachePublicHtmlResponse::class)->group(function () {
+            Route::get('/', function () {
+                return view('website.home', [
+                    'trajets' => Trajet::query()->publiclyVisible()->get(),
+                ]);
+            })->name('home');
+
+            // Secondary sections linked from the header navigation. Placeholder content for now.
+            Route::view('yobante', 'website.yobante')->name('yobante');
+            Route::view('aide', 'website.aide')->name('aide');
+
+            // Per-trajet page: lists that trajet's upcoming départs. Resolved by SEO slug.
+            // Public URL segment is "caravanes" — the word customers (and SEO) use for a trajet;
+            // internally the concept stays "trajet". Reuses MobileAppController@listeDepartsTrajet
+            // (same logic as api/mobile/departs/trajet/{trajet}), which branches on the route.
+            Route::get('caravanes/{trajet:slug}', [MobileAppController::class, 'listeDepartsTrajet'])
+                ->name('caravanes.show');
+        });
+
+        // Pickup schedule for one départ card, fetched on demand when a visitor expands
+        // "Heures de départ" (keeps the caravane page itself free of per-départ schedule queries).
+        // Not full-HTML cached: tiny JSON, and its data (heure_departs) is outside the cache
+        // invalidation set.
+        Route::get('caravanes/horaires/{depart}', [MobileAppController::class, 'caravaneDepartSchedule'])
+            ->name('caravanes.schedule');
+    });
+
+    // Student booking funnel — collects the passengers then hands the payload to the
+    // untouched mobile booking backend. Transactional page: noindex. Keeps the full `web`
+    // stack (Livewire needs session + CSRF).
+    Route::get('reserver/{depart}', StudentBooking::class)->name('bookings.create');
+
+    // Public booking page, addressed by the group's shared UUID (not the numeric group_id).
+    Route::get('reservations/{uuid}', BookingGroupShow::class)->name('bookings.show');
 });
 
-// Public, unauthenticated ticket download page: anyone with the group_id can view/download the tickets.
-Route::get('/tickets/group/{groupId}', [TicketController::class, 'showGroupTickets'])->name('tickets.group.show');
+Route::get('/', function () {
+    return view('homepage');
+})->name('home');
 
-Route::middleware([
-    'auth:sanctum',
-    config('jetstream.auth_session'),
-    'verified',
-])->group(function () {
+Route::middleware(['auth:sanctum', 'verified'])->group(function () {
     Route::get('/dashboard', function () {
-        return Inertia::render('Dashboard');
+        return view('dashboard');
     })->name('dashboard');
+
+    Route::get('/profile', Edit::class)->name('profile.edit');
+});
+
+/*
+ * Back office (Livewire/Flux rewrite). Legacy Vue admin keeps hitting the JSON API;
+ * these routes reuse the same controllers and render the data into Flux pages instead.
+ */
+Route::middleware('auth')->prefix('back-office')->name('back-office.')->group(function () {
+    Route::get('departs', DepartList::class)->name('departs.index');
+    Route::get('departs/create', CreateDepart::class)->name('departs.create');
+    Route::get('departs/{depart}/edit', EditDepart::class)->name('departs.edit');
+    Route::get('departs/{depart}/add-bus', AddBusToDepart::class)->name('departs.add-bus');
+    Route::get('departs/{depart}/schedule-notifications', DepartScheduleNotifications::class)
+        ->name('departs.schedule-notifications');
+    Route::get('departs/{depart}/bookings-export', [DepartController::class, 'bookingsForExport'])
+        ->name('departs.bookings-export');
+
+    Route::get('point-deps', PointDepList::class)->name('point-deps.index');
+    Route::get('itineraires', ItineraireList::class)->name('itineraires.index');
+    Route::get('horaires', HoraireList::class)->name('horaires.index');
+    Route::get('trajets', TrajetList::class)->name('trajets.index');
+    Route::get('employes', EmployeList::class)->name('employes.index');
+    Route::get('users', UserAccessManagement::class)->name('users.index');
+    Route::get('vehicules', VehiculeList::class)->name('vehicules.index');
+    Route::get('parametres', AppParamsPage::class)->name('parametres.index');
+
+    Route::get('caisses', CaisseBalancesPage::class)->name('caisses.index');
+    Route::get('paiements-om', OrangeMoneyPage::class)->name('paiements-om.index');
+    Route::get('paiements-wave', WavePaymentsPage::class)->name('paiements-wave.index');
+
+    Route::get('buses/{bus}/edit', EditBus::class)->name('buses.edit');
+    Route::get('buses/{bus}/bookings', BusBookings::class)->name('buses.bookings');
+    Route::get('buses/{bus}/bookings-export', [BusController::class, 'bookingsForExport'])
+        ->name('buses.bookings-export');
+
+    Route::get('bookings/{booking}/ticket', [TicketController::class, 'showBookingTicket'])
+        ->name('bookings.ticket');
+
+    Route::post('bookings/{booking}/save_ticket_payment', [BookingController::class, 'saveTicketPayment'])
+        ->name('bookings.save-ticket-payment');
+    Route::post('bookings/{booking}/trigger_payment_request/{paymentMethod}', [BookingController::class, 'triggerPaymentRequestForPaymentMethod'])
+        ->name('bookings.trigger-payment-request');
 });

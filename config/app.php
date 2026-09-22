@@ -1,5 +1,10 @@
 <?php
 
+use App\Providers\AppServiceProvider;
+use App\Providers\AuthServiceProvider;
+use App\Providers\EventServiceProvider;
+use App\Providers\FortifyServiceProvider;
+use App\Providers\RouteServiceProvider;
 use Illuminate\Support\Facades\Facade;
 use Illuminate\Support\ServiceProvider;
 
@@ -61,6 +66,16 @@ return [
 
     'concours_domain' => env('DOMAIN_CONCOURS', 'concourssefsugb.app'),
     'gp_domain' => env('DOMAIN_GP', 'globaltransports.app'),
+    'public_website_domain' => env('DOMAIN_PUBLIC_WEBSITE', 'globeonetransport.app'),
+
+    /*
+     * Full-HTML response cache for the read-only public website pages (caravane list, home).
+     * Served by App\Http\Middleware\CachePublicHtmlResponse; invalidated on any Départ / Bus /
+     * Trajet / PromotionalMessage / Vehicule change (not on bookings — seat "complet" status is
+     * allowed to lag by up to the TTL, and the booking backend revalidates it anyway).
+     */
+    'public_page_cache_enabled' => env('PUBLIC_PAGE_CACHE_ENABLED', true),
+    'public_page_cache_ttl' => (int) env('PUBLIC_PAGE_CACHE_TTL', 60),
 
     /*
     |--------------------------------------------------------------------------
@@ -166,11 +181,12 @@ return [
         /*
          * Application Service Providers...
          */
-        App\Providers\AppServiceProvider::class,
-        App\Providers\AuthServiceProvider::class,
+        AppServiceProvider::class,
+        AuthServiceProvider::class,
         // App\Providers\BroadcastServiceProvider::class,
-        App\Providers\EventServiceProvider::class,
-        App\Providers\RouteServiceProvider::class,
+        EventServiceProvider::class,
+        FortifyServiceProvider::class,
+        RouteServiceProvider::class,
     ])->toArray(),
 
     /*
@@ -196,10 +212,10 @@ return [
     'wave_webhook_secret' => env('WAVE_WEBHOOK_SECRET'),
     'om_api_key_base_64_encoded' => env('OM_API_KEY_BASE_64_ENCODED'),
     'om_api_client_id' => env('OM_API_CLIENT_ID'),
-    "om_api_client_secret" => env('OM_API_CLIENT_SECRET'),
-    "om_merchant_msisdn" => env('OM_MERCHANT_MSISDN'),
-    "om_merchant_code" => env('OM_MERCHANT_CODE'),
-    "om_merchant_encrypted_pin" => env('OM_MERCHANT_ENCRYPTED_PIN'),
-    "om_secret_code" => env('OM_SECRET_CODE'),
+    'om_api_client_secret' => env('OM_API_CLIENT_SECRET'),
+    'om_merchant_msisdn' => env('OM_MERCHANT_MSISDN'),
+    'om_merchant_code' => env('OM_MERCHANT_CODE'),
+    'om_merchant_encrypted_pin' => env('OM_MERCHANT_ENCRYPTED_PIN'),
+    'om_secret_code' => env('OM_SECRET_CODE'),
 
 ];

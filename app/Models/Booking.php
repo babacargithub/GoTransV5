@@ -39,6 +39,7 @@ class Booking extends Model
         "comment",
         "booked_with_platform",
         "group_id",
+        "uuid",
         "referer_id",
         "booked_for_customer",
         "round_trip_id",

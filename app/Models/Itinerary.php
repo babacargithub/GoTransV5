@@ -7,14 +7,22 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Collection;
 
-class
-Itinerary extends Model
+class Itinerary extends Model
 {
     use HasFactory;
+
     public $timestamps = false;
 
-    protected $casts =[
-        "point_deps"=>"array",
+    protected $fillable = [
+        'name',
+        'trajet_id',
+        'point_deps',
+        'disabled',
+    ];
+
+    protected $casts = [
+        'point_deps' => 'array',
+        'disabled' => 'boolean',
     ];
 
     public function trajet(): BelongsTo
@@ -22,9 +30,10 @@ Itinerary extends Model
         return $this->belongsTo(Trajet::class);
 
     }
-    public function  pointDeparts() : Collection
+
+    public function pointDeparts(): Collection
     {
-        return PointDep::whereIn("id", $this->point_deps)->get();
+        return PointDep::whereIn('id', $this->point_deps)->get();
 
     }
 }
