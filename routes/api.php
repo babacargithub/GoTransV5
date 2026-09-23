@@ -209,8 +209,5 @@ Route::group(['prefix' => 'mobile'], function () {
 
         return response()->json(['message' => 'Log saved']);
     });
-    Route::post('payment/om/success', [OrangeMoneyController::class, 'orangeMoneyPaymentSuccessCallBack']);
-    Route::post('payment/wave/success', [WavePaiementController::class, 'wavePaymentSuccessCallBack']);
-    Route::post('sms/orange/delivery_receipt', [OrangeSmsController::class, 'deliveryReceipt']);
 
 });

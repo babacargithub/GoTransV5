@@ -35,6 +35,10 @@ class RouteServiceProvider extends ServiceProvider
 
             Route::middleware('web')
                 ->group(base_path('routes/web.php'));
+
+            // legacy callback routes that ware used in payment providers (WAVE and OM) and SMS delivery services
+            Route::prefix('go_travel_v5')
+                ->group(base_path('routes/legacy_callback_routes.php'));
         });
     }
 }
