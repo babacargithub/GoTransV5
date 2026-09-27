@@ -42,16 +42,23 @@ class BusBookings extends Component
     #[Computed]
     public function bookingRows(): array
     {
-        $this->bus->load([
-            'bookings.customer',
-            'bookings.seat.seat',
-            'bookings.ticket',
-            'bookings.point_dep',
-            'bookings.destination',
-            'bookings.depart',
-        ]);
+        // Loaded on a relation-less copy: relations set on the public $this->bus would be
+        // re-hydrated (re-queried) on every Livewire update request.
+        $busWithSchedules = $this->bus->withoutRelations()
+            ->setRelation('heuresDeparts', $this->bus->heuresDeparts()->get());
 
-        $orderedBookings = $this->bus->bookings
+        $orderedBookings = $this->bus->bookings()
+            ->with([
+                'customer',
+                'seat.seat',
+                'ticket',
+                'point_dep',
+                'destination',
+                'depart.trajet',
+                'depart.heuresDeparts',
+            ])
+            ->get()
+            ->each(fn (Booking $booking) => $booking->setRelation('bus', $busWithSchedules))
             ->sortBy(fn (Booking $booking): array => $this->bookingSortKey($booking))
             ->values();
 

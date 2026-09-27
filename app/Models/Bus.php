@@ -91,6 +91,21 @@ class Bus extends Model
     }
 
     /**
+     * Lean variant of withDepartListCounts() for DepartController@bookingsCount (back-office sidebar, shown on
+     * every page): only the three figures it reads, skipping the seat-availability count, which is the costliest.
+     *
+     * @param  Builder<Bus>  $query
+     */
+    public function scopeWithBookingStatsCounts(Builder $query): void
+    {
+        $query->withCount([
+            'bookings',
+            'bookings as tickets_sold_count' => fn ($bookings) => $bookings->whereNotNull('ticket_id'),
+            'seats as marked_booked_seats_count' => fn ($seats) => $seats->where('booked', true),
+        ]);
+    }
+
+    /**
      * Seats whose own `booked` flag is set (not the same as seats held by an active booking, see seatsLeft()).
      */
     public function numberOfSeatsMarkedBooked(): int

@@ -7,6 +7,7 @@ use App\Observers\BookingObserver;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Collection;
@@ -117,6 +118,10 @@ class Booking extends Model
 
     public function getFormattedScheduleAttribute(): ?string
     {
+        if ($this->bus?->relationLoaded('heuresDeparts') && $this->depart?->relationLoaded('heuresDeparts')) {
+            return $this->formattedScheduleFromLoadedSchedules();
+        }
+
         $busSchedule = $this->bus?->heuresDeparts()->where('point_dep_id', $this->point_dep_id)->first();
         if ($busSchedule == null) {
             $busSchedule = $this->depart?->heuresDeparts()->where('point_dep_id', $this->point_dep_id)->first();
@@ -128,6 +133,26 @@ class Booking extends Model
 
         return $schedule?->heureDepart->format('H:i');
 
+    }
+
+    /**
+     * Same lookup order as getFormattedScheduleAttribute()'s queries (bus stop, then départ stop,
+     * then the départ's earliest schedule), answered from already eager-loaded schedules so a
+     * list of bookings does not run queries per row.
+     */
+    private function formattedScheduleFromLoadedSchedules(): string
+    {
+        $departSchedules = $this->depart->heuresDeparts;
+
+        $schedule = $this->bus->heuresDeparts->firstWhere('point_dep_id', $this->point_dep_id)
+            ?? $departSchedules->firstWhere('point_dep_id', $this->point_dep_id)
+            ?? $departSchedules->sortBy('heureDepart')->first();
+
+        if ($schedule === null) {
+            throw (new ModelNotFoundException)->setModel(HeureDepart::class);
+        }
+
+        return $schedule->heureDepart->format('H:i');
     }
 
     public function getHasSeatAttribute(): bool

@@ -152,6 +152,7 @@
             $trajet = $booking->depart->trajet;
             $routeLabel = $trajet->public_name ?? $trajet->name;
             $rendezVous = $booking->point_dep->arret_bus ?? $booking->point_dep->name;
+            $contactNumbers = $booking->bus?->resolveAgentContactNumber($defaultAgentContactNumber) ?: $defaultAgentContactNumber;
         @endphp
         <div class="ticket-wrapper">
             <div class="ticket-card" id="ticket-{{ $booking->id }}">
@@ -192,6 +193,12 @@
                         <div class="label">Prix du billet</div>
                         <div class="value">{{ number_format($booking->ticket->price, 0, ',', ' ') }} F CFA</div>
                     </div>
+                    @if ($contactNumbers)
+                        <div class="ticket-row">
+                            <div class="label">Contact</div>
+                            <div class="value">{{ $contactNumbers }}</div>
+                        </div>
+                    @endif
                 </div>
 
                 <div class="ticket-qr">

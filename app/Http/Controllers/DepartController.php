@@ -374,7 +374,7 @@ class DepartController extends Controller
     {
         $data = [];
         $departs = Depart::where('date', '>', now())
-            ->with(['trajet', 'buses' => fn ($buses) => $buses->withDepartListCounts()])
+            ->with(['trajet', 'buses' => fn ($buses) => $buses->withBookingStatsCounts()])
             ->get();
         foreach ($departs as $depart) {
             $buses = $depart->buses;

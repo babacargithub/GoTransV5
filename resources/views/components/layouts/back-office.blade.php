@@ -119,7 +119,7 @@
 
     {{-- Sidebar: booking-count stats for the current départs. Wider on desktop; a
          self-contained Livewire component (own poll / refresh). --}}
-    <flux:sidebar sticky stashable class="border-e border-zinc-200 bg-zinc-50 lg:w-96 dark:border-zinc-700 dark:bg-zinc-900">
+    <flux:sidebar sticky stashable class="border-e border-zinc-200 bg-zinc-50 lg:w-72 dark:border-zinc-700 dark:bg-zinc-900">
         <flux:sidebar.toggle class="lg:hidden" icon="x-mark" />
 
         <livewire:back-office.depart-stats-sidebar />

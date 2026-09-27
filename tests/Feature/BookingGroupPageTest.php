@@ -4,11 +4,13 @@ namespace Tests\Feature;
 
 use App\Livewire\Website\BookingGroupShow;
 use App\Manager\BookingManager;
+use App\Models\AppParams;
 use App\Models\Booking;
 use App\Models\Bus;
 use App\Models\Customer;
 use App\Models\Depart;
 use App\Models\Destination;
+use App\Models\HeureDepart;
 use App\Models\PointDep;
 use App\Models\Ticket;
 use App\Models\Trajet;
@@ -149,6 +151,49 @@ class BookingGroupPageTest extends TestCase
             ->assertSee('Télécharger mon ticket')
             ->assertSee(route('tickets.group.show', $groupId), false)
             ->assertDontSee('Payer par Wave');
+    }
+
+    public function test_the_ticket_shows_the_bus_agent_number_when_set(): void
+    {
+        ['groupId' => $groupId, 'bookings' => $bookings] = $this->createBookingGroup(paid: true);
+        $this->setDefaultAgentNumber('771112233');
+        $this->addPickupSchedule($bookings->first());
+        $bookings->first()->bus->update(['agent_numbers' => '770000001 / 780000002']);
+
+        $this->get(route('tickets.group.show', $groupId))
+            ->assertOk()
+            ->assertSee('Contact')
+            ->assertSee('770000001 / 780000002')
+            ->assertDontSee('771112233');
+    }
+
+    public function test_the_ticket_falls_back_to_the_default_agent_number_when_the_bus_has_none(): void
+    {
+        ['groupId' => $groupId, 'bookings' => $bookings] = $this->createBookingGroup(paid: true);
+        $this->setDefaultAgentNumber('771112233');
+        $this->addPickupSchedule($bookings->first());
+        $bookings->first()->bus->update(['agent_numbers' => null]);
+
+        $this->get(route('tickets.group.show', $groupId))
+            ->assertOk()
+            ->assertSee('771112233');
+    }
+
+    private function addPickupSchedule(Booking $booking): void
+    {
+        HeureDepart::create([
+            'depart_id' => $booking->depart_id,
+            'point_dep_id' => $booking->point_dep_id,
+            'bus_id' => $booking->bus_id,
+            'heureDepart' => '08:00:00',
+        ]);
+    }
+
+    private function setDefaultAgentNumber(string $number): void
+    {
+        $appParams = AppParams::first() ?? new AppParams;
+        $appParams->data = array_merge($appParams->data ?? [], ['bus_agent_default_number' => $number]);
+        $appParams->save();
     }
 
     public function test_paying_the_group_by_wave_redirects_to_the_wave_checkout(): void

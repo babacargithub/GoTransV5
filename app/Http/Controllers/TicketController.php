@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AppParams;
 use App\Models\Booking;
 use App\Models\Bus;
 use App\Models\Depart;
@@ -106,6 +107,7 @@ class TicketController extends Controller
         return view('tickets.group', [
             'bookings' => $bookings,
             'groupId' => $groupId,
+            'defaultAgentContactNumber' => AppParams::first()?->getBusAgentDefaultNumber(),
         ]);
     }
 
@@ -125,6 +127,7 @@ class TicketController extends Controller
         return view('tickets.group', [
             'bookings' => collect([$booking]),
             'groupId' => $booking->group_id,
+            'defaultAgentContactNumber' => AppParams::first()?->getBusAgentDefaultNumber(),
         ]);
     }
 

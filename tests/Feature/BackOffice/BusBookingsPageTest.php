@@ -16,6 +16,7 @@ use App\Models\Seat;
 use App\Models\Ticket;
 use App\Models\Trajet;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 use Livewire\Livewire;
@@ -153,6 +154,58 @@ class BusBookingsPageTest extends TestCase
         $booking->ticket()->associate($ticket)->save();
 
         return $ticket;
+    }
+
+    private function addPassengersToBus(Bus $bus, int $numberOfPassengers): void
+    {
+        $trajet = $bus->depart->trajet;
+        $pointDep = $trajet->pointDeps()->firstOrFail();
+        $destination = $trajet->destinations()->firstOrFail();
+
+        foreach (range(1, $numberOfPassengers) as $passengerIndex) {
+            $customer = Customer::create([
+                'prenom' => 'Passager'.$passengerIndex,
+                'nom' => 'Test',
+                'phone_number' => 770000000 + random_int(1, 9999999),
+            ]);
+
+            $booking = $bus->bookings()->create([
+                'customer_id' => $customer->id,
+                'depart_id' => $bus->depart_id,
+                'point_dep_id' => $pointDep->id,
+                'destination_id' => $destination->id,
+                'paye' => false,
+            ]);
+
+            if ($passengerIndex % 2 === 0) {
+                $this->attachWaveTicket($booking);
+            }
+        }
+    }
+
+    private function countQueriesWhileLoadingTheBusBookingsPage(Bus $bus): int
+    {
+        $user = $this->createUserWithFullAccess();
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $this->actingAs($user)->get(route('back-office.buses.bookings', $bus))->assertOk();
+        $numberOfQueries = count(DB::getQueryLog());
+        DB::disableQueryLog();
+
+        return $numberOfQueries;
+    }
+
+    public function test_the_number_of_queries_does_not_grow_with_the_number_of_passengers(): void
+    {
+        ['bus' => $bus] = $this->createBusWithOnePassenger();
+        $this->addPassengersToBus($bus, 3);
+        $queriesWithFewPassengers = $this->countQueriesWhileLoadingTheBusBookingsPage($bus);
+
+        $this->addPassengersToBus($bus, 20);
+        $queriesWithManyPassengers = $this->countQueriesWhileLoadingTheBusBookingsPage($bus);
+
+        $this->assertSame($queriesWithFewPassengers, $queriesWithManyPassengers);
     }
 
     public function test_it_lists_the_passengers_of_a_bus(): void
