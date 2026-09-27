@@ -59,7 +59,7 @@ class Login extends Component
         Auth::login($user, $this->remember);
         session()->regenerate();
 
-        $this->redirect(route('dashboard'), navigate: true);
+        $this->redirectIntended(default: route('back-office.departs.index'), navigate: true);
     }
 
     public function render()

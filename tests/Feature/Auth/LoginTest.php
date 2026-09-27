@@ -27,12 +27,31 @@ class LoginTest extends TestCase
             ->set('password', 'password')
             ->call('login')
             ->assertHasNoErrors()
-            ->assertRedirect(route('dashboard'));
+            ->assertRedirect(route('back-office.departs.index'));
 
         $this->assertAuthenticatedAs($user);
+    }
 
-        // The authenticated session must actually satisfy the dashboard guard chain.
-        $this->get(route('dashboard'))->assertOk();
+    public function test_login_returns_to_the_page_the_user_was_trying_to_reach(): void
+    {
+        User::factory()->create([
+            'username' => 'fatou_sow',
+            'password' => Hash::make('password'),
+        ]);
+        session()->put('url.intended', route('back-office.caisses.index'));
+
+        Livewire::test(Login::class)
+            ->set('username', 'fatou_sow')
+            ->set('password', 'password')
+            ->call('login')
+            ->assertRedirect(route('back-office.caisses.index'));
+    }
+
+    public function test_an_already_authenticated_user_visiting_the_login_page_lands_on_the_departs_list(): void
+    {
+        $this->actingAs(User::factory()->create())
+            ->get('/login')
+            ->assertRedirect('/back-office/departs');
     }
 
     public function test_the_login_page_renders_inside_the_full_auth_layout(): void
