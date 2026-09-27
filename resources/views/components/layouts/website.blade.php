@@ -2,7 +2,7 @@
     // SEO — every public website page MUST pass a unique title and description.
     'title' => 'Globe One Transport',
     'description' => 'Globe One Transport — voyagez en bus entre Saint-Louis (UGB) et Dakar. Trajets directs, fiables et confortables, réservation en ligne.',
-    'keywords' => null,
+    'keywords' => 'caravane ugb, Globe One Transport, caravane dakar ugb, réservation caravane ugb dakar, campus ugb, transport, Dakar, UGB, réservation, voyage, étudiants, Saint-Louis Dakar',
     'canonical' => null,
     'robots' => 'index, follow',
     'ogType' => 'website',
@@ -12,7 +12,7 @@
 
 @php
     $canonicalUrl = $canonical ?? url()->current();
-    $ogImageUrl = $ogImage ?? asset('images/website/og-default.jpg');
+    $ogImageUrl = $ogImage ?? asset('favicons/favicon-128x128.png');
     $siteName = 'Globe One Transport';
 
     $organizationJsonLd = json_encode([
@@ -20,7 +20,7 @@
         '@type' => 'Organization',
         'name' => $siteName,
         'url' => url('/'),
-        'logo' => asset('images/website/logo.png'),
+        'logo' => asset('favicons/favicon-128x128.png'),
     ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 @endphp
 
@@ -36,6 +36,8 @@
         <meta name="keywords" content="{{ $keywords }}">
     @endif
     <meta name="robots" content="{{ $robots }}">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="msapplication-tap-highlight" content="no">
     <link rel="canonical" href="{{ $canonicalUrl }}">
 
     {{-- Open Graph --}}
@@ -54,6 +56,8 @@
     <meta name="twitter:image" content="{{ $ogImageUrl }}">
 
     <meta name="theme-color" content="#1DC8FE">
+
+    <x-favicons />
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 

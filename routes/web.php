@@ -4,6 +4,7 @@ use App\Http\Controllers\BookingController;
 use App\Http\Controllers\BusController;
 use App\Http\Controllers\DepartController;
 use App\Http\Controllers\MobileAppController;
+use App\Http\Controllers\SeoFilesController;
 use App\Http\Controllers\TicketController;
 use App\Http\Middleware\CachePublicHtmlResponse;
 use App\Http\Middleware\EncryptCookies;
@@ -97,7 +98,11 @@ Route::domain(config('app.public_website_domain'))->name('website.')->group(func
             // (same logic as api/mobile/departs/trajet/{trajet}), which branches on the route.
             Route::get('caravanes/{trajet:slug}', [MobileAppController::class, 'listeDepartsTrajet'])
                 ->name('caravanes.show');
+
+            Route::get('sitemap.xml', [SeoFilesController::class, 'publicWebsiteSitemap'])->name('sitemap');
         });
+
+        Route::get('robots.txt', [SeoFilesController::class, 'publicWebsiteRobots'])->name('robots');
 
         // Pickup schedule for one départ card, fetched on demand when a visitor expands
         // "Heures de départ" (keeps the caravane page itself free of per-départ schedule queries).
@@ -115,6 +120,15 @@ Route::domain(config('app.public_website_domain'))->name('website.')->group(func
     // Public booking page, addressed by the group's shared UUID (not the numeric group_id).
     Route::get('reservations/{uuid}', BookingGroupShow::class)->name('bookings.show');
 });
+
+// Any other host (back office, landing domains): the public website answered above on its own domain.
+Route::withoutMiddleware([
+    EncryptCookies::class,
+    AddQueuedCookiesToResponse::class,
+    StartSession::class,
+    ShareErrorsFromSession::class,
+    VerifyCsrfToken::class,
+])->get('robots.txt', [SeoFilesController::class, 'fallbackRobots'])->name('robots.fallback');
 
 Route::get('/', function () {
     return view('homepage');
