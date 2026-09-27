@@ -8,11 +8,14 @@ use App\Http\Controllers\DepartController;
 use App\Http\Resources\DepartResource;
 use App\Models\Bus;
 use App\Models\Depart;
+use App\Models\Trajet;
 use App\Services\BusService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Builder;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -29,6 +32,18 @@ use Livewire\WithPagination;
 class DepartList extends Component
 {
     use WithPagination;
+
+    /**
+     * Id of the trajet the list is narrowed to; '' means every trajet.
+     */
+    #[Url(as: 'trajet')]
+    public string $trajetFilter = '';
+
+    /**
+     * Switches the list from upcoming départs (soonest first) to past ones (latest first).
+     */
+    #[Url(as: 'passes')]
+    public bool $showPastDeparts = false;
 
     public bool $showTicketSalesModal = false;
 
@@ -109,19 +124,61 @@ class DepartList extends Component
     public ?string $busTransferErrorMessage = null;
 
     /**
-     * One page of upcoming départs, soonest first. Rendering a départ (its menus, badges, tooltips) is
-     * costly, so the page size is bounded to keep the request well under PHP's memory limit however many
-     * départs are scheduled. Bus figures arrive as aggregate columns of the same query (no per-bus queries).
+     * Départs of the selected period (upcoming or past), before the trajet filter.
+     *
+     * @return Builder<Depart>
+     */
+    private function departsOfSelectedPeriod(): Builder
+    {
+        return Depart::query()->where('date', $this->showPastDeparts ? '<=' : '>', now());
+    }
+
+    /**
+     * Trajets offered by the filter: only those with at least one départ in the selected period.
+     *
+     * @return array<int, array{id: int, name: string}>
+     */
+    #[Computed]
+    public function trajetFilterOptions(): array
+    {
+        return Trajet::query()
+            ->whereHas('departs', fn (Builder $departs) => $departs->where('date', $this->showPastDeparts ? '<=' : '>', now()))
+            ->orderBy('name')
+            ->get(['id', 'name', 'public_name'])
+            ->map(fn (Trajet $trajet): array => ['id' => $trajet->id, 'name' => $trajet->public_name ?: $trajet->name])
+            ->all();
+    }
+
+    public function updatedShowPastDeparts(): void
+    {
+        $trajetStillOffered = collect($this->trajetFilterOptions)->contains('id', (int) $this->trajetFilter);
+        if (! $trajetStillOffered) {
+            $this->trajetFilter = '';
+        }
+
+        $this->resetPage();
+    }
+
+    public function updatedTrajetFilter(): void
+    {
+        $this->resetPage();
+    }
+
+    /**
+     * One page of départs of the selected period — soonest first for upcoming, latest first for past.
+     * Rendering a départ (its menus, badges, tooltips) is costly, so the page size is bounded to keep the
+     * request well under PHP's memory limit however many départs exist. Bus figures arrive as aggregate
+     * columns of the same query (no per-bus queries).
      *
      * @return LengthAwarePaginator<int, Depart>
      */
     #[Computed]
-    public function upcomingDepartsPage(): LengthAwarePaginator
+    public function departsPage(): LengthAwarePaginator
     {
-        return Depart::query()
-            ->where('date', '>', now())
-            ->orderBy('date')
-            ->orderBy('id')
+        return $this->departsOfSelectedPeriod()
+            ->when($this->trajetFilter !== '', fn (Builder $departs) => $departs->where('trajet_id', (int) $this->trajetFilter))
+            ->orderBy('date', $this->showPastDeparts ? 'desc' : 'asc')
+            ->orderBy('id', $this->showPastDeparts ? 'desc' : 'asc')
             ->with(['trajet', 'buses' => fn ($buses) => $buses->withDepartListCounts()])
             ->paginate((int) config('app.back_office_departs_per_page'));
     }
@@ -134,7 +191,7 @@ class DepartList extends Component
     #[Computed]
     public function departRows(): array
     {
-        return DepartResource::collection($this->upcomingDepartsPage->getCollection())->resolve(request());
+        return DepartResource::collection($this->departsPage->getCollection())->resolve(request());
     }
 
     /**

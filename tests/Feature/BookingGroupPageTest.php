@@ -212,6 +212,62 @@ class BookingGroupPageTest extends TestCase
             ->assertRedirect('https://pay.wave.com/c/cos-grp1?a=8000');
     }
 
+    public function test_the_wave_checkout_of_a_website_booking_returns_to_the_website_payment_pages(): void
+    {
+        Http::fake([
+            'api.wave.com/*' => Http::response([
+                'id' => 'cos-grp2',
+                'wave_launch_url' => 'https://pay.wave.com/c/cos-grp2?a=8000',
+            ], 200),
+        ]);
+        ['uuid' => $uuid] = $this->createBookingGroup(paid: false);
+
+        Livewire::test(BookingGroupShow::class, ['uuid' => $uuid])->call('payWithWave');
+
+        Http::assertSent(fn ($request): bool => str_starts_with($request->url(), 'https://api.wave.com')
+            && $request['success_url'] === route('website.bookings.payment-success', ['uuid' => $uuid])
+            && $request['error_url'] === route('website.bookings.payment-error', ['uuid' => $uuid]));
+    }
+
+    public function test_the_success_page_of_a_paid_group_shows_the_success_message_and_the_ticket_download(): void
+    {
+        ['uuid' => $uuid, 'groupId' => $groupId] = $this->createBookingGroup(paid: true);
+
+        $this->get(route('website.bookings.payment-success', ['uuid' => $uuid]))
+            ->assertOk()
+            ->assertSee('Paiement réussi')
+            ->assertSee('Télécharger mon ticket')
+            ->assertSee(route('tickets.group.show', $groupId), false)
+            ->assertDontSee('confirmation en cours');
+    }
+
+    public function test_the_success_page_polls_while_the_wave_confirmation_has_not_arrived_yet(): void
+    {
+        ['uuid' => $uuid] = $this->createBookingGroup(paid: false);
+
+        $this->get(route('website.bookings.payment-success', ['uuid' => $uuid]))
+            ->assertOk()
+            ->assertSee('confirmation en cours')
+            ->assertSee('wire:poll.3s', false)
+            ->assertDontSee('Paiement réussi');
+    }
+
+    public function test_the_error_page_explains_the_failure_and_offers_to_pay_again(): void
+    {
+        ['uuid' => $uuid] = $this->createBookingGroup(paid: false);
+
+        $this->get(route('website.bookings.payment-error', ['uuid' => $uuid]))
+            ->assertOk()
+            ->assertSee("Le paiement n'a pas abouti", false)
+            ->assertSee('Payer par Wave');
+    }
+
+    public function test_the_payment_pages_return_404_for_an_unknown_uuid(): void
+    {
+        $this->get(route('website.bookings.payment-success', ['uuid' => Str::uuid()]))->assertNotFound();
+        $this->get(route('website.bookings.payment-error', ['uuid' => Str::uuid()]))->assertNotFound();
+    }
+
     public function test_paying_by_orange_money_requires_the_paying_number(): void
     {
         ['uuid' => $uuid] = $this->createBookingGroup(paid: false);

@@ -18,6 +18,26 @@
         @endif
     @endif
 
+    @if ($paymentOutcome === \App\Livewire\Website\BookingGroupShow::PAYMENT_OUTCOME_SUCCESS)
+        @if ($groupIsPaid)
+            <div class="mt-6 rounded-xl border border-green-300 bg-green-50 px-4 py-3 text-green-900" role="status">
+                <p class="font-semibold">Paiement réussi !</p>
+                <p class="text-sm">Merci, votre réservation est confirmée. Vous pouvez télécharger votre ticket ci-dessous.</p>
+            </div>
+        @else
+            {{-- Wave redirects the customer before its webhook has necessarily been processed: poll until the ticket exists. --}}
+            <div class="mt-6 rounded-xl border border-brand-cyan bg-brand-cyan/10 px-4 py-3" role="status" wire:poll.3s>
+                <p class="font-semibold">Paiement reçu, confirmation en cours…</p>
+                <p class="text-sm">Votre ticket s'affichera ici dans quelques secondes. Ne fermez pas cette page.</p>
+            </div>
+        @endif
+    @elseif ($paymentOutcome === \App\Livewire\Website\BookingGroupShow::PAYMENT_OUTCOME_ERROR && ! $groupIsPaid)
+        <div class="mt-6 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-red-800" role="alert">
+            <p class="font-semibold">Le paiement n'a pas abouti.</p>
+            <p class="text-sm">Il a été annulé ou a échoué. Vous pouvez réessayer ci-dessous.</p>
+        </div>
+    @endif
+
     @if (session('status'))
         <div class="mt-6 rounded-xl border border-brand-cyan bg-brand-cyan/10 px-4 py-3 text-sm" role="status">
             {{ session('status') }}

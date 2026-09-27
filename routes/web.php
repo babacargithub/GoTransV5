@@ -119,6 +119,15 @@ Route::domain(config('app.public_website_domain'))->name('website.')->group(func
 
     // Public booking page, addressed by the group's shared UUID (not the numeric group_id).
     Route::get('reservations/{uuid}', BookingGroupShow::class)->name('bookings.show');
+
+    // Where Wave sends the customer back after the checkout (see MobileAppController@generatePaymentUrlForMultipleBooking).
+    // Same page as the booking, with a payment outcome banner on top.
+    Route::get('reservations/{uuid}/paiement/succes', BookingGroupShow::class)
+        ->defaults('paymentOutcome', BookingGroupShow::PAYMENT_OUTCOME_SUCCESS)
+        ->name('bookings.payment-success');
+    Route::get('reservations/{uuid}/paiement/echec', BookingGroupShow::class)
+        ->defaults('paymentOutcome', BookingGroupShow::PAYMENT_OUTCOME_ERROR)
+        ->name('bookings.payment-error');
 });
 
 // Any other host (back office, landing domains): the public website answered above on its own domain.

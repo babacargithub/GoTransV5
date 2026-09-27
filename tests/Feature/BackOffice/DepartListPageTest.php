@@ -14,6 +14,7 @@ use App\Models\Ticket;
 use App\Models\Trajet;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
@@ -915,7 +916,7 @@ class DepartListPageTest extends TestCase
         $this->createUpcomingDepartWithBus();
 
         $component = Livewire::actingAs($this->createUserWithFullAccess())->test(DepartList::class);
-        $firstPage = $component->instance()->upcomingDepartsPage;
+        $firstPage = $component->instance()->departsPage;
         $firstPageDates = collect($firstPage->items())->map(fn (Depart $depart): string => $depart->date->format('Y-m-d H:i:s'));
 
         $this->assertCount(2, $firstPage->items());
@@ -925,6 +926,79 @@ class DepartListPageTest extends TestCase
 
         $component->call('gotoPage', $firstPage->lastPage())
             ->assertSee($farFutureDepart->identifier(with_trajet_prefix: true));
+    }
+
+    private function createDepartOfTrajet(Trajet $trajet, string $name, Carbon $date): Depart
+    {
+        return Depart::create([
+            'name' => $name,
+            'date' => $date,
+            'trajet_id' => $trajet->id,
+            'closed' => false,
+            'locked' => false,
+            'canceled' => false,
+        ]);
+    }
+
+    public function test_the_trajet_filter_only_offers_trajets_that_have_departs_and_narrows_the_list(): void
+    {
+        config(['app.back_office_departs_per_page' => 1000]);
+        $trajetWithDeparts = Trajet::create(['name' => 'Trajet Avec Departs '.uniqid(), 'departure_city' => 'A', 'arrival_city' => 'B']);
+        $trajetWithoutDeparts = Trajet::create(['name' => 'Trajet Sans Departs '.uniqid(), 'departure_city' => 'A', 'arrival_city' => 'C']);
+        $otherTrajet = Trajet::create(['name' => 'Trajet Autre '.uniqid(), 'departure_city' => 'A', 'arrival_city' => 'D']);
+        $keptDepart = $this->createDepartOfTrajet($trajetWithDeparts, 'DEPART GARDE '.uniqid(), now()->addDays(2));
+        $hiddenDepart = $this->createDepartOfTrajet($otherTrajet, 'DEPART MASQUE '.uniqid(), now()->addDays(2));
+
+        $component = Livewire::actingAs($this->createUserWithFullAccess())->test(DepartList::class);
+
+        $offeredTrajetIds = collect($component->instance()->trajetFilterOptions)->pluck('id');
+        $this->assertTrue($offeredTrajetIds->contains($trajetWithDeparts->id));
+        $this->assertFalse($offeredTrajetIds->contains($trajetWithoutDeparts->id));
+
+        $component->set('trajetFilter', (string) $trajetWithDeparts->id)
+            ->assertSee($keptDepart->name)
+            ->assertDontSee($hiddenDepart->name);
+
+        $component->set('trajetFilter', '')
+            ->assertSee($keptDepart->name)
+            ->assertSee($hiddenDepart->name);
+    }
+
+    public function test_the_past_filter_lists_past_departs_latest_first_and_drops_upcoming_ones(): void
+    {
+        config(['app.back_office_departs_per_page' => 1000]);
+        $trajet = Trajet::create(['name' => 'Trajet Passe '.uniqid(), 'departure_city' => 'A', 'arrival_city' => 'B']);
+        $upcomingDepart = $this->createDepartOfTrajet($trajet, 'DEPART FUTUR '.uniqid(), now()->addDays(2));
+        $olderPastDepart = $this->createDepartOfTrajet($trajet, 'DEPART ANCIEN '.uniqid(), now()->subDays(20));
+        $recentPastDepart = $this->createDepartOfTrajet($trajet, 'DEPART RECENT '.uniqid(), now()->subDays(2));
+
+        $component = Livewire::actingAs($this->createUserWithFullAccess())
+            ->test(DepartList::class)
+            ->set('trajetFilter', (string) $trajet->id);
+        $component->assertSee($upcomingDepart->name)->assertDontSee($recentPastDepart->name);
+
+        $component->set('showPastDeparts', true)
+            ->assertSee('Départs passés')
+            ->assertSee($recentPastDepart->name)
+            ->assertDontSee($upcomingDepart->name);
+
+        $pastDepartNames = collect($component->instance()->departsPage->items())->pluck('name');
+        $this->assertLessThan(
+            $pastDepartNames->search($olderPastDepart->name),
+            $pastDepartNames->search($recentPastDepart->name),
+        );
+    }
+
+    public function test_switching_to_past_departs_clears_a_trajet_filter_that_has_no_past_departs(): void
+    {
+        $trajetWithOnlyUpcomingDeparts = Trajet::create(['name' => 'Trajet Futur '.uniqid(), 'departure_city' => 'A', 'arrival_city' => 'B']);
+        $this->createDepartOfTrajet($trajetWithOnlyUpcomingDeparts, 'DEPART FUTUR '.uniqid(), now()->addDays(2));
+
+        Livewire::actingAs($this->createUserWithFullAccess())
+            ->test(DepartList::class)
+            ->set('trajetFilter', (string) $trajetWithOnlyUpcomingDeparts->id)
+            ->set('showPastDeparts', true)
+            ->assertSet('trajetFilter', '');
     }
 
     public function test_the_number_of_queries_does_not_grow_with_the_number_of_buses(): void

@@ -2,7 +2,7 @@
     <div class="flex items-start justify-between gap-4">
         <div>
             <flux:heading size="xl" level="1">Liste des départs</flux:heading>
-            <flux:text class="mt-1">Départs à venir</flux:text>
+            <flux:text class="mt-1">{{ $showPastDeparts ? 'Départs passés' : 'Départs à venir' }}</flux:text>
         </div>
 
         <flux:button
@@ -25,6 +25,17 @@
             <flux:callout.text>{{ session('error') }}</flux:callout.text>
         </flux:callout>
     @endif
+
+    <div class="mt-6 flex flex-wrap items-end justify-between gap-4">
+        <flux:select wire:model.live="trajetFilter" class="max-w-xs" aria-label="Filtrer par trajet">
+            <flux:select.option value="">Tous les trajets</flux:select.option>
+            @foreach ($this->trajetFilterOptions as $trajetOption)
+                <flux:select.option :value="$trajetOption['id']" wire:key="trajet-filter-{{ $trajetOption['id'] }}">{{ $trajetOption['name'] }}</flux:select.option>
+            @endforeach
+        </flux:select>
+
+        <flux:switch wire:model.live="showPastDeparts" label="Départs passés" />
+    </div>
 
     <flux:separator class="my-6" variant="subtle" />
 
@@ -215,15 +226,17 @@
             </flux:card>
         @empty
             <flux:callout icon="information-circle">
-                <flux:callout.heading>Aucun départ à venir</flux:callout.heading>
-                <flux:callout.text>Les nouveaux départs apparaîtront ici une fois créés.</flux:callout.text>
+                <flux:callout.heading>{{ $showPastDeparts ? 'Aucun départ passé' : 'Aucun départ à venir' }}</flux:callout.heading>
+                <flux:callout.text>
+                    {{ $trajetFilter !== '' ? 'Aucun départ ne correspond à ce trajet.' : 'Les nouveaux départs apparaîtront ici une fois créés.' }}
+                </flux:callout.text>
             </flux:callout>
         @endforelse
     </div>
 
-    @if ($this->upcomingDepartsPage->hasPages())
+    @if ($this->departsPage->hasPages())
         <div class="mt-6">
-            <flux:pagination :paginator="$this->upcomingDepartsPage" />
+            <flux:pagination :paginator="$this->departsPage" />
         </div>
     @endif
 

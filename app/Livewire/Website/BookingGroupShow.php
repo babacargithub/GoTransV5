@@ -22,7 +22,17 @@ use Livewire\Component;
  */
 class BookingGroupShow extends Component
 {
+    public const PAYMENT_OUTCOME_SUCCESS = 'success';
+
+    public const PAYMENT_OUTCOME_ERROR = 'error';
+
     public string $uuid;
+
+    /**
+     * Set when the customer lands here from the payment provider's redirect: one of the
+     * PAYMENT_OUTCOME_* constants, null on the plain booking page.
+     */
+    public ?string $paymentOutcome = null;
 
     /** "wave" | "om" */
     public ?string $paymentMethod = null;
@@ -31,9 +41,10 @@ class BookingGroupShow extends Component
 
     public ?string $paymentError = null;
 
-    public function mount(string $uuid): void
+    public function mount(string $uuid, ?string $paymentOutcome = null): void
     {
         $this->uuid = $uuid;
+        $this->paymentOutcome = $paymentOutcome;
 
         abort_if($this->bookings->isEmpty(), 404);
     }

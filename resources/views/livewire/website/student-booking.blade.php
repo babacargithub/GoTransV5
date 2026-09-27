@@ -220,7 +220,7 @@
                             wire:target="confirmBooking"
                             class="flex-1 rounded-full bg-brand-cyan px-4 py-2.5 font-semibold text-brand-navy disabled:opacity-60"
                         >
-                            <span wire:loading.remove wire:target="confirmBooking">Je confirme et je paie</span>
+                            <span wire:loading.remove wire:target="confirmBooking">Payer</span>
                             <span wire:loading wire:target="confirmBooking">Traitement…</span>
                         </button>
                     </div>

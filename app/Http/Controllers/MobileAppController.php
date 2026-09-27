@@ -31,6 +31,7 @@ use GuzzleHttp\Exception\GuzzleException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
+use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\JsonResponse;
 
 class MobileAppController extends Controller
@@ -43,7 +44,7 @@ class MobileAppController extends Controller
 
     }
 
-    public function updateParams(\Illuminate\Http\Request $request)
+    public function updateParams(Request $request)
     {
         $params = $request->validate([
             'data' => 'required|array',
@@ -64,7 +65,7 @@ class MobileAppController extends Controller
 
     }
 
-    public function listeDepartsTrajet(Trajet $trajet, \Illuminate\Http\Request $request)
+    public function listeDepartsTrajet(Trajet $trajet, Request $request)
     {
         // The public website shows the same départs as the mobile app but renders far fewer fields.
         // It uses a lean, fully eager-loaded resource (CaravaneDepartsResource) instead of the mobile
@@ -89,7 +90,7 @@ class MobileAppController extends Controller
      * when it has any, otherwise the départ-wide schedule — the same resolution the mobile départ
      * list uses per bus.
      */
-    public function caravaneDepartSchedule(Depart $depart, \Illuminate\Http\Request $request): JsonResponse
+    public function caravaneDepartSchedule(Depart $depart, Request $request): JsonResponse
     {
         $busId = $request->integer('bus') ?: null;
 
@@ -131,7 +132,7 @@ class MobileAppController extends Controller
         return $this->bookingService->handleGpMultiPassengerBooking($request);
     }
 
-    public function listeDepartsForGp(\Illuminate\Http\Request $request)
+    public function listeDepartsForGp(Request $request)
     {
         return app(TrajetService::class)->listDepartsForGp($request);
     }
@@ -141,7 +142,7 @@ class MobileAppController extends Controller
      * payment/summary step can display the price the backend will actually charge instead of
      * computing it locally.
      */
-    public function calculatePriceForGpBooking(\Illuminate\Http\Request $request): JsonResponse
+    public function calculatePriceForGpBooking(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'depart_id' => 'required|integer|exists:departs,id',
@@ -180,7 +181,7 @@ class MobileAppController extends Controller
      * @throws ConnectionException
      * @throws GuzzleException
      */
-    public function saveBooking(Depart $depart, \Illuminate\Http\Request $request)
+    public function saveBooking(Depart $depart, Request $request)
     {
 
         $validated = $request->validate([
@@ -495,7 +496,7 @@ class MobileAppController extends Controller
 
     }
 
-    public function calculatePriceForGroupe(\Illuminate\Http\Request $request)
+    public function calculatePriceForGroupe(Request $request)
     {
         $validated = $this->validateMultipleBookingPaymentRequest($request);
         $result = $this->calculateTicketPriceForMultipleBooking($validated, $request);
@@ -509,7 +510,7 @@ class MobileAppController extends Controller
      * @throws GuzzleException
      * @throws ConnectionException
      */
-    public function generatePaymentUrlForMultipleBooking(\Illuminate\Http\Request $request)
+    public function generatePaymentUrlForMultipleBooking(Request $request)
     {
         $validated = $this->validateMultipleBookingPaymentRequest($request);
 
@@ -518,6 +519,13 @@ class MobileAppController extends Controller
         $group_id = $validated['group_id'];
         $depart_id = Booking::where('group_id', $group_id)->value('depart_id');
         if ($payment_method == 'wave') {
+            $websiteBookingUuid = Booking::where('group_id', $group_id)
+                ->where('booked_with_platform', 'website')
+                ->whereNotNull('uuid')
+                ->value('uuid');
+            // Website customers come back to the public website's payment result pages; the URLs are
+            // derived from the stored group (never from request input) so they cannot be spoofed.
+            $mobileAppGroupUrl = WavePaiementController::getEndpointForRedirect().'/#/multiple_bookings/'.$group_id;
             $metadata = [
                 'amount' => ''.$result['totalPrice'],
                 'client_reference' => [
@@ -525,8 +533,12 @@ class MobileAppController extends Controller
                     'group_id' => $group_id,
                     'depart_id' => $depart_id,
                 ],
-                'error_url' => WavePaiementController::getEndpointForRedirect().'/#/multiple_bookings/'.$group_id,
-                'success_url' => WavePaiementController::getEndpointForRedirect().'/#/multiple_bookings/'.$group_id,
+                'error_url' => $websiteBookingUuid !== null
+                    ? route('website.bookings.payment-error', ['uuid' => $websiteBookingUuid])
+                    : $mobileAppGroupUrl,
+                'success_url' => $websiteBookingUuid !== null
+                    ? route('website.bookings.payment-success', ['uuid' => $websiteBookingUuid])
+                    : $mobileAppGroupUrl,
             ];
             $wavePaiementController = app(WavePaiementController::class);
             $wavePaiementResponse = $wavePaiementController->getPaymentUrl($metadata);
@@ -578,7 +590,7 @@ class MobileAppController extends Controller
     /**
      * @return void
      */
-    public function validateMultipleBookingPaymentRequest(\Illuminate\Http\Request $request): array
+    public function validateMultipleBookingPaymentRequest(Request $request): array
     {
         return $request->validate([
             'payment_method' => 'required|string',
@@ -603,7 +615,7 @@ class MobileAppController extends Controller
         ]);
     }
 
-    public function calculateTicketPriceForMultipleBooking(?array $validated, \Illuminate\Http\Request $request): array
+    public function calculateTicketPriceForMultipleBooking(?array $validated, Request $request): array
     {
         $bookings = [];
         foreach (Booking::where('group_id', $validated['group_id'])->get() as $item) {
