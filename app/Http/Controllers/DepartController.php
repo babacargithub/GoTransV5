@@ -36,7 +36,9 @@ class DepartController extends Controller
      */
     public function index()
     {
-        $upcomingDeparts = Depart::where('date', '>', now())->get();
+        $upcomingDeparts = Depart::where('date', '>', now())
+            ->with(['trajet', 'buses' => fn ($buses) => $buses->withDepartListCounts()])
+            ->get();
 
         return DepartResource::collection($upcomingDeparts);
     }
@@ -371,14 +373,16 @@ class DepartController extends Controller
     public function bookingsCount()
     {
         $data = [];
-        $departs = Depart::where('date', '>', now())->get();
+        $departs = Depart::where('date', '>', now())
+            ->with(['trajet', 'buses' => fn ($buses) => $buses->withDepartListCounts()])
+            ->get();
         foreach ($departs as $depart) {
             $buses = $depart->buses;
             $busData = [];
             foreach ($buses as $bus) {
-                $bookingsCount = $bus->bookings->count();
-                $bookedSeatsCount = $bus->seats->where('booked', true)->count();
-                $ticketsSoldCount = $bus->bookings->whereNotNull('ticket_id')->count();
+                $bookingsCount = $bus->numberOfBookings();
+                $bookedSeatsCount = $bus->numberOfSeatsMarkedBooked();
+                $ticketsSoldCount = $bus->numberOfTicketsSold();
                 $hasSeatsLeft = $bookedSeatsCount < $bus->nombre_place;
                 $busData[] = [
                     'id' => $bus->id,

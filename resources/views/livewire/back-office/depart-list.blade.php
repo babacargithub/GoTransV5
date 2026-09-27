@@ -221,6 +221,12 @@
         @endforelse
     </div>
 
+    @if ($this->upcomingDepartsPage->hasPages())
+        <div class="mt-6">
+            <flux:pagination :paginator="$this->upcomingDepartsPage" />
+        </div>
+    @endif
+
     {{-- Ventes de billets --}}
     <flux:modal wire:model.self="showTicketSalesModal" wire:key="ticket-sales-modal" class="w-full max-w-lg">
         <div class="space-y-6">

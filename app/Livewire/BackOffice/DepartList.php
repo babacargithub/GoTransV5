@@ -9,10 +9,12 @@ use App\Http\Resources\DepartResource;
 use App\Models\Bus;
 use App\Models\Depart;
 use App\Services\BusService;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
+use Livewire\WithPagination;
 
 /**
  * Back office départ list.
@@ -26,6 +28,8 @@ use Livewire\Component;
 #[Layout('components.layouts.back-office')]
 class DepartList extends Component
 {
+    use WithPagination;
+
     public bool $showTicketSalesModal = false;
 
     public ?int $ticketSalesDepartId = null;
@@ -105,19 +109,32 @@ class DepartList extends Component
     public ?string $busTransferErrorMessage = null;
 
     /**
-     * Upcoming départs rendered through the same resource the legacy API uses.
+     * One page of upcoming départs, soonest first. Rendering a départ (its menus, badges, tooltips) is
+     * costly, so the page size is bounded to keep the request well under PHP's memory limit however many
+     * départs are scheduled. Bus figures arrive as aggregate columns of the same query (no per-bus queries).
+     *
+     * @return LengthAwarePaginator<int, Depart>
+     */
+    #[Computed]
+    public function upcomingDepartsPage(): LengthAwarePaginator
+    {
+        return Depart::query()
+            ->where('date', '>', now())
+            ->orderBy('date')
+            ->orderBy('id')
+            ->with(['trajet', 'buses' => fn ($buses) => $buses->withDepartListCounts()])
+            ->paginate((int) config('app.back_office_departs_per_page'));
+    }
+
+    /**
+     * The current page rendered through the same resource the legacy API uses.
      *
      * @return array<int, array<string, mixed>>
      */
     #[Computed]
     public function departRows(): array
     {
-        $upcomingDeparts = Depart::query()
-            ->where('date', '>', now())
-            ->with(['trajet', 'buses'])
-            ->get();
-
-        return DepartResource::collection($upcomingDeparts)->resolve(request());
+        return DepartResource::collection($this->upcomingDepartsPage->getCollection())->resolve(request());
     }
 
     /**

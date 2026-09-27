@@ -2,8 +2,10 @@
 
 namespace Tests\Feature\BackOffice;
 
+use App\Enums\BookingType;
 use App\Enums\PermissionName;
 use App\Livewire\BackOffice\BusBookings;
+use App\Manager\BookingManager;
 use App\Models\Booking;
 use App\Models\Bus;
 use App\Models\Customer;
@@ -620,6 +622,41 @@ class BusBookingsPageTest extends TestCase
         ])->assertStatus(422)->assertJsonValidationErrorFor('point_dep_id');
 
         $this->assertNotSame($foreignPointDep->id, $booking->fresh()->point_dep_id);
+    }
+
+    public function test_a_passenger_alone_in_their_group_does_not_show_the_group_icon(): void
+    {
+        ['bus' => $bus, 'booking' => $booking] = $this->createBusWithOnePassenger();
+        $booking->update(['group_id' => BookingManager::generateBookingGroupId()]);
+
+        Livewire::actingAs($this->createUserWithFullAccess())
+            ->test(BusBookings::class, ['bus' => $bus])
+            ->assertDontSee("Fait partie d'un groupe");
+    }
+
+    public function test_passengers_booked_as_a_group_show_the_group_icon(): void
+    {
+        ['bus' => $bus, 'booking' => $booking] = $this->createBusWithOnePassenger();
+        $groupId = BookingManager::generateBookingGroupId();
+        $booking->update(['group_id' => $groupId, 'booking_type' => BookingType::Group, 'is_main_booking' => true]);
+        $secondPassenger = Customer::create([
+            'prenom' => 'Modou',
+            'nom' => 'Fall',
+            'phone_number' => 770000000 + random_int(1, 9999999),
+        ]);
+        $bus->bookings()->create([
+            'customer_id' => $secondPassenger->id,
+            'depart_id' => $bus->depart_id,
+            'point_dep_id' => $booking->point_dep_id,
+            'destination_id' => $booking->destination_id,
+            'paye' => false,
+            'group_id' => $groupId,
+            'booking_type' => BookingType::Group,
+        ]);
+
+        Livewire::actingAs($this->createUserWithFullAccess())
+            ->test(BusBookings::class, ['bus' => $bus])
+            ->assertSee("Fait partie d'un groupe");
     }
 
     public function test_the_shared_controller_still_returns_json_for_the_legacy_api(): void

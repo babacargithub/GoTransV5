@@ -253,7 +253,12 @@ trait ManagesBookingActions
             $legacyResponse = app(BookingController::class)->refundTicket($booking);
 
             if ($legacyResponse->getStatusCode() === SymfonyResponse::HTTP_OK) {
-                $this->flashStatusMessage = 'Remboursement Wave effectué pour '.$customerFullName.'.';
+                $isManualRefundRequest = $legacyResponse instanceof JsonResponse
+                    && data_get($legacyResponse->getData(true), 'manualRefundRequested') === true;
+
+                $this->flashStatusMessage = $isManualRefundRequest
+                    ? $this->extractLegacyResponseMessage($legacyResponse, 'Réservation annulée, remboursement manuel à faire.')
+                    : 'Remboursement Wave effectué pour '.$customerFullName.'.';
             } else {
                 $this->flashErrorMessage = $this->extractLegacyResponseMessage($legacyResponse, 'Le remboursement a échoué.');
             }

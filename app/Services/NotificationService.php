@@ -19,13 +19,28 @@ class NotificationService
 {
     // Operations manager: bus-full/bus-closed alerts, unassignable group bookings.
     private const OPERATIONS_MANAGER_PHONE = '773300853';
+
     // GP/Yobuma terminal staff: new GP ticket purchases, unassignable group bookings.
     private const GP_TEAM_PHONE = '771273535';
-    // Dispatch: near-full-bus heads-up sent as bookings come in (distinct from the manager number above).
-    private const BUS_DISPATCH_PHONE = '773333333';
 
-    public function __construct(private readonly SMSSender $smsSender)
+    // Dispatch: near-full-bus heads-up sent as bookings come in (distinct from the manager number above).
+    private const BUS_DISPATCH_PHONE = '771273535';
+
+    // Brand a customer sees in SMS: GP bookings (Global Transports) vs every other customer, students included.
+    private const GP_BRAND_NAME = 'Global Transports';
+
+    private const STUDENT_BRAND_NAME = 'Globe One Transport';
+
+    public function __construct(private readonly SMSSender $smsSender) {}
+
+    private function isGpBooking(Booking $booking): bool
     {
+        return is_request_for_gp_customers() || $booking->is_for_gp;
+    }
+
+    private function brandNameFor(Booking $booking): string
+    {
+        return $this->isGpBooking($booking) ? self::GP_BRAND_NAME : self::STUDENT_BRAND_NAME;
     }
 
     /**
@@ -34,20 +49,21 @@ class NotificationService
     public function notifyCustomerOfTicketPayment(Booking $booking, bool $online = true): void
     {
         $departName = $booking->depart->name;
-        $seatNumber = $booking->depart->trajet_id == Trajet::UGB_DAKAR ? "\n Num siège :" . $booking->seat_number . " " :
+        $seatNumber = $booking->depart->trajet_id == Trajet::UGB_DAKAR ? "\n Num siège :".$booking->seat_number.' ' :
             '';
-        $schedule = $seatNumber . "\n Heure:  " . $booking->formatted_schedule . "\n Arret du bus " .
+        $schedule = $seatNumber."\n Heure:  ".$booking->formatted_schedule."\n Arret du bus ".
             $booking->point_dep->arret_bus;
-        $defaultContactAgent = is_request_for_gp_customers() || $booking->is_for_gp ? 777794818 : AppParams::first()
+        $defaultContactAgent = $this->isGpBooking($booking) ? 777794818 : AppParams::first()
             ->getBusAgentDefaultNumber();
         $contactAgent = $booking->bus->resolveAgentContactNumber($defaultContactAgent);
-        $notificationMessageForOnlineUsers = "Vous avez acheté un ticket sur Global Transports  pour le départ $departName. RV: " . $schedule . ",
-         \nBus: " . $booking->bus->name . ",".
-            "\nContact du convoyeur qui sera dans le bus: " . $contactAgent;
-        $notificationMessage = "Votre  ticket est enregistré sur Global Transports pour $departName, paiement reçu. " . $booking->bus->name . ",".
-            $seatNumber . "
-            RV " . $schedule . ",
-            Contact convoyeur du bus: " . $contactAgent;
+        $brandName = $this->brandNameFor($booking);
+        $notificationMessageForOnlineUsers = "Vous avez acheté un ticket sur $brandName pour le départ $departName. RV: ".$schedule.",
+         \nBus: ".$booking->bus->name.','.
+            "\nContact du convoyeur qui sera dans le bus: ".$contactAgent;
+        $notificationMessage = "Votre  ticket est enregistré sur $brandName pour $departName, paiement reçu. ".$booking->bus->name.','.
+            $seatNumber.'
+            RV '.$schedule.',
+            Contact convoyeur du bus: '.$contactAgent;
         $message = $online ? $notificationMessageForOnlineUsers : $notificationMessage;
         $this->smsSender->sendSms($booking->customer->phone_number, $message);
     }
@@ -67,11 +83,11 @@ class NotificationService
             return;
         }
 
-        $groups = $bookings->groupBy(fn(Booking $booking) => $booking->round_trip_id !== null
-            ? 'roundtrip:' . $booking->customer_id . ':' . $booking->round_trip_id
-            : 'single:' . $booking->id);
+        $groups = $bookings->groupBy(fn (Booking $booking) => $booking->round_trip_id !== null
+            ? 'roundtrip:'.$booking->customer_id.':'.$booking->round_trip_id
+            : 'single:'.$booking->id);
 
-        $messages = $groups->map(fn(Collection $bookingsForPassenger) => $this->buildGroupTicketPaymentMessage($bookingsForPassenger))
+        $messages = $groups->map(fn (Collection $bookingsForPassenger) => $this->buildGroupTicketPaymentMessage($bookingsForPassenger))
             ->values()
             ->all();
 
@@ -79,7 +95,7 @@ class NotificationService
     }
 
     /**
-     * @param Collection<int, Booking> $bookingsForPassenger One or two bookings (outbound [+ return]) for the same passenger.
+     * @param  Collection<int, Booking>  $bookingsForPassenger  One or two bookings (outbound [+ return]) for the same passenger.
      * @return array{message: string, phone_number: string}
      */
     private function buildGroupTicketPaymentMessage(Collection $bookingsForPassenger): array
@@ -92,23 +108,24 @@ class NotificationService
             // Outbound and return legs can run on different buses, each with its own field agent,
             // so the contact number is shown per leg rather than once for the whole message.
             $legsDescription = $bookingsForPassenger
-                ->sortBy(fn(Booking $booking) => $booking->trip_leg === Booking::TRIP_LEG_RETURN ? 1 : 0)
+                ->sortBy(fn (Booking $booking) => $booking->trip_leg === Booking::TRIP_LEG_RETURN ? 1 : 0)
                 ->map(function (Booking $booking) use ($defaultAgentNumber) {
                     $legLabel = $booking->trip_leg === Booking::TRIP_LEG_RETURN ? 'Retour' : 'Aller';
                     $agentNumber = $booking->bus->resolveAgentContactNumber($defaultAgentNumber);
-                    return "$legLabel: " . $booking->depart->name . ", RV " . $booking->formatted_schedule
-                        . " a " . $booking->point_dep->arret_bus . ", Convoyeur " . $agentNumber;
-                })
-                ->implode(" | ");
 
-            $message = "Achat de ticket aller-retour réussi sur Global Transports. " . $legsDescription . ".";
+                    return "$legLabel: ".$booking->depart->name.', RV '.$booking->formatted_schedule
+                        .' a '.$booking->point_dep->arret_bus.', Convoyeur '.$agentNumber;
+                })
+                ->implode(' | ');
+
+            $message = 'Achat de ticket aller-retour réussi sur '.$this->brandNameFor($firstBooking).'. '.$legsDescription.'.';
         } else {
             $agentNumber = $firstBooking->bus->resolveAgentContactNumber($defaultAgentNumber);
-            $message = "Achat de ticket réussi sur Global Transports. Date voyage "
-                . $firstBooking->depart->name
-                . " RV " . $firstBooking->formatted_schedule
-                . " A " . $firstBooking->point_dep->arret_bus . ". "
-                . "\n Convoyeur " . $agentNumber;
+            $message = 'Achat de ticket réussi sur '.$this->brandNameFor($firstBooking).'. Date voyage '
+                .$firstBooking->depart->name
+                .' RV '.$firstBooking->formatted_schedule
+                .' A '.$firstBooking->point_dep->arret_bus.'. '
+                ."\n Convoyeur ".$agentNumber;
         }
 
         return [
@@ -123,10 +140,10 @@ class NotificationService
      */
     public function notifyCustomerOfBookingCancellation(Booking $booking, bool $otherLegStillActive = false): void
     {
-        $message = "Votre réservation sur Global Transports pour le départ " . $booking->depart->name
-            . " a été annulée.";
+        $message = 'Votre réservation sur Global Transports pour le départ '.$booking->depart->name
+            .' a été annulée.';
         if ($otherLegStillActive) {
-            $message .= " Votre autre trajet (aller-retour) reste maintenu.";
+            $message .= ' Votre autre trajet (aller-retour) reste maintenu.';
         }
         $this->smsSender->sendSms($booking->customer->phone_number, $message);
     }
@@ -136,9 +153,9 @@ class NotificationService
      */
     public function notifyCustomerOfBookingTransfer(Booking $booking, Bus $targetBus, BusSeat $targetSeat): void
     {
-        $message = "Votre réservation a été transférée sur le départ " . $targetBus->depart->name
-            . " sur le bus " . $targetBus->name . " Nouveau Nº de siège " . $targetSeat->number
-            . " Contact 771273535/771163003";
+        $message = 'Votre réservation a été transférée sur le départ '.$targetBus->depart->name
+            .' sur le bus '.$targetBus->name.' Nouveau Nº de siège '.$targetSeat->number
+            .' Contact 771273535/771163003';
         $this->smsSender->sendSms(substr($booking->customer->phone_number, -9, 9), $message);
     }
 
@@ -147,8 +164,8 @@ class NotificationService
      */
     public function notifyCustomerOfPaymentLink(Booking $booking, string $paymentUrl): void
     {
-        $message = "Bnjr. Payez votre réservation Globe Transport sur le départ " . $booking->depart->name
-            . "  sur ce lien : $paymentUrl";
+        $message = 'Bnjr. Payez votre réservation Globe Transport sur le départ '.$booking->depart->name
+            ."  sur ce lien : $paymentUrl";
         $this->smsSender->sendSms(substr($booking->customer->phone_number, -9, 9), $message);
     }
 
@@ -167,6 +184,31 @@ class NotificationService
     public function notifyManagerOfBusEvent(string $message): void
     {
         $this->smsSender->sendSms(self::OPERATIONS_MANAGER_PHONE, $message);
+    }
+
+    /**
+     * Asks the operations manager to refund, by hand in the Wave app, one cancelled booking's share of a
+     * payment that covered a whole group (Wave cannot partially refund through its API yet).
+     *
+     * @return bool False when the SMS provider reported a failure.
+     */
+    public function notifyManagerOfManualPartialRefund(
+        Booking $cancelledBooking,
+        string $waveReference,
+        int $amountToRefund,
+        int $groupPassengerCount,
+        int $totalAmountPaid,
+    ): bool {
+        $message = 'REMBOURSEMENT WAVE MANUEL (paiement groupé, réservation annulée).'
+            .$cancelledBooking->bus->full_name.' '
+            ."\nTransaction id: ".($waveReference !== '' ? $waveReference : 'inconnue')
+            ."\nMontant à rembourser: ".$amountToRefund.' F'
+            ."\nTotal payé: ".$totalAmountPaid.' F'
+            ."\nClient: ".normalize_passenger_display_name($cancelledBooking->customer->full_name)
+            ."\nTel: ".$cancelledBooking->customer->phone_number
+            ."\nPassagers du groupe: ".$groupPassengerCount;
+
+        return $this->smsSender->sendSms(self::OPERATIONS_MANAGER_PHONE, $message) !== false;
     }
 
     /**

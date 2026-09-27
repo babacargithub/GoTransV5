@@ -33,7 +33,8 @@ class BookingResource extends JsonResource
             'departLabel' => $this->depart?->identifier(with_trajet_prefix: true),
             'group_id' => $this->group_id,
             'isForGp' => $this->is_for_gp,
-            'belongsToGroup' => $this->group_id != null,
+            'belongsToGroup' => $this->isGroupBooking(),
+            'isMainBooking' => $this->is_main_booking,
             'isRoundTrip' => $this->isRoundTrip(),
             //            "groupMembersCount" => $this->getOtherBookingsOfSameGroup()->count(),
             'client' => [

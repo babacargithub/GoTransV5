@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use Closure;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -56,21 +58,71 @@ class Bus extends Model
         return $this->hasMany(HeureDepart::class);
     }
 
+    /**
+     * Restricts a bus's seats to those with no active (non-cancelled) booking.
+     */
+    private function freeSeatsConstraint(): Closure
+    {
+        return fn ($seatsQuery) => $seatsQuery->whereNotExists(function ($query) {
+            $query->select('id')
+                ->from('bookings')
+                ->whereColumn('bookings.seat_id', 'bus_seats.id')
+                ->whereNull('bookings.deleted_at');
+        });
+    }
+
+    /**
+     * Loads, in the same query as the buses, the figures the départ list shows for each bus, so rendering
+     * a list of buses costs no per-bus queries and never hydrates the bookings themselves. seatsLeft(),
+     * numberOfBookings(), numberOfBookedSeats() and numberOfTicketsSold() read these values when present.
+     * They are a snapshot: only use this scope for read-only listings.
+     *
+     * @param  Builder<Bus>  $query
+     */
+    public function scopeWithDepartListCounts(Builder $query): void
+    {
+        $query->withCount([
+            'bookings',
+            'bookings as booked_seats_count' => fn ($bookings) => $bookings->whereNotNull('seat_id'),
+            'bookings as tickets_sold_count' => fn ($bookings) => $bookings->whereNotNull('ticket_id'),
+            'seats as seats_left_count' => $this->freeSeatsConstraint(),
+            'seats as marked_booked_seats_count' => fn ($seats) => $seats->where('booked', true),
+        ]);
+    }
+
+    /**
+     * Seats whose own `booked` flag is set (not the same as seats held by an active booking, see seatsLeft()).
+     */
+    public function numberOfSeatsMarkedBooked(): int
+    {
+        return array_key_exists('marked_booked_seats_count', $this->attributes)
+            ? (int) $this->attributes['marked_booked_seats_count']
+            : $this->seats()->where('booked', true)->count();
+    }
+
     public function seatsLeft(): int
     {
-        return $this->seats()
-            ->whereNotExists(function ($query) {
-                $query->select('id')
-                    ->from('bookings')
-                    ->whereColumn('bookings.seat_id', 'bus_seats.id')
-                    ->whereNull('bookings.deleted_at');
-            })
-            ->count();
+        if (array_key_exists('seats_left_count', $this->attributes)) {
+            return (int) $this->attributes['seats_left_count'];
+        }
 
+        return $this->seats()->tap($this->freeSeatsConstraint())->count();
+
+    }
+
+    public function numberOfBookings(): int
+    {
+        return array_key_exists('bookings_count', $this->attributes)
+            ? (int) $this->attributes['bookings_count']
+            : $this->bookings()->count();
     }
 
     public function numberOfBookedSeats(): int
     {
+        if (array_key_exists('booked_seats_count', $this->attributes)) {
+            return (int) $this->attributes['booked_seats_count'];
+        }
+
         return $this->bookings()->whereNotNull('seat_id')->count();
 
     }
@@ -126,6 +178,10 @@ class Bus extends Model
 
     public function numberOfTicketsSold(): int
     {
+        if (array_key_exists('tickets_sold_count', $this->attributes)) {
+            return (int) $this->attributes['tickets_sold_count'];
+        }
+
         // bookings that have tickets
         return $this->bookings()->whereNotNull('ticket_id')->count();
     }

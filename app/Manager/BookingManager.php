@@ -1,31 +1,29 @@
 <?php
 
-
 namespace App\Manager;
 
-
+use App\Http\Controllers\WavePaiementController;
 use App\Models\Booking;
 use App\Models\Bus;
 use App\Models\BusSeat;
 use App\Models\Depart;
 use App\Models\Seat;
+use App\Models\Ticket;
+use App\Models\TicketPayment;
 use App\Models\User;
 use App\Services\NotificationService;
 use DB;
 use Exception;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Log;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpKernel\Exception\UnprocessableEntityHttpException;
-use function Laravel\Prompts\error;
 
 class BookingManager
 {
-
-    /** @var TicketManager */
     private TicketManager $ticketManager;
+
     private NotificationService $notificationService;
 
     public function __construct(TicketManager $ticketManager, NotificationService $notificationService)
@@ -62,28 +60,27 @@ class BookingManager
     {
 
         try {
-            $transactionSuccess = DB::transaction(function () use ($booking,$paymentMethod, $logger, $data) {
-                $stackTrace = __FUNCTION__ . "-- " . __CLASS__ . ' -- ' . __FILE__;
+            $transactionSuccess = DB::transaction(function () use ($booking, $paymentMethod, $logger, $data) {
+                $stackTrace = __FUNCTION__.'-- '.__CLASS__.' -- '.__FILE__;
 
                 if ($booking->bus->isFull() || $booking->bus->isClosed()) {
 
                     $bus = $booking->depart->getBusForBooking(climatise: is_request_for_gp_customers());
                     // we find another bus for another seat
-                    if (!$bus->isFull() && !$bus->isClosed()) {
+                    if (! $bus->isFull() && ! $bus->isClosed()) {
 
                         $booking->bus()->associate($bus);
                         $booking->depart()->associate($bus->depart);
 
-                    }else{
-                        $logger->error("Bus ".$booking->bus->full_name." is full or closed for booking with id " .
-                            $booking->id . " in $stackTrace");
-                        throw new UnprocessableEntityHttpException("Bus ".$booking->bus->full_name." is full or closed for booking with id " .
-                            $booking->id . " in $stackTrace");
+                    } else {
+                        $logger->error('Bus '.$booking->bus->full_name.' is full or closed for booking with id '.
+                            $booking->id." in $stackTrace");
+                        throw new UnprocessableEntityHttpException('Bus '.$booking->bus->full_name.' is full or closed for booking with id '.
+                            $booking->id." in $stackTrace");
 
                     }
 
                 }
-
 
                 $this->assignTicketToBooking($booking, $paymentMethod, $data);
 
@@ -93,50 +90,50 @@ class BookingManager
                     $seatBus->save();
                     $booking->seat()->associate($seatBus);
                     $booking->save();
-                }else{
-                    $logger->error("No available seat for booking with id " . $booking->id . " in $stackTrace");
-                    throw new UnprocessableEntityHttpException("No available seat for booking with id " . $booking->id . " in $stackTrace");
+                } else {
+                    $logger->error('No available seat for booking with id '.$booking->id." in $stackTrace");
+                    throw new UnprocessableEntityHttpException('No available seat for booking with id '.$booking->id." in $stackTrace");
                 }
+
                 return true;
             });
-            //<-- send notification to user -->
+            // <-- send notification to user -->
             if ($transactionSuccess) {
                 $this->notificationService->notifyCustomerOfTicketPayment($booking, true);
                 $bookingManager = app(BookingManager::class);
                 $bookingManager->checkIfBusIsFullAndNotifyManagerIfYes($booking);
             }
         } catch (Exception $e) {
-            $logger->error($e->getMessage() . ' --' . $e->getTraceAsString());
+            $logger->error($e->getMessage().' --'.$e->getTraceAsString());
 
         }
 
     }
 
     /**
-     * @param Depart $depart Kept for caller compatibility (historically "the" depart of the group);
-     *                       no longer relied on internally — a group can span two different departs
-     *                       (a round trip's outbound and return legs), so bus/seat assignment is done
-     *                       per booking's own depart instead. See assignBusAndSeatsForUnseatedBookings().
+     * @param  Depart  $depart  Kept for caller compatibility (historically "the" depart of the group);
+     *                          no longer relied on internally — a group can span two different departs
+     *                          (a round trip's outbound and return legs), so bus/seat assignment is done
+     *                          per booking's own depart instead. See assignBusAndSeatsForUnseatedBookings().
+     *
      * @throws Exception
      */
-    public function saveTicketPaymentMultipleBooking(Depart $depart, ?Bus $bus, Collection $bookings, LoggerInterface
-                                                            $logger, string
-                                                            $payment_method, array $data): JsonResponse
+    public function saveTicketPaymentMultipleBooking(Depart $depart, ?Bus $bus, Collection $bookings, LoggerInterface $logger, string $payment_method, array $data): JsonResponse
     {
         try {
             $notifiedBookings = collect();
 
             $result = DB::transaction(function () use ($bookings, $payment_method, $logger, $data, &$notifiedBookings) {
                 // Idempotency: ignore bookings that already have a ticket from a previous callback
-                $unpaidBookings = $bookings->filter(fn(Booking $booking) => !$booking->hasTicket());
+                $unpaidBookings = $bookings->filter(fn (Booking $booking) => ! $booking->hasTicket());
 
                 if ($unpaidBookings->isEmpty()) {
                     return true;
                 }
 
                 // Bookings that already have a seat pre-assigned only need a ticket
-                $bookingsWithSeats    = $unpaidBookings->filter(fn(Booking $booking) => $booking->has_seat);
-                $bookingsWithoutSeats = $unpaidBookings->reject(fn(Booking $booking) => $booking->has_seat);
+                $bookingsWithSeats = $unpaidBookings->filter(fn (Booking $booking) => $booking->has_seat);
+                $bookingsWithoutSeats = $unpaidBookings->reject(fn (Booking $booking) => $booking->has_seat);
 
                 foreach ($bookingsWithSeats as $booking) {
                     $this->assignTicketToBooking($booking, $payment_method, $data);
@@ -163,8 +160,8 @@ class BookingManager
                 // A round-trip group involves two departs (outbound + return); name both in the alert.
                 $departNames = $bookings->pluck('depart.name')->filter()->unique()->implode(', ');
                 $this->notificationService->notifyGpTeamOfBusEvent(
-                    "Un client GP vient d'acheter un ticket sur " . $departNames
-                    . "! Sa réservation doit être enregistré sur le terminal Yobuma"
+                    "Un client GP vient d'acheter un ticket sur ".$departNames
+                    .'! Sa réservation doit être enregistré sur le terminal Yobuma'
                 );
 
                 $bookingManager = app(BookingManager::class);
@@ -177,9 +174,9 @@ class BookingManager
             return response()->json(['message' => 'Finished: Booking saved successfully']);
 
         } catch (Exception $e) {
-            $stackTrace = __FUNCTION__ . "-- " . __CLASS__ . ' -- ' . __FILE__;
-            Log::error('Saving multiple transactions failed ' . $stackTrace);
-            Log::error($e->getMessage() . ' --' . $e->getTraceAsString());
+            $stackTrace = __FUNCTION__.'-- '.__CLASS__.' -- '.__FILE__;
+            Log::error('Saving multiple transactions failed '.$stackTrace);
+            Log::error($e->getMessage().' --'.$e->getTraceAsString());
         }
 
         return response()->json(['message' => 'Booking saved successfully']);
@@ -201,7 +198,7 @@ class BookingManager
 
         $busForBookings = null;
         foreach ($depart->buses as $candidateBus) {
-            if (!$candidateBus->isClosed()
+            if (! $candidateBus->isClosed()
                 && $candidateBus->getAvailableSeats()->count() >= $bookingsForDepart->count()) {
                 $busForBookings = $candidateBus;
                 break;
@@ -209,10 +206,10 @@ class BookingManager
         }
 
         if ($busForBookings === null) {
-            $alertMessage = "Le client " . $firstBooking->customer->full_name
-                . " " . $firstBooking->customer->phone_number
-                . " vient de faire un paiement pour une réservation groupée sans assez de places disponibles sur le départ "
-                . $depart->name;
+            $alertMessage = 'Le client '.$firstBooking->customer->full_name
+                .' '.$firstBooking->customer->phone_number
+                .' vient de faire un paiement pour une réservation groupée sans assez de places disponibles sur le départ '
+                .$depart->name;
             $this->notificationService->notifyManagerOfBusEvent($alertMessage);
             $this->notificationService->notifyGpTeamOfBusEvent($alertMessage);
             throw new Exception('No bus available for unseated bookings in group payment');
@@ -240,12 +237,12 @@ class BookingManager
     }
 
     /**
-     * @param Booking $booking
-     * @param mixed $paymentMethod
+     * @param  mixed  $paymentMethod
      * @return void
+     *
      * @throws Exception
      */
-    function assignTicketToBooking(Booking $booking, string $paymentMethod, array $data =[]): Booking
+    public function assignTicketToBooking(Booking $booking, string $paymentMethod, array $data = []): Booking
     {
         $ticketPrice = $this->ticketManager->calculateTicketPriceForBooking($booking, $paymentMethod);
         $ticket = $this->ticketManager->provideOneForBooking($ticketPrice);
@@ -258,7 +255,51 @@ class BookingManager
         $ticket->save();
         $booking->ticket()->associate($ticket);
         $booking->save();
+
         return $booking;
+    }
+
+    /**
+     * A Wave payment covering several bookings can only be refunded as a whole through the Wave API, so
+     * cancelling one of them must not refund it automatically. Asks the operations manager, by SMS, to refund
+     * the cancelled booking's share by hand from the Wave app, with everything needed to find and refund it.
+     *
+     * @return bool False when the SMS could not be sent, so the caller can tell the agent to warn the manager.
+     */
+    public function requestManualPartialRefund(Booking $cancelledBooking): bool
+    {
+        $groupId = $cancelledBooking->group_id;
+        //TODO change this later to use reference_id instead of comment
+        $storedWaveReference = (string) $cancelledBooking->ticket?->comment;
+        $waveReference = str_starts_with($storedWaveReference, 'cos')
+            ? (WavePaiementController::findTransactionIdOfCheckoutSession($storedWaveReference) ?? $storedWaveReference)
+            : $storedWaveReference;
+
+        $groupPassengerCount = Booking::withTrashed()
+            ->where('group_id', $groupId)
+            ->where(fn ($query) => $query->whereNull('trip_leg')->orWhere('trip_leg', '!=', Booking::TRIP_LEG_RETURN))
+            ->count();
+
+        $totalAmountPaid = (int) (TicketPayment::where('group_id', $groupId)
+            ->where('payement_method', 'wave')
+            ->latest('id')
+            ->value('montant')
+            ?? Ticket::whereIn('id', Booking::withTrashed()->where('group_id', $groupId)->pluck('ticket_id')->filter())
+                ->sum('price'));
+
+        try {
+            return $this->notificationService->notifyManagerOfManualPartialRefund(
+                $cancelledBooking,
+                $waveReference,
+                (int) $cancelledBooking->ticket?->price,
+                $groupPassengerCount,
+                $totalAmountPaid,
+            );
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            return false;
+        }
     }
 
     public function checkIfBusIsFullAndNotifyManagerIfYes(Booking $booking): void
@@ -266,19 +307,18 @@ class BookingManager
         $bookings_count = $booking->bus->bookings()
             ->whereHas('ticket')
             ->count();
-        if (($booking->bus->seats_count-1) == $bookings_count){
+        if (($booking->bus->seats_count - 1) == $bookings_count) {
             $this->notificationService->notifyManagerOfBusEvent(
-                "Le bus ".$booking->bus->name." depart ".$booking->depart->name." est arrivé à ". $bookings_count
+                'Le bus '.$booking->bus->name.' depart '.$booking->depart->name.' est arrivé à '.$bookings_count
             );
-        }else{
+        } else {
             if ($bookings_count == $booking->bus->seats_count) {
-                if (!$booking->bus->isClosed()) {
+                if (! $booking->bus->isClosed()) {
                     $booking->bus->close();
                     $booking->bus->save();
                 }
             }
         }
-
 
     }
 }

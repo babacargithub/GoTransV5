@@ -15,6 +15,7 @@ use App\Models\Trajet;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -22,6 +23,14 @@ use Tests\TestCase;
 class DepartListPageTest extends TestCase
 {
     use DatabaseTransactions;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // The dev database holds dozens of upcoming départs; keep every test's départs on one page.
+        config(['app.back_office_departs_per_page' => 1000]);
+    }
 
     private function createUpcomingDepartWithBus(): Depart
     {
@@ -896,6 +905,83 @@ class DepartListPageTest extends TestCase
         $response->assertOk();
         $response->assertSee('data-flux-sidebar', false);
         $response->assertSee('Statistiques des départs');
+    }
+
+    public function test_the_list_is_paginated_soonest_first_with_the_configured_page_size(): void
+    {
+        config(['app.back_office_departs_per_page' => 2]);
+        $farFutureDepart = $this->createUpcomingDepartWithBus();
+        $farFutureDepart->update(['date' => now()->addYears(10)]);
+        $this->createUpcomingDepartWithBus();
+
+        $component = Livewire::actingAs($this->createUserWithFullAccess())->test(DepartList::class);
+        $firstPage = $component->instance()->upcomingDepartsPage;
+        $firstPageDates = collect($firstPage->items())->map(fn (Depart $depart): string => $depart->date->format('Y-m-d H:i:s'));
+
+        $this->assertCount(2, $firstPage->items());
+        $this->assertTrue($firstPage->hasPages());
+        $this->assertSame($firstPageDates->sort()->values()->all(), $firstPageDates->values()->all());
+        $component->assertDontSee($farFutureDepart->identifier(with_trajet_prefix: true));
+
+        $component->call('gotoPage', $firstPage->lastPage())
+            ->assertSee($farFutureDepart->identifier(with_trajet_prefix: true));
+    }
+
+    public function test_the_number_of_queries_does_not_grow_with_the_number_of_buses(): void
+    {
+        $depart = $this->createUpcomingDepartWithBus();
+        $user = $this->createUserWithFullAccess();
+        $countQueriesToRenderTheList = function () use ($user): int {
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+            Livewire::actingAs($user)->test(DepartList::class);
+
+            return count(DB::getQueryLog());
+        };
+
+        $queriesWithOneBus = $countQueriesToRenderTheList();
+        foreach (range(1, 5) as $extraBusNumber) {
+            $depart->buses()->create([
+                'name' => 'Bus Extra '.$extraBusNumber,
+                'nombre_place' => 57,
+                'ticket_price' => 3550,
+                'gp_ticket_price' => 6000,
+                'closed' => false,
+            ]);
+        }
+
+        $this->assertSame($queriesWithOneBus, $countQueriesToRenderTheList());
+    }
+
+    public function test_the_legacy_json_list_reports_each_buss_booking_figures_ignoring_cancelled_bookings(): void
+    {
+        ['depart' => $depart, 'bus' => $bus, 'customer' => $customer] = $this->createUpcomingDepartWithOnePaidSeatedPassenger();
+        $paidSeatedBooking = $bus->bookings()->firstOrFail();
+        $freeSeat = $bus->seats()->create([
+            'seat_id' => Seat::query()->orderBy('number')->skip(1)->firstOrFail()->id,
+            'booked' => false,
+            'price' => 3550,
+        ]);
+        $bookingAttributes = [
+            'customer_id' => $customer->id,
+            'depart_id' => $depart->id,
+            'point_dep_id' => $paidSeatedBooking->point_dep_id,
+            'destination_id' => $paidSeatedBooking->destination_id,
+            'paye' => false,
+        ];
+        $bus->bookings()->create($bookingAttributes);
+        $cancelledBookingOnTheFreeSeat = $bus->bookings()->create($bookingAttributes + ['seat_id' => $freeSeat->id]);
+        $cancelledBookingOnTheFreeSeat->delete();
+
+        Sanctum::actingAs($this->createUserWithFullAccess());
+        $departRow = collect($this->getJson('/api/departs')->assertOk()->json('data'))->firstWhere('id', $depart->id);
+        $busRow = collect($departRow['buses'])->firstWhere('id', $bus->id);
+
+        $this->assertSame(2, $busRow['numberOfBookings']);
+        $this->assertSame(1, $busRow['numberOfBookedSeats']);
+        $this->assertSame(1, $busRow['numberOfTicketSold']);
+        $this->assertSame(1, $busRow['seatLeft']);
+        $this->assertFalse($busRow['full']);
     }
 
     public function test_the_legacy_json_export_endpoint_is_unchanged(): void

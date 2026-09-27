@@ -219,7 +219,7 @@ class GlobalSearch extends Component
             'busName' => $booking->bus?->name,
             'isCancelled' => $booking->trashed(),
             'cancelledBy' => $booking->deleted_by,
-            'belongsToGroup' => $booking->group_id !== null,
+            'belongsToGroup' => $booking->isGroupBooking(),
             'isRoundTrip' => $booking->isRoundTrip(),
             'isForGp' => $booking->is_for_gp,
             'extra_info' => [

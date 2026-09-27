@@ -343,6 +343,19 @@ class BookingController extends Controller
         //        if ($booking->depart->isPassed()) {
         //            return response()->json(['message' => "Impossible de rembourser une réservation pour un départ déjà passé"], 422);
         //        }
+        if ($booking->sharesPaymentWithOtherBookings()) {
+            // Refunding the shared Wave transaction would refund every booking of the group.
+            $this->cancelBooking($booking);
+            $managerWasNotified = app(BookingManager::class)->requestManualPartialRefund($booking);
+
+            return response()->json([
+                'message' => $managerWasNotified
+                    ? "Réservation annulée. Elle a été payée avec d'autres réservations : le remboursement Wave doit être fait manuellement, le responsable a été prévenu par SMS."
+                    : "Réservation annulée, mais le SMS au responsable n'a pas pu être envoyé. Prévenez-le : le remboursement Wave de ce paiement groupé doit être fait manuellement.",
+                'manualRefundRequested' => true,
+            ]);
+        }
+
         $this->cancelBooking($booking);
 
         return WavePaiementController::refundTransaction(

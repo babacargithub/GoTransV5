@@ -10,7 +10,6 @@ use App\Http\Controllers\ItineraryController;
 use App\Http\Controllers\MessengerController;
 use App\Http\Controllers\MobileAppController;
 use App\Http\Controllers\OrangeMoneyController;
-use App\Http\Controllers\OrangeSmsController;
 use App\Http\Controllers\PointDepController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\TrajetController;
@@ -117,7 +116,6 @@ Route::group(['middleware' => 'auth:sanctum'], function () {
     Route::post('buses/{bus}/seats/bulk-action', [BusController::class, 'performBulkAction']);
     Route::get('buses/vehicules', [BusController::class, 'vehicules']);
     Route::post('buses/{bus}/add_missing_point_dep_heures', [DepartController::class, 'addPointDepsSchedulesForBus']);
-    Route::post('buses/{bus}/import_yobuma_passengers', [BusController::class, 'importPassengersFromYobuma']);
     Route::put('buses/{sourceBus}/transfer_bookings', [BusController::class, 'transferBookings']);
     Route::post('buses/free_seats', [BusController::class, 'freeSeats']);
     Route::post('buses/{bus}/free_seats', [BusController::class, 'freeSeatsOfBus']);

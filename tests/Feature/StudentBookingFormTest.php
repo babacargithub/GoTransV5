@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\BookingType;
 use App\Livewire\Website\StudentBooking;
 use App\Manager\BookingManager;
 use App\Models\Booking;
@@ -258,6 +259,58 @@ class StudentBookingFormTest extends TestCase
         $this->assertNotNull($bookings->first()->uuid);
         $this->assertCount(1, $bookings->pluck('uuid')->unique());
         $this->assertTrue(Customer::where('phone_number', '771234567')->exists());
+    }
+
+    public function test_a_two_passenger_booking_is_typed_group_with_the_first_passenger_as_its_only_main_booking(): void
+    {
+        $this->fakeWaveCheckout();
+        ['depart' => $depart, 'pointDep' => $pointDep] = $this->createBookableDepart();
+
+        Livewire::test(StudentBooking::class, ['depart' => $depart])
+            ->set('passengersCount', 2)
+            ->set('passengers.0.full_name', 'Awa Diop')
+            ->set('passengers.0.phone_number', '771234567')
+            ->set('passengers.0.point_dep_id', $pointDep->id)
+            ->set('passengers.1.full_name', 'Modou Fall')
+            ->set('passengers.1.phone_number', '781234567')
+            ->set('passengers.1.point_dep_id', $pointDep->id)
+            ->set('paymentMethod', 'wave')
+            ->call('reviewBooking')
+            ->call('acknowledgeSummary')
+            ->call('confirmBooking');
+
+        $firstPassengerBooking = Booking::where('depart_id', $depart->id)
+            ->whereHas('customer', fn ($query) => $query->where('phone_number', '771234567'))
+            ->firstOrFail();
+        $secondPassengerBooking = Booking::where('depart_id', $depart->id)
+            ->whereHas('customer', fn ($query) => $query->where('phone_number', '781234567'))
+            ->firstOrFail();
+
+        $this->assertSame(BookingType::Group, $firstPassengerBooking->booking_type);
+        $this->assertSame(BookingType::Group, $secondPassengerBooking->booking_type);
+        $this->assertTrue($firstPassengerBooking->is_main_booking);
+        $this->assertFalse($secondPassengerBooking->is_main_booking);
+    }
+
+    public function test_a_one_passenger_booking_is_typed_single_and_has_no_main_booking(): void
+    {
+        $this->fakeWaveCheckout();
+        ['depart' => $depart, 'pointDep' => $pointDep] = $this->createBookableDepart();
+
+        Livewire::test(StudentBooking::class, ['depart' => $depart])
+            ->set('passengersCount', 1)
+            ->set('passengers.0.full_name', 'Awa Diop')
+            ->set('passengers.0.phone_number', '771234567')
+            ->set('passengers.0.point_dep_id', $pointDep->id)
+            ->set('paymentMethod', 'wave')
+            ->call('reviewBooking')
+            ->call('acknowledgeSummary')
+            ->call('confirmBooking');
+
+        $booking = Booking::where('depart_id', $depart->id)->firstOrFail();
+
+        $this->assertSame(BookingType::Single, $booking->booking_type);
+        $this->assertFalse($booking->is_main_booking);
     }
 
     public function test_a_wave_gateway_error_is_shown_to_the_customer_verbatim(): void

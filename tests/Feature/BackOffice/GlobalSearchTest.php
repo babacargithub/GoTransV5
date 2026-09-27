@@ -2,7 +2,9 @@
 
 namespace Tests\Feature\BackOffice;
 
+use App\Enums\BookingType;
 use App\Livewire\BackOffice\GlobalSearch;
+use App\Manager\BookingManager;
 use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\Depart;
@@ -121,6 +123,20 @@ class GlobalSearchTest extends TestCase
 
         $this->assertSame([$currentBooking->id], collect($component->instance()->currentBookingRows)->pluck('id')->all());
         $this->assertSame([$pastBooking->id], collect($component->instance()->pastBookingRows)->pluck('id')->all());
+    }
+
+    public function test_only_bookings_made_as_a_group_are_flagged_as_grouped(): void
+    {
+        ['customer' => $customer, 'currentBooking' => $currentBooking, 'pastBooking' => $pastBooking] = $this->createCustomerWithBookings();
+        $currentBooking->update(['group_id' => BookingManager::generateBookingGroupId()]);
+        $pastBooking->update(['group_id' => BookingManager::generateBookingGroupId(), 'booking_type' => BookingType::Group]);
+
+        $component = Livewire::actingAs($this->createUserWithFullAccess())
+            ->test(GlobalSearch::class)
+            ->set('searchQuery', (string) $customer->phone_number);
+
+        $this->assertFalse($component->instance()->currentBookingRows[0]['belongsToGroup']);
+        $this->assertTrue($component->instance()->pastBookingRows[0]['belongsToGroup']);
     }
 
     public function test_cancelled_bookings_appear_in_the_past_tab_flagged_annule(): void

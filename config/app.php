@@ -210,6 +210,8 @@ return [
 
     'wave_key' => env('WAVE_KEY'),
     'wave_webhook_secret' => env('WAVE_WEBHOOK_SECRET'),
+    // Départs shown per page on the back-office list; each one renders ~50 components, so this bounds request memory.
+    'back_office_departs_per_page' => (int) env('BACK_OFFICE_DEPARTS_PER_PAGE', 15),
     'om_api_key_base_64_encoded' => env('OM_API_KEY_BASE_64_ENCODED'),
     'om_api_client_id' => env('OM_API_CLIENT_ID'),
     'om_api_client_secret' => env('OM_API_CLIENT_SECRET'),

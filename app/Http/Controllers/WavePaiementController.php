@@ -293,6 +293,23 @@ class WavePaiementController extends Controller
         return [];
     }
 
+    /**
+     * The Wave transaction id (the reference listed in the Wave app) of a checkout session, or null when Wave
+     * cannot be reached or does not return one.
+     */
+    public static function findTransactionIdOfCheckoutSession(string $checkoutSessionId): ?string
+    {
+        try {
+            $response = Http::withHeaders(self::headers())
+                ->asJson()
+                ->get('https://api.wave.com/v1/checkout/sessions/'.$checkoutSessionId);
+        } catch (ConnectionException) {
+            return null;
+        }
+
+        return $response->successful() ? $response->json('transaction_id') : null;
+    }
+
     public static function getEndpointForRedirect()
     {
         return is_request_for_gp_customers() ? 'https://globaltransports.app' : 'https://globeone.site';

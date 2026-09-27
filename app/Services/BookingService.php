@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\BookingType;
 use App\Http\Controllers\OrangeMoneyController;
 use App\Http\Controllers\WavePaiementController;
 use App\Http\Requests\GpBookingRequest;
@@ -258,6 +259,7 @@ class BookingService
         ?Collection $passengerPointDepIds = null,
     ): array|JsonResponse {
         $bookings = [];
+        $isGroupOfPassengers = $passengers->count() > 1;
 
         foreach ($passengers as $index => $passenger) {
             $booking = new Booking([
@@ -283,6 +285,9 @@ class BookingService
             // regular (non-GP) rate while calculatePriceForGpBooking's preview always shows the GP rate.
             $booking->comment = 'for_gp';
             $booking->group_id = $groupId;
+            $booking->booking_type = $isGroupOfPassengers ? BookingType::Group : BookingType::Single;
+            // One main booking per group: the first passenger's outbound booking, never a return leg.
+            $booking->is_main_booking = $isGroupOfPassengers && $index === 0 && $tripLeg !== Booking::TRIP_LEG_RETURN;
             $booking->round_trip_id = $roundTripId;
             $booking->trip_leg = $tripLeg;
             $bookings[] = $booking;
@@ -337,6 +342,8 @@ class BookingService
                         $existingBooking->seat()->associate($seats[$index]);
                     }
                     $existingBooking->group_id = $booking->group_id;
+                    $existingBooking->booking_type = $booking->booking_type;
+                    $existingBooking->is_main_booking = $booking->is_main_booking;
                     $existingBooking->round_trip_id = $booking->round_trip_id;
                     $existingBooking->trip_leg = $booking->trip_leg;
                     // The customer may have re-submitted with a different chosen boarding point since
