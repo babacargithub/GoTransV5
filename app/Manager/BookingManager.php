@@ -3,6 +3,7 @@
 namespace App\Manager;
 
 use App\Http\Controllers\WavePaiementController;
+use App\Jobs\RecordTicketPaymentInCaisse;
 use App\Models\Booking;
 use App\Models\Bus;
 use App\Models\BusSeat;
@@ -256,6 +257,13 @@ class BookingManager
         $booking->ticket()->associate($ticket);
         $booking->save();
 
+        // Recording the caisse/account deposit is dispatched to a queued job — it must
+        // never run inline here, so a caisse/account problem can never fail or delay a
+        // ticket sale (the customer's success SMS is unaffected either way). The job
+        // itself routes to the right caisse (or skips silently) based on payment_method;
+        // no staff user initiated this deposit, so user_id stays null.
+        RecordTicketPaymentInCaisse::dispatch($ticket->id);
+
         return $booking;
     }
 
@@ -269,7 +277,7 @@ class BookingManager
     public function requestManualPartialRefund(Booking $cancelledBooking): bool
     {
         $groupId = $cancelledBooking->group_id;
-        //TODO change this later to use reference_id instead of comment
+        // TODO change this later to use reference_id instead of comment
         $storedWaveReference = (string) $cancelledBooking->ticket?->comment;
         $waveReference = str_starts_with($storedWaveReference, 'cos')
             ? (WavePaiementController::findTransactionIdOfCheckoutSession($storedWaveReference) ?? $storedWaveReference)

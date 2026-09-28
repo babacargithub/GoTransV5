@@ -31,7 +31,7 @@
                     Finances
                 </flux:navbar.item>
                 <flux:navmenu>
-                    <flux:navmenu.item icon="wallet" :href="route('back-office.caisses.index')" :current="request()->routeIs('back-office.caisses.*')">Solde des caisses</flux:navmenu.item>
+                    <flux:navmenu.item icon="wallet" :href="route('back-office.caisses.index')" :current="request()->routeIs('back-office.caisses.*')">Caisses</flux:navmenu.item>
                     <flux:navmenu.item icon="device-phone-mobile" :href="route('back-office.paiements-om.index')" :current="request()->routeIs('back-office.paiements-om.*')">Paiements OM</flux:navmenu.item>
                     <flux:navmenu.item icon="device-phone-mobile" :href="route('back-office.paiements-wave.index')" :current="request()->routeIs('back-office.paiements-wave.*')">Paiements Wave</flux:navmenu.item>
                 </flux:navmenu>
@@ -72,6 +72,10 @@
             <livewire:back-office.global-search />
         </div>
 
+        <div class="me-2 max-lg:hidden">
+            <livewire:back-office.total-caisse-balance />
+        </div>
+
         <form method="POST" action="{{ route('logout') }}" class="max-lg:hidden">
             @csrf
             <flux:button type="submit" variant="subtle" size="sm" icon="arrow-right-start-on-rectangle">
@@ -84,7 +88,7 @@
             <flux:button variant="subtle" size="sm" icon="bars-3" square aria-label="Menu de navigation" />
             <flux:menu>
                 <flux:menu.group heading="Finances">
-                    <flux:menu.item icon="wallet" :href="route('back-office.caisses.index')">Solde des caisses</flux:menu.item>
+                    <flux:menu.item icon="wallet" :href="route('back-office.caisses.index')">Caisses</flux:menu.item>
                     <flux:menu.item icon="device-phone-mobile" :href="route('back-office.paiements-om.index')">Paiements OM</flux:menu.item>
                     <flux:menu.item icon="device-phone-mobile" :href="route('back-office.paiements-wave.index')">Paiements Wave</flux:menu.item>
                 </flux:menu.group>

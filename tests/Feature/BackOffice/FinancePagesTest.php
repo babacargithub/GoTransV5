@@ -37,7 +37,7 @@ class FinancePagesTest extends TestCase
         Livewire::actingAs(User::factory()->create())
             ->test(CaisseBalancesPage::class)
             ->assertOk()
-            ->assertSee('Solde des caisses')
+            ->assertSee('Ventes de billets')
             ->assertSee('Indisponible')
             ->assertSet('waveBalance', null)
             ->assertSet('orangeMoneyBalance', null);

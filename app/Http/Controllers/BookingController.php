@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\PermissionName;
+use App\Jobs\RecordTicketPaymentInCaisse;
 use App\Manager\BookingManager;
 use App\Manager\TicketManager;
 use App\Models\Booking;
@@ -231,10 +232,23 @@ class BookingController extends Controller
     public function saveTicketPayment(Booking $booking, Request $request)
     {
         try {
-            $ticketPrice = $this->ticketManager->calculateTicketPriceForBooking($booking);
+            // Only 'wave' and 'om' are meaningful here: this endpoint is only ever reached
+            // through a back-office staff action, never the online payment webhooks, so a
+            // wave/om value means a support agent is manually recovering a payment whose
+            // provider callback failed (customer called in with proof). Anything else falls
+            // back to the ordinary in-person "encaisser en espèces" cash collection.
+            $paymentMethod = strtolower((string) $request->input('payment_method', 'cash'));
+            if (! in_array($paymentMethod, ['wave', 'om'], true)) {
+                $paymentMethod = 'cash';
+            }
+
+            $ticketPrice = $this->ticketManager->calculateTicketPriceForBooking($booking, $paymentMethod);
             $ticket = $this->ticketManager->provideOne($ticketPrice);
-            DB::transaction(function () use ($booking, $ticket) {
-                $ticket->soldBy = \request()->user()?->username ?? 'system';
+            $soldBy = \request()->user()?->username ?? 'system';
+
+            DB::transaction(function () use ($booking, $ticket, $paymentMethod, $soldBy) {
+                $ticket->soldBy = $soldBy;
+                $ticket->payment_method = $paymentMethod;
                 $ticket->save();
                 $booking->ticket()->associate($ticket);
                 $seat = $booking->bus->getAvailableSeats()->first();
@@ -250,6 +264,18 @@ class BookingController extends Controller
             app(NotificationService::class)->notifyCustomerOfTicketPayment($booking, true);
             $bookingManager = app(BookingManager::class);
             $bookingManager->checkIfBusIsFullAndNotifyManagerIfYes($booking);
+
+            if ($paymentMethod === 'wave' || $paymentMethod === 'om') {
+                $customerFullName = normalize_passenger_display_name($booking->customer->full_name);
+                RecordTicketPaymentInCaisse::dispatch(
+                    $ticket->id,
+                    'MANUAL_TICKET_PAYMENT',
+                    "Paiement manuel (preuve fournie) — billet #{$ticket->number} — client {$customerFullName} — encaissé par {$soldBy}",
+                    \request()->user()?->id,
+                );
+            } else {
+                RecordTicketPaymentInCaisse::dispatch($ticket->id);
+            }
 
             if ($request->routeIs('back-office.*')) {
                 return back()->with('status', 'Paiement encaissé pour '.$booking->customer->full_name.'.');

@@ -883,7 +883,7 @@ class DepartListPageTest extends TestCase
         $response->assertOk();
         $response->assertSee('data-flux-navbar', false);
 
-        foreach (['Finances', 'Solde des caisses', 'Paiements OM', 'Paiements Wave'] as $financesMenuLabel) {
+        foreach (['Finances', 'Caisses', 'Paiements OM', 'Paiements Wave'] as $financesMenuLabel) {
             $response->assertSee($financesMenuLabel);
         }
 

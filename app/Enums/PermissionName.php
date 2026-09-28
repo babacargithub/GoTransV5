@@ -38,6 +38,8 @@ enum PermissionName: string
     case DeleteBus = 'delete-bus';
     case UpdateSchedules = 'update-schedules';
     case SendMessages = 'send-messages';
+    case ManageCaisse = 'manage-caisse';
+    case ManageAccounts = 'manage-accounts';
 
     /**
      * The French label seeded into the editable `permissions.label` column.
@@ -66,6 +68,8 @@ enum PermissionName: string
             self::DeleteBus => 'Supprimer un bus',
             self::UpdateSchedules => 'Modifier les horaires bus / départ',
             self::SendMessages => 'Envoyer des messages',
+            self::ManageCaisse => 'Gérer les caisses',
+            self::ManageAccounts => 'Gérer les comptes',
         };
     }
 
