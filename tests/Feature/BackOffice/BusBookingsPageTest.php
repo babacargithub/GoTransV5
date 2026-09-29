@@ -2,11 +2,13 @@
 
 namespace Tests\Feature\BackOffice;
 
+use App\Enums\BookingTransferType;
 use App\Enums\BookingType;
 use App\Enums\PermissionName;
 use App\Livewire\BackOffice\BusBookings;
 use App\Manager\BookingManager;
 use App\Models\Booking;
+use App\Models\BookingTransfer;
 use App\Models\Bus;
 use App\Models\Customer;
 use App\Models\Depart;
@@ -547,8 +549,9 @@ class BusBookingsPageTest extends TestCase
     {
         ['bus' => $bus, 'booking' => $booking, 'customer' => $customer] = $this->createBusWithOnePassenger();
         $targetBus = $this->createUpcomingDepartWithBus();
+        $actingUser = $this->createUserWithFullAccess();
 
-        Livewire::actingAs($this->createUserWithFullAccess())
+        Livewire::actingAs($actingUser)
             ->test(BusBookings::class, ['bus' => $bus])
             ->call('openBookingTransferModal', $booking->id)
             ->call('transferBookingToBus', $targetBus->id)
@@ -560,6 +563,13 @@ class BusBookingsPageTest extends TestCase
         $booking->refresh();
         $this->assertSame($targetBus->id, $booking->bus_id);
         $this->assertSame($targetBus->depart_id, $booking->depart_id);
+
+        $transferLog = BookingTransfer::where('booking_id', $booking->id)->firstOrFail();
+        $this->assertSame($bus->id, $transferLog->source_bus_id);
+        $this->assertSame($targetBus->id, $transferLog->target_bus_id);
+        $this->assertSame(BookingTransferType::Individual, $transferLog->transfer_type);
+        $this->assertSame($actingUser->id, $transferLog->user_id);
+        $this->assertNotNull($transferLog->transferred_at);
     }
 
     public function test_transferring_reports_the_legacy_error_and_keeps_the_booking_in_place(): void
@@ -576,6 +586,7 @@ class BusBookingsPageTest extends TestCase
             ->assertSet('transferErrorMessage', "Il n'y a pas de place disponible pour ce bus !");
 
         $this->assertSame($bus->id, $booking->fresh()->bus_id);
+        $this->assertSame(0, BookingTransfer::count());
     }
 
     public function test_the_edit_modal_prefills_the_booking_and_only_offers_stops_of_its_trajet(): void

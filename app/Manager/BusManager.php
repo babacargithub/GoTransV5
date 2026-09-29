@@ -2,7 +2,9 @@
 
 namespace App\Manager;
 
+use App\Enums\BookingTransferType;
 use App\Models\Booking;
+use App\Models\BookingTransfer;
 use App\Models\Bus;
 use App\Models\BusSeat;
 use Illuminate\Http\JsonResponse;
@@ -50,8 +52,12 @@ class BusManager
             ->orderByDesc('created_at')->get();
 
         $availableSeats = $targetBus->seats()->where('booked', false)->get();
-        DB::transaction(function () use ($bookingsToTransfer, $targetBus, $availableSeats) {
-            $bookingsToTransfer->each(function (Booking $booking) use ($targetBus, $availableSeats) {
+        $actingUserId = auth()->id();
+        DB::transaction(function () use ($bookingsToTransfer, $sourceBus, $targetBus, $availableSeats, $actingUserId) {
+            $bookingsToTransfer->each(function (Booking $booking) use ($sourceBus, $targetBus, $availableSeats, $actingUserId) {
+
+                $sourceSeatId = $booking->seat_id;
+                $sourceSeatNumber = $booking->seat_number;
 
                 $booking->bus_id = $targetBus->id;
                 $booking->depart_id = $targetBus->depart_id;
@@ -75,6 +81,21 @@ class BusManager
                     }
                 }
                 $booking->save();
+
+                BookingTransfer::create([
+                    'booking_id' => $booking->id,
+                    'source_bus_id' => $sourceBus->id,
+                    'target_bus_id' => $targetBus->id,
+                    'source_seat_id' => $sourceSeatId,
+                    'target_seat_id' => $booking->seat_id,
+                    'source_seat_number' => $sourceSeatNumber,
+                    // Read fresh from the DB rather than $booking->seat_number: that accessor caches
+                    // the "seat" relation, which would still hold the just-freed source seat here.
+                    'target_seat_number' => $booking->seat_id !== null ? BusSeat::find($booking->seat_id)?->number : null,
+                    'transfer_type' => BookingTransferType::Bulk,
+                    'user_id' => $actingUserId,
+                    'transferred_at' => now(),
+                ]);
             });
         });
 

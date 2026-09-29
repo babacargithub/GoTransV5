@@ -2,7 +2,9 @@
 
 namespace Tests\Feature\BackOffice;
 
+use App\Enums\BookingTransferType;
 use App\Livewire\BackOffice\DepartList;
+use App\Models\BookingTransfer;
 use App\Models\Bus;
 use App\Models\BusSeat;
 use App\Models\Customer;
@@ -536,6 +538,9 @@ class DepartListPageTest extends TestCase
     public function test_transferring_paid_bookings_moves_them_to_the_target_bus(): void
     {
         ['depart' => $depart, 'bus' => $sourceBus] = $this->createUpcomingDepartWithOnePaidSeatedPassenger();
+        $transferredBooking = $sourceBus->bookings()->firstOrFail();
+        $sourceSeatNumber = $transferredBooking->seat_number;
+        $actingUser = $this->createUserWithFullAccess();
 
         $targetBus = $depart->buses()->create([
             'name' => 'Bus Cible',
@@ -550,7 +555,7 @@ class DepartListPageTest extends TestCase
             'price' => 3550,
         ]));
 
-        Livewire::actingAs($this->createUserWithFullAccess())
+        Livewire::actingAs($actingUser)
             ->test(DepartList::class)
             ->call('openBusBookingsTransfer', $sourceBus->id)
             ->assertSet('showBusTransferModal', true)
@@ -564,6 +569,15 @@ class DepartListPageTest extends TestCase
 
         $this->assertSame(0, $sourceBus->bookings()->count());
         $this->assertSame(1, $targetBus->bookings()->count());
+
+        $transferLog = BookingTransfer::where('booking_id', $transferredBooking->id)->firstOrFail();
+        $this->assertSame($sourceBus->id, $transferLog->source_bus_id);
+        $this->assertSame($targetBus->id, $transferLog->target_bus_id);
+        $this->assertSame((string) $sourceSeatNumber, $transferLog->source_seat_number);
+        $this->assertNotNull($transferLog->target_seat_number);
+        $this->assertSame(BookingTransferType::Bulk, $transferLog->transfer_type);
+        $this->assertSame($actingUser->id, $transferLog->user_id);
+        $this->assertNotNull($transferLog->transferred_at);
     }
 
     public function test_transfer_is_refused_when_the_target_bus_lacks_seats(): void
@@ -588,6 +602,7 @@ class DepartListPageTest extends TestCase
             ->assertSet('busTransferErrorMessage', "Il n'y a pas assez de places dans le bus cible");
 
         $this->assertSame(1, $sourceBus->bookings()->count());
+        $this->assertSame(0, BookingTransfer::count());
     }
 
     public function test_the_transfer_action_is_wired_on_the_bus_menu(): void

@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\BookingTransferType;
 use App\Enums\PermissionName;
 use App\Jobs\RecordTicketPaymentInCaisse;
 use App\Manager\BookingManager;
 use App\Manager\TicketManager;
 use App\Models\Booking;
+use App\Models\BookingTransfer;
 use App\Models\Bus;
 use App\Models\Customer;
 use App\Models\Depart;
@@ -314,7 +316,13 @@ class BookingController extends Controller
                 return response()->json(['message' => 'Impossible de transférer une réservation depuis un départ déjà passé'], 422);
             }
         }
-        DB::transaction(function () use ($booking, $targetBus, $targetSeat) {
+
+        $sourceBusId = $booking->bus_id;
+        $sourceSeatId = $booking->seat_id;
+        $sourceSeatNumber = $booking->seat_number;
+        $actingUserId = auth()->id();
+
+        DB::transaction(function () use ($booking, $targetBus, $targetSeat, $sourceBusId, $sourceSeatId, $sourceSeatNumber, $actingUserId) {
 
             $booking->bus()->associate($targetBus);
             $booking->depart()->associate($targetBus->depart);
@@ -332,6 +340,18 @@ class BookingController extends Controller
                 $booking->save();
             }
 
+            BookingTransfer::create([
+                'booking_id' => $booking->id,
+                'source_bus_id' => $sourceBusId,
+                'target_bus_id' => $targetBus->id,
+                'source_seat_id' => $sourceSeatId,
+                'target_seat_id' => $booking->seat_id,
+                'source_seat_number' => $sourceSeatNumber,
+                'target_seat_number' => $booking->seat_id !== null ? $targetSeat->number : null,
+                'transfer_type' => BookingTransferType::Individual,
+                'user_id' => $actingUserId,
+                'transferred_at' => now(),
+            ]);
         });
         $booking->refresh();
         app(NotificationService::class)->notifyCustomerOfBookingTransfer($booking, $targetBus, $targetSeat);
