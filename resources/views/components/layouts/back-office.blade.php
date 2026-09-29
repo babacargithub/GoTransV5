@@ -22,20 +22,22 @@
 
         {{-- Desktop: horizontal navigation to the main sections --}}
         <flux:navbar class="max-lg:hidden">
-            <flux:dropdown>
-                <flux:navbar.item
-                    icon="banknotes"
-                    icon:trailing="chevron-down"
-                    :current="request()->routeIs('back-office.caisses.*', 'back-office.paiements-om.*', 'back-office.paiements-wave.*')"
-                >
-                    Finances
-                </flux:navbar.item>
-                <flux:navmenu>
-                    <flux:navmenu.item icon="wallet" :href="route('back-office.caisses.index')" :current="request()->routeIs('back-office.caisses.*')">Caisses</flux:navmenu.item>
-                    <flux:navmenu.item icon="device-phone-mobile" :href="route('back-office.paiements-om.index')" :current="request()->routeIs('back-office.paiements-om.*')">Paiements OM</flux:navmenu.item>
-                    <flux:navmenu.item icon="device-phone-mobile" :href="route('back-office.paiements-wave.index')" :current="request()->routeIs('back-office.paiements-wave.*')">Paiements Wave</flux:navmenu.item>
-                </flux:navmenu>
-            </flux:dropdown>
+            @if (\App\Enums\PermissionName::FullAccess->allowedForCurrentUser())
+                <flux:dropdown>
+                    <flux:navbar.item
+                        icon="banknotes"
+                        icon:trailing="chevron-down"
+                        :current="request()->routeIs('back-office.caisses.*', 'back-office.paiements-om.*', 'back-office.paiements-wave.*')"
+                    >
+                        Finances
+                    </flux:navbar.item>
+                    <flux:navmenu>
+                        <flux:navmenu.item icon="wallet" :href="route('back-office.caisses.index')" :current="request()->routeIs('back-office.caisses.*')">Caisses</flux:navmenu.item>
+                        <flux:navmenu.item icon="device-phone-mobile" :href="route('back-office.paiements-om.index')" :current="request()->routeIs('back-office.paiements-om.*')">Paiements OM</flux:navmenu.item>
+                        <flux:navmenu.item icon="device-phone-mobile" :href="route('back-office.paiements-wave.index')" :current="request()->routeIs('back-office.paiements-wave.*')">Paiements Wave</flux:navmenu.item>
+                    </flux:navmenu>
+                </flux:dropdown>
+            @endif
 
             <flux:dropdown>
                 <flux:navbar.item
@@ -54,16 +56,18 @@
                 </flux:navmenu>
             </flux:dropdown>
 
-            <flux:dropdown>
-                <flux:navbar.item icon="cog-6-tooth" icon:trailing="chevron-down">Admin</flux:navbar.item>
-                <flux:navmenu>
-                    <flux:navmenu.item icon="users" :href="route('back-office.employes.index')" :current="request()->routeIs('back-office.employes.*')">Employés</flux:navmenu.item>
-                    <flux:navmenu.item icon="shield-check" :href="route('back-office.users.index')" :current="request()->routeIs('back-office.users.*')">Gestion des utilisateurs</flux:navmenu.item>
-                    <flux:navmenu.item icon="arrows-right-left" :href="route('back-office.trajets.index')" :current="request()->routeIs('back-office.trajets.*')">Trajets</flux:navmenu.item>
-                    <flux:navmenu.item icon="truck" :href="route('back-office.vehicules.index')" :current="request()->routeIs('back-office.vehicules.*')">Véhicules</flux:navmenu.item>
-                    <flux:navmenu.item icon="adjustments-horizontal" :href="route('back-office.parametres.index')" :current="request()->routeIs('back-office.parametres.*')">Paramètres</flux:navmenu.item>
-                </flux:navmenu>
-            </flux:dropdown>
+            @if (\App\Enums\PermissionName::FullAccess->allowedForCurrentUser())
+                <flux:dropdown>
+                    <flux:navbar.item icon="cog-6-tooth" icon:trailing="chevron-down">Admin</flux:navbar.item>
+                    <flux:navmenu>
+                        <flux:navmenu.item icon="users" :href="route('back-office.employes.index')" :current="request()->routeIs('back-office.employes.*')">Employés</flux:navmenu.item>
+                        <flux:navmenu.item icon="shield-check" :href="route('back-office.users.index')" :current="request()->routeIs('back-office.users.*')">Gestion des utilisateurs</flux:navmenu.item>
+                        <flux:navmenu.item icon="arrows-right-left" :href="route('back-office.trajets.index')" :current="request()->routeIs('back-office.trajets.*')">Trajets</flux:navmenu.item>
+                        <flux:navmenu.item icon="truck" :href="route('back-office.vehicules.index')" :current="request()->routeIs('back-office.vehicules.*')">Véhicules</flux:navmenu.item>
+                        <flux:navmenu.item icon="adjustments-horizontal" :href="route('back-office.parametres.index')" :current="request()->routeIs('back-office.parametres.*')">Paramètres</flux:navmenu.item>
+                    </flux:navmenu>
+                </flux:dropdown>
+            @endif
         </flux:navbar>
 
         <flux:spacer />
@@ -87,11 +91,13 @@
         <flux:dropdown class="lg:hidden" align="end">
             <flux:button variant="subtle" size="sm" icon="bars-3" square aria-label="Menu de navigation" />
             <flux:menu>
-                <flux:menu.group heading="Finances">
-                    <flux:menu.item icon="wallet" :href="route('back-office.caisses.index')">Caisses</flux:menu.item>
-                    <flux:menu.item icon="device-phone-mobile" :href="route('back-office.paiements-om.index')">Paiements OM</flux:menu.item>
-                    <flux:menu.item icon="device-phone-mobile" :href="route('back-office.paiements-wave.index')">Paiements Wave</flux:menu.item>
-                </flux:menu.group>
+                @if (\App\Enums\PermissionName::FullAccess->allowedForCurrentUser())
+                    <flux:menu.group heading="Finances">
+                        <flux:menu.item icon="wallet" :href="route('back-office.caisses.index')">Caisses</flux:menu.item>
+                        <flux:menu.item icon="device-phone-mobile" :href="route('back-office.paiements-om.index')">Paiements OM</flux:menu.item>
+                        <flux:menu.item icon="device-phone-mobile" :href="route('back-office.paiements-wave.index')">Paiements Wave</flux:menu.item>
+                    </flux:menu.group>
+                @endif
 
                 <flux:menu.group heading="Départs">
                     <flux:menu.item icon="list-bullet" :href="route('back-office.departs.index')">Liste des départs</flux:menu.item>
@@ -101,13 +107,15 @@
                     <flux:menu.item icon="clock" :href="route('back-office.horaires.index')">Horaires</flux:menu.item>
                 </flux:menu.group>
 
-                <flux:menu.group heading="Admin">
-                    <flux:menu.item icon="users" :href="route('back-office.employes.index')">Employés</flux:menu.item>
-                    <flux:menu.item icon="shield-check" :href="route('back-office.users.index')">Gestion des utilisateurs</flux:menu.item>
-                    <flux:menu.item icon="arrows-right-left" :href="route('back-office.trajets.index')">Trajets</flux:menu.item>
-                    <flux:menu.item icon="truck" :href="route('back-office.vehicules.index')">Véhicules</flux:menu.item>
-                    <flux:menu.item icon="adjustments-horizontal" :href="route('back-office.parametres.index')">Paramètres</flux:menu.item>
-                </flux:menu.group>
+                @if (\App\Enums\PermissionName::FullAccess->allowedForCurrentUser())
+                    <flux:menu.group heading="Admin">
+                        <flux:menu.item icon="users" :href="route('back-office.employes.index')">Employés</flux:menu.item>
+                        <flux:menu.item icon="shield-check" :href="route('back-office.users.index')">Gestion des utilisateurs</flux:menu.item>
+                        <flux:menu.item icon="arrows-right-left" :href="route('back-office.trajets.index')">Trajets</flux:menu.item>
+                        <flux:menu.item icon="truck" :href="route('back-office.vehicules.index')">Véhicules</flux:menu.item>
+                        <flux:menu.item icon="adjustments-horizontal" :href="route('back-office.parametres.index')">Paramètres</flux:menu.item>
+                    </flux:menu.group>
+                @endif
 
                 <flux:menu.separator />
 
