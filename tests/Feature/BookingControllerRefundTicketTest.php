@@ -2,12 +2,18 @@
 
 namespace Tests\Feature;
 
+use App\Enums\AccountTransactionCategory;
 use App\Enums\BookingType;
+use App\Enums\CaisseCode;
 use App\Enums\PermissionName;
+use App\Jobs\RecordTicketPaymentInCaisse;
 use App\Livewire\BackOffice\BusBookings;
 use App\Manager\BookingManager;
+use App\Manager\TicketManager;
+use App\Models\AccountTransaction;
 use App\Models\Booking;
 use App\Models\Bus;
+use App\Models\Caisse;
 use App\Models\Customer;
 use App\Models\Depart;
 use App\Models\Destination;
@@ -16,6 +22,7 @@ use App\Models\PointDep;
 use App\Models\Ticket;
 use App\Models\TicketPayment;
 use App\Models\Trajet;
+use App\Services\AccountService;
 use App\Utils\NotificationSender\SMSSender\SMSSender;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Http;
@@ -215,6 +222,54 @@ class BookingControllerRefundTicketTest extends TestCase
 
         $this->assertSoftDeleted($booking);
         Http::assertSent(fn ($request) => $request->url() === 'https://api.wave.com/v1/checkout/sessions/cos-alone-1/refund');
+    }
+
+    public function test_refunding_a_booking_paid_alone_reverses_the_original_ticket_sale_ledger_entry(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake(['api.wave.com/v1/checkout/sessions/cos-alone-ledger/refund' => Http::response([], 200)]);
+        $booking = $this->createWavePaidBooking($this->createBusWithPickupPoint(), 'cos-alone-ledger');
+        RecordTicketPaymentInCaisse::dispatchSync($booking->ticket->id);
+        $waveCaisse = Caisse::findByCode(CaisseCode::Wave);
+        $ticketSalesAccount = app(AccountService::class)->getOrCreateTicketSalesAccount();
+        $waveBalanceAfterSale = $waveCaisse->fresh()->balance;
+        $accountBalanceAfterSale = $ticketSalesAccount->fresh()->balance;
+        $this->actingAsUserAllowedToRefund();
+        $this->mock(SMSSender::class)->shouldNotReceive('sendSms');
+
+        $this->postJson("/api/bookings/{$booking->id}/refund")->assertOk();
+
+        // Wave nets its fee off the deposit, so the amount actually credited
+        // (and now reversed) is less than the ticket's full price.
+        $netAmount = (int) round(self::TICKET_PRICE / (1 + TicketManager::WAVE_FEES));
+
+        $reversal = AccountTransaction::where('reference_type', 'TICKET_REFUND')->where('reference_id', $booking->ticket->id)->first();
+        $this->assertNotNull($reversal);
+        $this->assertSame(AccountTransactionCategory::Expense, $reversal->category);
+        $this->assertSame($netAmount, $reversal->amount);
+        $this->assertSame($waveBalanceAfterSale - $netAmount, $waveCaisse->fresh()->balance);
+        $this->assertSame($accountBalanceAfterSale - $netAmount, $ticketSalesAccount->fresh()->balance);
+    }
+
+    public function test_refunding_a_group_booking_also_reverses_that_bookings_ticket_sale_ledger_entry_only(): void
+    {
+        $this->fakeWaveLookupOfTransactionId('cos-group-ledger', 'TX-GROUP-LEDGER');
+        [$bookingToRefund, $secondPassengerBooking] = $this->createGroupPaidInOneWaveTransaction('cos-group-ledger');
+        RecordTicketPaymentInCaisse::dispatchSync($bookingToRefund->ticket->id);
+        RecordTicketPaymentInCaisse::dispatchSync($secondPassengerBooking->ticket->id);
+        $this->actingAsUserAllowedToRefund();
+        $this->mock(SMSSender::class)->shouldReceive('sendSms')->once()->andReturn(true);
+
+        $this->postJson("/api/bookings/{$bookingToRefund->id}/refund")->assertOk();
+
+        $this->assertSame(
+            1,
+            AccountTransaction::where('reference_type', 'TICKET_REFUND')->where('reference_id', $bookingToRefund->ticket->id)->count(),
+        );
+        $this->assertSame(
+            0,
+            AccountTransaction::where('reference_type', 'TICKET_REFUND')->where('reference_id', $secondPassengerBooking->ticket->id)->count(),
+        );
     }
 
     public function test_refunding_one_leg_of_a_lone_travellers_round_trip_is_manual_because_both_legs_share_the_payment(): void

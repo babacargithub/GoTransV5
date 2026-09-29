@@ -2,7 +2,9 @@
 
 namespace App\Livewire\BackOffice\Concerns;
 
+use App\Enums\AccountTransactionCategory;
 use App\Enums\CaisseTransactionType;
+use App\Enums\CommonCaisseOperation;
 use App\Enums\PermissionName;
 use App\Models\Account;
 use App\Models\Caisse;
@@ -41,6 +43,11 @@ trait ManagesCaisses
 
     public string $entreeLabel = '';
 
+    /** @var 'REVENUE'|'EXPENSE'|'INTERNAL' */
+    public string $entreeCategory = 'REVENUE';
+
+    public ?string $entreeShortcut = null;
+
     public bool $showSortieModal = false;
 
     public ?int $sortieCaisseId = null;
@@ -48,6 +55,11 @@ trait ManagesCaisses
     public ?int $sortieAmount = null;
 
     public string $sortieLabel = '';
+
+    /** @var 'REVENUE'|'EXPENSE'|'INTERNAL' */
+    public string $sortieCategory = 'EXPENSE';
+
+    public ?string $sortieShortcut = null;
 
     /** @var array<int, int> */
     public array $sortieAccountIds = [];
@@ -240,6 +252,8 @@ trait ManagesCaisses
         $this->entreeAccountId = null;
         $this->entreeAmount = null;
         $this->entreeLabel = '';
+        $this->entreeCategory = AccountTransactionCategory::Revenue->value;
+        $this->entreeShortcut = null;
         $this->resetValidation();
         $this->showEntreeModal = true;
     }
@@ -248,6 +262,27 @@ trait ManagesCaisses
     {
         $this->showEntreeModal = false;
         $this->entreeCaisseId = null;
+    }
+
+    /**
+     * Toggle one of CommonCaisseOperation::forEntreeDeCaisse()'s shortcuts:
+     * fills the libellé and forces the category, or clears both back to the
+     * default when the same shortcut is toggled off.
+     */
+    public function toggleEntreeShortcut(string $operationValue): void
+    {
+        if ($this->entreeShortcut === $operationValue) {
+            $this->entreeShortcut = null;
+            $this->entreeLabel = '';
+            $this->entreeCategory = AccountTransactionCategory::Revenue->value;
+
+            return;
+        }
+
+        $operation = CommonCaisseOperation::from($operationValue);
+        $this->entreeShortcut = $operationValue;
+        $this->entreeLabel = $operation->label();
+        $this->entreeCategory = $operation->category()->value;
     }
 
     public function saveEntreeDeCaisse(AccountService $accountService): void
@@ -266,17 +301,25 @@ trait ManagesCaisses
             'entreeAccountId' => ['required', 'integer', 'exists:accounts,id'],
             'entreeAmount' => ['required', 'integer', 'min:1'],
             'entreeLabel' => ['required', 'string', 'max:255'],
+            'entreeCategory' => ['required', 'string', 'in:REVENUE,EXPENSE,INTERNAL'],
         ], attributes: [
             'entreeAccountId' => 'compte',
             'entreeAmount' => 'montant',
             'entreeLabel' => 'libellé',
+            'entreeCategory' => 'nature de l\'opération',
         ]);
 
         $caisse = Caisse::findOrFail($this->entreeCaisseId);
         $account = Account::findOrFail($validated['entreeAccountId']);
 
         try {
-            $accountService->processEntreeDeCaisse($caisse, $account, $validated['entreeAmount'], $validated['entreeLabel']);
+            $accountService->processEntreeDeCaisse(
+                $caisse,
+                $account,
+                $validated['entreeAmount'],
+                $validated['entreeLabel'],
+                categoryOverride: AccountTransactionCategory::from($validated['entreeCategory']),
+            );
             $this->closeEntreeModal();
             unset($this->caisseRows);
             $this->flashStatusMessage = 'Entrée de caisse enregistrée avec succès.';
@@ -293,6 +336,8 @@ trait ManagesCaisses
         $this->sortieCaisseId = $caisseId;
         $this->sortieAmount = null;
         $this->sortieLabel = '';
+        $this->sortieCategory = AccountTransactionCategory::Expense->value;
+        $this->sortieShortcut = null;
         $this->sortieAccountIds = [];
         $this->resetValidation();
         $this->showSortieModal = true;
@@ -302,6 +347,27 @@ trait ManagesCaisses
     {
         $this->showSortieModal = false;
         $this->sortieCaisseId = null;
+    }
+
+    /**
+     * Toggle one of CommonCaisseOperation::forSortieDeCaisse()'s shortcuts:
+     * fills the libellé and forces the category, or clears both back to the
+     * default when the same shortcut is toggled off.
+     */
+    public function toggleSortieShortcut(string $operationValue): void
+    {
+        if ($this->sortieShortcut === $operationValue) {
+            $this->sortieShortcut = null;
+            $this->sortieLabel = '';
+            $this->sortieCategory = AccountTransactionCategory::Expense->value;
+
+            return;
+        }
+
+        $operation = CommonCaisseOperation::from($operationValue);
+        $this->sortieShortcut = $operationValue;
+        $this->sortieLabel = $operation->label();
+        $this->sortieCategory = $operation->category()->value;
     }
 
     public function saveSortieDeCaisse(AccountService $accountService): void
@@ -319,11 +385,13 @@ trait ManagesCaisses
         $validated = $this->validate([
             'sortieAmount' => ['required', 'integer', 'min:1'],
             'sortieLabel' => ['required', 'string', 'max:255'],
+            'sortieCategory' => ['required', 'string', 'in:REVENUE,EXPENSE,INTERNAL'],
             'sortieAccountIds' => ['required', 'array', 'min:1'],
             'sortieAccountIds.*' => ['integer', 'exists:accounts,id'],
         ], attributes: [
             'sortieAmount' => 'montant',
             'sortieLabel' => 'libellé',
+            'sortieCategory' => 'nature de l\'opération',
             'sortieAccountIds' => 'comptes à débiter',
         ]);
 
@@ -344,7 +412,13 @@ trait ManagesCaisses
         }
 
         try {
-            $accountService->processSortieDeCaisse($caisse, $validated['sortieAmount'], $validated['sortieLabel'], $validated['sortieAccountIds']);
+            $accountService->processSortieDeCaisse(
+                $caisse,
+                $validated['sortieAmount'],
+                $validated['sortieLabel'],
+                $validated['sortieAccountIds'],
+                categoryOverride: AccountTransactionCategory::from($validated['sortieCategory']),
+            );
             $this->closeSortieModal();
             unset($this->caisseRows);
             $this->flashStatusMessage = 'Sortie de caisse enregistrée avec succès.';

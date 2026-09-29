@@ -10,13 +10,16 @@ use App\Models\Booking;
 use App\Models\Bus;
 use App\Models\Customer;
 use App\Models\Depart;
+use App\Models\Ticket;
 use App\Models\User;
+use App\Services\AccountService;
 use App\Services\NotificationService;
 use App\Services\WaitingCustomerService;
 use DB;
 use Exception;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 
 class BookingController extends Controller
@@ -369,9 +372,12 @@ class BookingController extends Controller
         //        if ($booking->depart->isPassed()) {
         //            return response()->json(['message' => "Impossible de rembourser une réservation pour un départ déjà passé"], 422);
         //        }
+        $ticket = $booking->ticket;
+
         if ($booking->sharesPaymentWithOtherBookings()) {
             // Refunding the shared Wave transaction would refund every booking of the group.
             $this->cancelBooking($booking);
+            $this->reverseTicketSaleLedgerEntry($ticket);
             $managerWasNotified = app(BookingManager::class)->requestManualPartialRefund($booking);
 
             return response()->json([
@@ -383,10 +389,32 @@ class BookingController extends Controller
         }
 
         $this->cancelBooking($booking);
+        $this->reverseTicketSaleLedgerEntry($ticket);
 
         return WavePaiementController::refundTransaction(
-            $booking->ticket?->comment,
+            $ticket?->comment,
         );
+    }
+
+    /**
+     * Reverse the ticket sale's ledger entry on refund (see
+     * AccountService::reverseTicketSaleForRefund). Never blocks the
+     * customer-facing refund/cancellation itself — a ledger failure (e.g. the
+     * TicketSales account no longer holds enough balance because it was
+     * already spent) is logged for manual follow-up instead of surfacing an
+     * error to the agent mid-refund.
+     */
+    private function reverseTicketSaleLedgerEntry(?Ticket $ticket): void
+    {
+        if ($ticket === null) {
+            return;
+        }
+
+        try {
+            app(AccountService::class)->reverseTicketSaleForRefund($ticket);
+        } catch (\Throwable $exception) {
+            Log::error("Failed to reverse ledger entry for refunded ticket #{$ticket->id}: {$exception->getMessage()}");
+        }
     }
 
     public function cancelBooking(Booking $booking): void

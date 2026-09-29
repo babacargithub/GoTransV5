@@ -2,12 +2,15 @@
 
 namespace Tests\Feature\BackOffice;
 
+use App\Enums\AccountTransactionCategory;
 use App\Enums\AccountType;
 use App\Enums\CaisseCode;
 use App\Enums\PermissionName;
 use App\Livewire\BackOffice\CaisseBalancesPage;
 use App\Models\Account;
+use App\Models\AccountTransaction;
 use App\Models\Caisse;
+use App\Services\AccountService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
@@ -141,6 +144,87 @@ class CaisseManagementTest extends TestCase
 
         $this->assertSame(30_000, $fromCaisse->fresh()->balance);
         $this->assertSame(20_000, $toCaisse->fresh()->balance);
+    }
+
+    public function test_sortie_de_caisse_persists_the_manually_selected_category_on_the_debited_account(): void
+    {
+        $user = $this->createUserWithFullAccess();
+        $caisse = Caisse::findByCode(CaisseCode::Principale);
+        // Deliberately Management, not Expense — this is the exact bug report:
+        // debiting a non-Expense-nature account must not silently fall back
+        // to Internal once the form has told us the real nature.
+        $account = Account::create(['name' => 'Compte Cash (test)', 'account_type' => AccountType::Management, 'balance' => 0, 'is_active' => true]);
+        app(AccountService::class)->processEntreeDeCaisse($caisse, $account, 50_000, 'Fonds initial');
+
+        Livewire::actingAs($user)
+            ->test(CaisseBalancesPage::class)
+            ->set('activeTab', 'caisses')
+            ->call('openSortieDeCaisse', $caisse->id)
+            ->set('sortieAmount', 20_000)
+            ->set('sortieLabel', 'Location de bus')
+            ->set('sortieCategory', AccountTransactionCategory::Expense->value)
+            ->set('sortieAccountIds', [$account->id])
+            ->call('saveSortieDeCaisse')
+            ->assertHasNoErrors();
+
+        $debit = AccountTransaction::where('account_id', $account->id)->where('transaction_type', 'DEBIT')->first();
+        $this->assertSame(AccountTransactionCategory::Expense, $debit->category);
+    }
+
+    public function test_sortie_de_caisse_shortcut_fills_the_libelle_and_forces_the_category(): void
+    {
+        $user = $this->createUserWithFullAccess();
+        $caisse = Caisse::findByCode(CaisseCode::Principale);
+
+        $component = Livewire::actingAs($user)
+            ->test(CaisseBalancesPage::class)
+            ->set('activeTab', 'caisses')
+            ->call('openSortieDeCaisse', $caisse->id)
+            ->call('toggleSortieShortcut', 'LOCATION_DE_BUS');
+
+        $component->assertSet('sortieLabel', 'Location de bus')
+            ->assertSet('sortieCategory', AccountTransactionCategory::Expense->value)
+            ->assertSet('sortieShortcut', 'LOCATION_DE_BUS');
+
+        // Toggling the same shortcut off clears both back to the default.
+        $component->call('toggleSortieShortcut', 'LOCATION_DE_BUS')
+            ->assertSet('sortieLabel', '')
+            ->assertSet('sortieShortcut', null);
+    }
+
+    public function test_entree_de_caisse_shortcut_fills_the_libelle_and_forces_the_category(): void
+    {
+        $user = $this->createUserWithFullAccess();
+        $caisse = Caisse::findByCode(CaisseCode::Principale);
+
+        Livewire::actingAs($user)
+            ->test(CaisseBalancesPage::class)
+            ->set('activeTab', 'caisses')
+            ->call('openEntreeDeCaisse', $caisse->id)
+            ->call('toggleEntreeShortcut', 'PAIEMENT_COLIS')
+            ->assertSet('entreeLabel', 'Paiement colis')
+            ->assertSet('entreeCategory', AccountTransactionCategory::Revenue->value)
+            ->assertSet('entreeShortcut', 'PAIEMENT_COLIS');
+    }
+
+    public function test_entree_de_caisse_persists_the_manually_selected_category_even_on_a_management_account(): void
+    {
+        $user = $this->createUserWithFullAccess();
+        $caisse = Caisse::findByCode(CaisseCode::Principale);
+        $account = Account::create(['name' => 'Compte Cash (test colis)', 'account_type' => AccountType::Management, 'balance' => 0, 'is_active' => true]);
+
+        Livewire::actingAs($user)
+            ->test(CaisseBalancesPage::class)
+            ->set('activeTab', 'caisses')
+            ->call('openEntreeDeCaisse', $caisse->id)
+            ->set('entreeAccountId', $account->id)
+            ->set('entreeAmount', 15_000)
+            ->call('toggleEntreeShortcut', 'PAIEMENT_COLIS')
+            ->call('saveEntreeDeCaisse')
+            ->assertHasNoErrors();
+
+        $credit = AccountTransaction::where('account_id', $account->id)->where('transaction_type', 'CREDIT')->first();
+        $this->assertSame(AccountTransactionCategory::Revenue, $credit->category);
     }
 
     public function test_toggling_the_day_lock_locks_then_unlocks_the_caisse(): void

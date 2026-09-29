@@ -59,6 +59,17 @@
         >
             Comptes
         </button>
+        <button
+            type="button"
+            wire:click="$set('activeTab', 'revenus')"
+            @class([
+                'px-4 py-2 text-sm font-medium border-b-2 -mb-px',
+                'border-accent text-accent' => $activeTab === 'revenus',
+                'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200' => $activeTab !== 'revenus',
+            ])
+        >
+            Revenus
+        </button>
     </div>
 
     {{-- ============================ APERÇU TAB ============================ --}}
@@ -133,5 +144,10 @@
     @if ($activeTab === 'comptes')
         @include('livewire.back-office.partials.account-list')
         @include('livewire.back-office.partials.account-modals')
+    @endif
+
+    {{-- ============================ REVENUS TAB ============================ --}}
+    @if ($activeTab === 'revenus')
+        @include('livewire.back-office.partials.profit-report')
     @endif
 </div>

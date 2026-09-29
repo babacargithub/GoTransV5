@@ -126,6 +126,7 @@
                             <flux:table.column>Date</flux:table.column>
                             <flux:table.column>Libellé</flux:table.column>
                             <flux:table.column>Type</flux:table.column>
+                            <flux:table.column>Catégorie</flux:table.column>
                             <flux:table.column align="end">Montant</flux:table.column>
                         </flux:table.columns>
                         <flux:table.rows>
@@ -139,6 +140,9 @@
                                         @else
                                             <flux:badge size="sm" color="red">Débit</flux:badge>
                                         @endif
+                                    </flux:table.cell>
+                                    <flux:table.cell>
+                                        <flux:badge size="sm" color="{{ $transaction['categoryColor'] }}">{{ $transaction['categoryLabel'] }}</flux:badge>
                                     </flux:table.cell>
                                     <flux:table.cell align="end">{{ number_format($transaction['effectiveAmount'], 0, ',', ' ') }} FCFA</flux:table.cell>
                                 </flux:table.row>

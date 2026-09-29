@@ -3,8 +3,11 @@
 namespace App\Services;
 
 use App\Data\Account\AccountTransactionsResultDTO;
+use App\Enums\AccountNature;
+use App\Enums\AccountTransactionCategory;
 use App\Enums\AccountTransactionType;
 use App\Enums\AccountType;
+use App\Enums\CaisseCode;
 use App\Enums\CaisseTransactionType;
 use App\Exceptions\InsufficientAccountBalanceException;
 use App\Exceptions\InvariantException;
@@ -12,6 +15,7 @@ use App\Models\Account;
 use App\Models\AccountTransaction;
 use App\Models\Caisse;
 use App\Models\CaisseTransaction;
+use App\Models\Ticket;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
@@ -133,6 +137,7 @@ class AccountService
         string $referenceType = 'MANUAL',
         ?int $referenceId = null,
         ?int $userId = null,
+        ?AccountTransactionCategory $categoryOverride = null,
     ): AccountTransaction {
         if ($amount <= 0) {
             throw new InvalidArgumentException(
@@ -143,6 +148,7 @@ class AccountService
         $accountTransaction = $account->transactions()->create([
             'amount' => $amount,
             'transaction_type' => AccountTransactionType::Credit,
+            'category' => $categoryOverride ?? $this->determineCategory($account, AccountTransactionType::Credit, $referenceType),
             'label' => $label,
             'reference_type' => $referenceType,
             'reference_id' => $referenceId,
@@ -167,6 +173,7 @@ class AccountService
         string $referenceType = 'MANUAL',
         ?int $referenceId = null,
         ?int $userId = null,
+        ?AccountTransactionCategory $categoryOverride = null,
     ): AccountTransaction {
         if ($amount <= 0) {
             throw new InvalidArgumentException(
@@ -186,6 +193,7 @@ class AccountService
         $accountTransaction = $account->transactions()->create([
             'amount' => $amount,
             'transaction_type' => AccountTransactionType::Debit,
+            'category' => $categoryOverride ?? $this->determineCategory($account, AccountTransactionType::Debit, $referenceType),
             'label' => $label,
             'reference_type' => $referenceType,
             'reference_id' => $referenceId,
@@ -198,7 +206,38 @@ class AccountService
     }
 
     /**
+     * Classify a transaction being created right now as Revenue, Expense, or
+     * Internal — see AccountTransactionCategory. INTER_ACCOUNT_TRANSFER always
+     * wins regardless of account nature: it is a reallocation, never a real
+     * cash-in/cash-out event. Otherwise a credit into an Income-nature account
+     * is Revenue, a debit out of an Expense-nature account is Expense, and
+     * everything else (Management accounts, a debit on Income, a credit on
+     * Expense) is Internal.
+     */
+    private function determineCategory(
+        Account $account,
+        AccountTransactionType $transactionType,
+        string $referenceType,
+    ): AccountTransactionCategory {
+        if ($referenceType === 'INTER_ACCOUNT_TRANSFER') {
+            return AccountTransactionCategory::Internal;
+        }
+
+        $nature = $account->account_type->nature();
+
+        return match (true) {
+            $nature === AccountNature::Income && $transactionType === AccountTransactionType::Credit => AccountTransactionCategory::Revenue,
+            $nature === AccountNature::Expense && $transactionType === AccountTransactionType::Debit => AccountTransactionCategory::Expense,
+            default => AccountTransactionCategory::Internal,
+        };
+    }
+
+    /**
      * Transfer an amount from one account to another without touching any caisse.
+     *
+     * Defaults reference_type to INTER_ACCOUNT_TRANSFER — ProfitService relies on
+     * this to exclude internal reallocations from revenue/expense totals, so only
+     * pass a different reference_type if this transfer genuinely isn't one (rare).
      *
      * @return array{debit: AccountTransaction, credit: AccountTransaction}
      *
@@ -209,7 +248,7 @@ class AccountService
         Account $toAccount,
         int $amount,
         string $label,
-        string $referenceType = 'MANUAL',
+        string $referenceType = 'INTER_ACCOUNT_TRANSFER',
         ?int $referenceId = null,
         ?int $userId = null,
     ): array {
@@ -247,6 +286,7 @@ class AccountService
         string $referenceType = 'MANUAL',
         ?int $referenceId = null,
         ?int $userId = null,
+        ?AccountTransactionCategory $categoryOverride = null,
     ): array {
         if ($amount <= 0) {
             throw new InvalidArgumentException(
@@ -256,7 +296,7 @@ class AccountService
 
         $userId ??= auth()->id();
 
-        return DB::transaction(function () use ($caisse, $account, $amount, $caisseLabel, $accountLabel, $referenceType, $referenceId, $userId): array {
+        return DB::transaction(function () use ($caisse, $account, $amount, $caisseLabel, $accountLabel, $referenceType, $referenceId, $userId, $categoryOverride): array {
             $caisseTransaction = $caisse->transactions()->create([
                 'amount' => $amount,
                 'transaction_type' => CaisseTransactionType::Deposit,
@@ -265,7 +305,7 @@ class AccountService
             ]);
             $caisse->updateBalanceFromLedger();
 
-            $accountTransaction = $this->credit($account, $amount, $accountLabel, $referenceType, $referenceId, $userId);
+            $accountTransaction = $this->credit($account, $amount, $accountLabel, $referenceType, $referenceId, $userId, $categoryOverride);
 
             $this->assertGlobalInvariantHolds();
 
@@ -292,6 +332,7 @@ class AccountService
         string $referenceType = 'MANUAL',
         ?int $referenceId = null,
         ?int $userId = null,
+        ?AccountTransactionCategory $categoryOverride = null,
     ): array {
         if ($amount <= 0) {
             throw new InvalidArgumentException(
@@ -301,8 +342,8 @@ class AccountService
 
         $userId ??= auth()->id();
 
-        return DB::transaction(function () use ($caisse, $account, $amount, $caisseLabel, $accountLabel, $referenceType, $referenceId, $userId): array {
-            $accountTransaction = $this->debit($account, $amount, $accountLabel, $referenceType, $referenceId, $userId);
+        return DB::transaction(function () use ($caisse, $account, $amount, $caisseLabel, $accountLabel, $referenceType, $referenceId, $userId, $categoryOverride): array {
+            $accountTransaction = $this->debit($account, $amount, $accountLabel, $referenceType, $referenceId, $userId, $categoryOverride);
 
             $caisseTransaction = $caisse->transactions()->create([
                 'amount' => $amount,
@@ -327,6 +368,11 @@ class AccountService
      * Process an "entrée de caisse" (cash-in): deposit into a caisse and credit
      * a single account.
      *
+     * $categoryOverride forces the persisted category instead of letting
+     * determineCategory() infer it from the credited account's nature — use it
+     * whenever the caller (or the back-office form) already knows the real
+     * nature of the operation, e.g. a "Paiement colis" shortcut.
+     *
      * @throws InvalidArgumentException if amount is not positive
      */
     public function processEntreeDeCaisse(
@@ -335,6 +381,7 @@ class AccountService
         int $amount,
         string $label,
         ?int $userId = null,
+        ?AccountTransactionCategory $categoryOverride = null,
     ): void {
         if ($amount <= 0) {
             throw new InvalidArgumentException(
@@ -350,6 +397,7 @@ class AccountService
             accountLabel: $label,
             referenceType: 'ENTREE_DE_CAISSE',
             userId: $userId,
+            categoryOverride: $categoryOverride,
         );
     }
 
@@ -362,6 +410,12 @@ class AccountService
      * Accounts are debited in the given order, each up to its full balance, until
      * the amount is covered.
      *
+     * $categoryOverride forces the persisted category on every one of those
+     * debits instead of letting determineCategory() infer it from each
+     * account's nature — a single sortie is one operation (e.g. "Location de
+     * bus"), so it gets one category applied uniformly even if it's split
+     * across several accounts.
+     *
      * @param  int[]  $orderedAccountIds  Account IDs to debit, in the order provided by the user
      *
      * @throws InvalidArgumentException if amount is not positive
@@ -373,6 +427,7 @@ class AccountService
         string $label,
         array $orderedAccountIds,
         ?int $userId = null,
+        ?AccountTransactionCategory $categoryOverride = null,
     ): void {
         if ($amount <= 0) {
             throw new InvalidArgumentException(
@@ -382,7 +437,7 @@ class AccountService
 
         $userId ??= auth()->id();
 
-        DB::transaction(function () use ($caisse, $amount, $label, $orderedAccountIds, $userId): void {
+        DB::transaction(function () use ($caisse, $amount, $label, $orderedAccountIds, $userId, $categoryOverride): void {
             $caisse->transactions()->create([
                 'amount' => $amount,
                 'transaction_type' => CaisseTransactionType::Withdraw,
@@ -408,7 +463,7 @@ class AccountService
                 $amountToDebitFromThisAccount = min($account->balance, $remainingAmount);
 
                 if ($amountToDebitFromThisAccount > 0) {
-                    $this->debit($account, $amountToDebitFromThisAccount, $label, 'SORTIE_DE_CAISSE', null, $userId);
+                    $this->debit($account, $amountToDebitFromThisAccount, $label, 'SORTIE_DE_CAISSE', null, $userId, $categoryOverride);
                     $remainingAmount -= $amountToDebitFromThisAccount;
                 }
             }
@@ -466,5 +521,85 @@ class AccountService
                 'is_active' => true,
             ]
         );
+    }
+
+    /**
+     * Returns the single company-wide ParcelService account, creating it if needed.
+     */
+    public function getOrCreateParcelServiceAccount(): Account
+    {
+        return Account::firstOrCreate(
+            ['account_type' => AccountType::ParcelService->value],
+            [
+                'name' => AccountType::ParcelService->label(),
+                'balance' => 0,
+                'is_active' => true,
+            ]
+        );
+    }
+
+    // ── Ticket refund ────────────────────────────────────────────────────────
+
+    /**
+     * Reverse the ledger entry created by RecordTicketPaymentInCaisse when a
+     * ticket is refunded — withdraws the original amount from the same caisse
+     * it was deposited into and debits it back off the account it credited,
+     * persisted as Expense (a refund is always a real cash-out, never left to
+     * determineCategory()'s nature-based guess).
+     *
+     * Looks up the ORIGINAL credit's amount and account rather than
+     * recomputing from the ticket's current price/payment method, so it stays
+     * correct even if those changed since the sale. Idempotent: a ticket
+     * already reversed (or never recorded in the first place, e.g. an
+     * unrecognized payment method) is a no-op.
+     *
+     * @throws InsufficientAccountBalanceException if the credited account no
+     *                                             longer holds enough balance to reverse (e.g. it was already spent) —
+     *                                             the caller must decide whether that should block the refund.
+     */
+    public function reverseTicketSaleForRefund(Ticket $ticket, ?int $userId = null): ?AccountTransaction
+    {
+        $alreadyReversed = AccountTransaction::query()
+            ->where('reference_type', 'TICKET_REFUND')
+            ->where('reference_id', $ticket->id)
+            ->exists();
+
+        if ($alreadyReversed) {
+            return null;
+        }
+
+        $originalCredit = AccountTransaction::query()
+            ->whereIn('reference_type', ['TICKET_SALE', 'MANUAL_TICKET_PAYMENT'])
+            ->where('reference_id', $ticket->id)
+            ->where('transaction_type', AccountTransactionType::Credit->value)
+            ->first();
+
+        if ($originalCredit === null) {
+            return null;
+        }
+
+        $caisseCode = CaisseCode::forTicketPaymentMethod($ticket->payment_method);
+        $caisse = $caisseCode !== null ? Caisse::findByCode($caisseCode) : null;
+
+        if ($caisse === null) {
+            return null;
+        }
+
+        $account = Account::findOrFail($originalCredit->account_id);
+        $label = "Remboursement billet #{$ticket->number}";
+
+        $result = $this->withdrawFromCaisseAndDebitAccount(
+            caisse: $caisse,
+            account: $account,
+            amount: $originalCredit->amount,
+            caisseLabel: $label,
+            accountLabel: $label,
+            referenceType: 'TICKET_REFUND',
+            referenceId: $ticket->id,
+            userId: $userId,
+            categoryOverride: AccountTransactionCategory::Expense,
+        );
+
+        return $result['account_transaction'];
     }
 }

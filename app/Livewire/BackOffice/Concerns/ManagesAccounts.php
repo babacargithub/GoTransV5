@@ -259,7 +259,6 @@ trait ManagesAccounts
                 toAccount: $toAccount,
                 amount: $validated['accountTransferAmount'],
                 label: $validated['accountTransferLabel'],
-                referenceType: 'INTER_ACCOUNT_TRANSFER',
             );
 
             $this->closeAccountTransferModal();
@@ -293,7 +292,7 @@ trait ManagesAccounts
     }
 
     /**
-     * @return array{transactions: array<int, array{id: int, amount: int, effectiveAmount: int, label: string|null, transactionType: string, createdAt: string}>, totalDeposits: int, totalWithdrawals: int}
+     * @return array{transactions: array<int, array{id: int, amount: int, effectiveAmount: int, label: string|null, transactionType: string, category: string, categoryLabel: string, categoryColor: string, createdAt: string}>, totalDeposits: int, totalWithdrawals: int}
      */
     #[Computed]
     public function accountTransactionsForModal(): array
@@ -318,6 +317,9 @@ trait ManagesAccounts
                     'effectiveAmount' => $transaction->effective_amount,
                     'label' => $transaction->label,
                     'transactionType' => $transaction->transaction_type->value,
+                    'category' => $transaction->category->value,
+                    'categoryLabel' => $transaction->category->label(),
+                    'categoryColor' => $transaction->category->badgeColor(),
                     'createdAt' => $transaction->created_at->format('d/m/Y H:i'),
                 ])
                 ->all(),

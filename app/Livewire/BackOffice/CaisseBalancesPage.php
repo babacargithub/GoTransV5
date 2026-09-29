@@ -7,6 +7,7 @@ use App\Http\Controllers\OrangeMoneyController;
 use App\Http\Controllers\WavePaiementController;
 use App\Livewire\BackOffice\Concerns\ManagesAccounts;
 use App\Livewire\BackOffice\Concerns\ManagesCaisses;
+use App\Livewire\BackOffice\Concerns\ManagesProfitReport;
 use App\Models\Booking;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Computed;
@@ -25,14 +26,17 @@ use Livewire\Component;
  *   caisse, transfer between caisses, day lock/unlock, transactions.
  * - "Comptes": the generic Account ledger paired with Caisse via the
  *   SUM(accounts) == SUM(caisses) invariant enforced by AccountService.
+ * - "Revenus": profit report (revenue − expenses) over a date range,
+ *   broken down by account — see ManagesProfitReport / ProfitService.
  */
 #[Layout('components.layouts.back-office')]
 class CaisseBalancesPage extends Component
 {
     use ManagesAccounts;
     use ManagesCaisses;
+    use ManagesProfitReport;
 
-    /** @var 'apercu'|'caisses'|'comptes' */
+    /** @var 'apercu'|'caisses'|'comptes'|'revenus' */
     public string $activeTab = 'apercu';
 
     public ?string $flashStatusMessage = null;

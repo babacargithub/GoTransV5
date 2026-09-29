@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Enums\AccountTransactionCategory;
+use App\Enums\AccountType;
 use App\Enums\CaisseCode;
 use App\Jobs\RecordTicketPaymentInCaisse;
 use App\Manager\TicketManager;
@@ -9,6 +11,7 @@ use App\Models\AccountTransaction;
 use App\Models\Caisse;
 use App\Models\Ticket;
 use App\Models\User;
+use App\Services\AccountService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Tests\TestCase;
 
@@ -94,6 +97,23 @@ class RecordTicketPaymentInCaisseTest extends TestCase
         RecordTicketPaymentInCaisse::dispatchSync($ticket->id);
 
         $this->assertSame(0, (int) AccountTransaction::where('reference_id', $ticket->id)->count());
+    }
+
+    public function test_ticket_sale_is_always_persisted_as_revenue_regardless_of_the_ticket_sales_account_type(): void
+    {
+        // The TicketSales account is normally nature=Income, which already
+        // resolves to Revenue via AccountService::determineCategory() — but
+        // this job must force Revenue explicitly, so it stays correct even
+        // if that account's type is ever misconfigured.
+        app(AccountService::class)->getOrCreateTicketSalesAccount()
+            ->update(['account_type' => AccountType::Management]);
+
+        $ticket = $this->makeTicket(3550, 'cash');
+
+        RecordTicketPaymentInCaisse::dispatchSync($ticket->id);
+
+        $accountTransaction = AccountTransaction::where('reference_id', $ticket->id)->first();
+        $this->assertSame(AccountTransactionCategory::Revenue, $accountTransaction->category);
     }
 
     public function test_job_is_idempotent_and_does_not_double_deposit_on_retry(): void

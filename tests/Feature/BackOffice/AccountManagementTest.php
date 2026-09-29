@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\BackOffice;
 
+use App\Enums\AccountTransactionCategory;
 use App\Enums\AccountType;
 use App\Enums\PermissionName;
 use App\Livewire\BackOffice\CaisseBalancesPage;
@@ -121,5 +122,24 @@ class AccountManagementTest extends TestCase
 
         $this->assertSame(30_000, $fromAccount->fresh()->balance);
         $this->assertSame(20_000, $toAccount->fresh()->balance);
+    }
+
+    public function test_account_transactions_modal_exposes_each_transactions_category(): void
+    {
+        $user = $this->createUserWithFullAccess();
+        $account = $this->makeAccount('Ventes de billets', 0);
+        Account::where('id', $account->id)->update(['account_type' => AccountType::TicketSales->value]);
+        app(AccountService::class)->credit($account->fresh(), 50_000, 'Billets du jour');
+
+        $component = Livewire::actingAs($user)
+            ->test(CaisseBalancesPage::class)
+            ->set('activeTab', 'comptes')
+            ->call('openAccountTransactions', $account->id);
+
+        $transaction = $component->get('accountTransactionsForModal')['transactions'][0];
+
+        $this->assertSame(AccountTransactionCategory::Revenue->value, $transaction['category']);
+        $this->assertSame(AccountTransactionCategory::Revenue->label(), $transaction['categoryLabel']);
+        $this->assertSame(AccountTransactionCategory::Revenue->badgeColor(), $transaction['categoryColor']);
     }
 }

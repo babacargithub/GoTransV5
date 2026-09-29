@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Enums\AccountTransactionCategory;
 use App\Enums\CaisseCode;
 use App\Manager\TicketManager;
 use App\Models\AccountTransaction;
@@ -29,6 +30,11 @@ use Illuminate\Support\Facades\Log;
  *  - om           -> OM caisse, full ticket price — Orange Money does not
  *                     deduct anything at payment time, only later when we
  *                     withdraw from the merchant balance.
+ *
+ * The credit is always persisted as AccountTransactionCategory::Revenue,
+ * regardless of the TicketSales account's configured type/nature — a ticket
+ * sale is always real company revenue and must never silently fall back to
+ * Internal (see AccountService::determineCategory()).
  */
 class RecordTicketPaymentInCaisse implements ShouldQueue
 {
@@ -60,15 +66,13 @@ class RecordTicketPaymentInCaisse implements ShouldQueue
         }
 
         $paymentMethod = strtolower(trim((string) $ticket->payment_method));
+        $caisseCode = CaisseCode::forTicketPaymentMethod($paymentMethod);
 
-        [$caisseCode, $amount] = match (true) {
-            in_array($paymentMethod, ['cash', 'especes', 'espèces'], true) => [CaisseCode::TicketCash, (int) $ticket->price],
-
-            $paymentMethod === 'wave' => [CaisseCode::Wave, (int) round($ticket->price / (1 +
-                    TicketManager::WAVE_FEES))], // TODO this must use the the "received_amount" instead of
-            // calculating directly
-            $paymentMethod === 'om' => [CaisseCode::OrangeMoney, (int) $ticket->price],
-            default => [null, 0],
+        $amount = match ($caisseCode) {
+            CaisseCode::TicketCash, CaisseCode::OrangeMoney => (int) $ticket->price,
+            // TODO this must use the "received_amount" instead of calculating directly
+            CaisseCode::Wave => (int) round($ticket->price / (1 + TicketManager::WAVE_FEES)),
+            default => 0,
         };
 
         if ($caisseCode === null) {
@@ -96,6 +100,7 @@ class RecordTicketPaymentInCaisse implements ShouldQueue
             referenceType: $this->referenceType,
             referenceId: $ticket->id,
             userId: $this->userId,
+            categoryOverride: AccountTransactionCategory::Revenue,
         );
     }
 }

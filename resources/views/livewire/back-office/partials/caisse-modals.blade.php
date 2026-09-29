@@ -75,6 +75,29 @@
             <flux:error name="entreeLabel" />
         </flux:field>
 
+        <flux:field>
+            <flux:label>Opérations courantes</flux:label>
+            <div class="grid gap-2 sm:grid-cols-2">
+                @foreach (\App\Enums\CommonCaisseOperation::forEntreeDeCaisse() as $operation)
+                    <flux:checkbox
+                        :checked="$entreeShortcut === $operation->value"
+                        wire:click="toggleEntreeShortcut('{{ $operation->value }}')"
+                        label="{{ $operation->label() }}"
+                    />
+                @endforeach
+            </div>
+        </flux:field>
+
+        <flux:field>
+            <flux:label>Nature de l'opération</flux:label>
+            <flux:select wire:model="entreeCategory">
+                @foreach (\App\Enums\AccountTransactionCategory::cases() as $category)
+                    <flux:select.option value="{{ $category->value }}">{{ $category->label() }}</flux:select.option>
+                @endforeach
+            </flux:select>
+            <flux:error name="entreeCategory" />
+        </flux:field>
+
         <div class="flex items-center justify-end gap-2">
             <flux:button variant="ghost" wire:click="closeEntreeModal">Annuler</flux:button>
             <flux:button type="submit" variant="primary" wire:loading.attr="disabled" wire:target="saveEntreeDeCaisse">Enregistrer</flux:button>
@@ -111,6 +134,29 @@
             <flux:label>Libellé</flux:label>
             <flux:input wire:model="sortieLabel" placeholder="Ex : Paiement fournisseur, salaires..." />
             <flux:error name="sortieLabel" />
+        </flux:field>
+
+        <flux:field>
+            <flux:label>Opérations courantes</flux:label>
+            <div class="grid gap-2 sm:grid-cols-2">
+                @foreach (\App\Enums\CommonCaisseOperation::forSortieDeCaisse() as $operation)
+                    <flux:checkbox
+                        :checked="$sortieShortcut === $operation->value"
+                        wire:click="toggleSortieShortcut('{{ $operation->value }}')"
+                        label="{{ $operation->label() }}"
+                    />
+                @endforeach
+            </div>
+        </flux:field>
+
+        <flux:field>
+            <flux:label>Nature de l'opération</flux:label>
+            <flux:select wire:model="sortieCategory">
+                @foreach (\App\Enums\AccountTransactionCategory::cases() as $category)
+                    <flux:select.option value="{{ $category->value }}">{{ $category->label() }}</flux:select.option>
+                @endforeach
+            </flux:select>
+            <flux:error name="sortieCategory" />
         </flux:field>
 
         <flux:field>

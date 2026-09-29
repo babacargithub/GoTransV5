@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AccountTransactionCategory;
 use App\Enums\AccountTransactionType;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -13,6 +14,7 @@ class AccountTransaction extends Model
         'user_id',
         'amount',
         'transaction_type',
+        'category',
         'label',
         'reference_type',
         'reference_id',
@@ -23,6 +25,7 @@ class AccountTransaction extends Model
         return [
             'amount' => 'integer',
             'transaction_type' => AccountTransactionType::class,
+            'category' => AccountTransactionCategory::class,
         ];
     }
 
