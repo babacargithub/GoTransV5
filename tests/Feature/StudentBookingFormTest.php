@@ -10,6 +10,7 @@ use App\Models\Customer;
 use App\Models\Depart;
 use App\Models\Destination;
 use App\Models\PointDep;
+use App\Models\Ticket;
 use App\Models\Trajet;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Http;
@@ -166,16 +167,27 @@ class StudentBookingFormTest extends TestCase
         $this->fakeWaveCheckout();
         ['trajet' => $trajet, 'depart' => $depart, 'pointDep' => $pointDep] = $this->createBookableDepart();
 
-        // A passenger who already has a booking on this trajet -> the backend's "déjà réservé" branch.
+        // A passenger who already has a PAID booking on this trajet -> the backend's hard
+        // "déjà réservé" branch (unlike an unpaid conflict, this one still rejects outright).
         $phone = '77'.random_int(1000000, 9999999);
         $existingCustomer = Customer::create(['prenom' => 'Awa', 'nom' => 'Diop', 'phone_number' => $phone, 'last_active' => now()]);
+        $ticket = new Ticket;
+        $ticket->number = random_int(100000000, 999999999);
+        $ticket->expiryDate = now()->addDays(30);
+        $ticket->soldAt = now();
+        $ticket->used = true;
+        $ticket->price = 4000;
+        $ticket->soldBy = 'system';
+        $ticket->payment_method = 'wave';
+        $ticket->save();
         Booking::create([
             'customer_id' => $existingCustomer->id,
             'depart_id' => $depart->id,
             'bus_id' => $depart->buses()->first()->id,
             'point_dep_id' => $pointDep->id,
             'destination_id' => Destination::where('trajet_id', $trajet->id)->value('id'),
-            'paye' => false,
+            'paye' => true,
+            'ticket_id' => $ticket->id,
             'group_id' => (int) BookingManager::generateBookingGroupId(),
         ]);
 
@@ -190,8 +202,102 @@ class StudentBookingFormTest extends TestCase
             ->call('confirmBooking')
             ->assertSet('showSummary', false)
             ->assertSet('showNonRefundableWarning', false)
+            ->assertSet('showUnpaidConflictModal', false)
             ->assertNoRedirect()
             ->assertSet('formError', fn ($error) => filled($error));
+    }
+
+    /**
+     * @return array{trajet: Trajet, depart: Depart, pointDep: PointDep, phone: string, groupId: string, booking: Booking}
+     */
+    private function createUnpaidConflictingBooking(): array
+    {
+        ['trajet' => $trajet, 'depart' => $depart, 'pointDep' => $pointDep] = $this->createBookableDepart();
+
+        $phone = '77'.random_int(1000000, 9999999);
+        $existingCustomer = Customer::create(['prenom' => 'Awa', 'nom' => 'Diop', 'phone_number' => $phone, 'last_active' => now()]);
+        $groupId = BookingManager::generateBookingGroupId();
+        $booking = Booking::create([
+            'customer_id' => $existingCustomer->id,
+            'depart_id' => $depart->id,
+            'bus_id' => $depart->buses()->first()->id,
+            'point_dep_id' => $pointDep->id,
+            'destination_id' => Destination::where('trajet_id', $trajet->id)->value('id'),
+            'paye' => false,
+            'group_id' => (int) $groupId,
+        ]);
+
+        return compact('trajet', 'depart', 'pointDep', 'phone', 'groupId', 'booking');
+    }
+
+    public function test_an_unpaid_existing_booking_opens_a_pay_or_replace_dialog_instead_of_rejecting(): void
+    {
+        ['depart' => $depart, 'pointDep' => $pointDep, 'phone' => $phone, 'groupId' => $groupId] = $this->createUnpaidConflictingBooking();
+
+        Livewire::test(StudentBooking::class, ['depart' => $depart])
+            ->set('passengersCount', 1)
+            ->set('passengers.0.full_name', 'Awa Diop')
+            ->set('passengers.0.phone_number', $phone)
+            ->set('passengers.0.point_dep_id', $pointDep->id)
+            ->set('paymentMethod', 'wave')
+            ->call('reviewBooking')
+            ->call('acknowledgeSummary')
+            ->call('confirmBooking')
+            ->assertSet('showSummary', false)
+            ->assertSet('showNonRefundableWarning', false)
+            ->assertNoRedirect()
+            ->assertSet('formError', null)
+            ->assertSet('showUnpaidConflictModal', true)
+            ->assertSet('unpaidConflictGroupId', (string) $groupId)
+            ->assertSee('Payer la réservation')
+            ->assertSee('Remplacer par une nouvelle');
+
+        $this->assertNotNull(Booking::where('group_id', $groupId)->value('uuid'));
+    }
+
+    public function test_paying_the_existing_booking_redirects_to_its_reservation_page(): void
+    {
+        ['depart' => $depart, 'pointDep' => $pointDep, 'phone' => $phone, 'groupId' => $groupId] = $this->createUnpaidConflictingBooking();
+
+        Livewire::test(StudentBooking::class, ['depart' => $depart])
+            ->set('passengersCount', 1)
+            ->set('passengers.0.full_name', 'Awa Diop')
+            ->set('passengers.0.phone_number', $phone)
+            ->set('passengers.0.point_dep_id', $pointDep->id)
+            ->set('paymentMethod', 'wave')
+            ->call('reviewBooking')
+            ->call('acknowledgeSummary')
+            ->call('confirmBooking')
+            ->call('payExistingBooking')
+            ->assertRedirect(route('website.bookings.show', ['uuid' => Booking::where('group_id', $groupId)->value('uuid')]));
+    }
+
+    public function test_replacing_the_existing_booking_cancels_it_and_creates_a_new_one(): void
+    {
+        $this->fakeWaveCheckout();
+        ['depart' => $depart, 'pointDep' => $pointDep, 'phone' => $phone, 'groupId' => $groupId, 'booking' => $oldBooking] =
+            $this->createUnpaidConflictingBooking();
+
+        Livewire::test(StudentBooking::class, ['depart' => $depart])
+            ->set('passengersCount', 1)
+            ->set('passengers.0.full_name', 'Awa Diop')
+            ->set('passengers.0.phone_number', $phone)
+            ->set('passengers.0.point_dep_id', $pointDep->id)
+            ->set('paymentMethod', 'wave')
+            ->call('reviewBooking')
+            ->call('acknowledgeSummary')
+            ->call('confirmBooking')
+            ->assertSet('showUnpaidConflictModal', true)
+            ->call('replaceWithNewBooking')
+            ->assertSet('showUnpaidConflictModal', false)
+            ->assertRedirect('https://pay.wave.com/c/cos-test123?a=8000');
+
+        $this->assertSoftDeleted($oldBooking);
+        $newBooking = Booking::where('depart_id', $depart->id)
+            ->where('group_id', '!=', $groupId)
+            ->whereHas('customer', fn ($query) => $query->where('phone_number', $phone))
+            ->first();
+        $this->assertNotNull($newBooking, 'The replacement booking should have been created.');
     }
 
     public function test_a_duplicate_phone_number_in_the_form_is_rejected(): void

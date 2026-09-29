@@ -16,6 +16,7 @@ use App\Services\NotificationService;
 use DB;
 use Exception;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 use Log;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -51,6 +52,25 @@ class BookingManager
         } while (Booking::where('group_id', $candidate)->exists());
 
         return $candidate;
+    }
+
+    /**
+     * Returns the group's public uuid, stamping one onto every uuid-less booking of the group
+     * first if it doesn't have one yet (e.g. a group created through the mobile app, which never
+     * sets uuid — see StudentBooking::tagGroupBookingsWithUuid for the website's own, similar,
+     * post-creation stamping). Idempotent: safe to call on a group that already has a uuid.
+     */
+    public static function ensureGroupHasUuid(string $groupId): string
+    {
+        $existingUuid = Booking::where('group_id', $groupId)->whereNotNull('uuid')->value('uuid');
+        if ($existingUuid !== null) {
+            return $existingUuid;
+        }
+
+        $uuid = (string) Str::uuid();
+        Booking::where('group_id', $groupId)->whereNull('uuid')->update(['uuid' => $uuid]);
+
+        return $uuid;
     }
 
     /**

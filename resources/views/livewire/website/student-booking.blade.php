@@ -228,4 +228,45 @@
             </div>
         </div>
     @endif
+
+    {{-- Existing unpaid booking on this trajet: pay it or replace it --}}
+    @if ($showUnpaidConflictModal)
+        <div class="fixed inset-0 z-50 flex items-end justify-center bg-brand-navy/50 p-4 sm:items-center" wire:key="unpaid-conflict">
+            <div class="w-full max-w-lg rounded-3xl bg-white p-6 shadow-xl">
+                <h2 class="text-lg font-bold">Réservation en attente de paiement</h2>
+                <p class="mt-4 text-sm">
+                    {{ $unpaidConflictCustomerName ?? 'Ce numéro' }} a déjà une réservation non payée
+                    @if ($unpaidConflictDepartName)
+                        pour le départ <span class="font-semibold">{{ $unpaidConflictDepartName }}</span>
+                    @endif
+                    . Que souhaitez-vous faire ?
+                </p>
+
+                <div class="mt-6 flex flex-col gap-3">
+                    <button
+                        type="button"
+                        wire:click="payExistingBooking"
+                        wire:loading.attr="disabled"
+                        wire:target="payExistingBooking"
+                        class="w-full rounded-full bg-brand-cyan px-4 py-2.5 font-semibold text-brand-navy disabled:opacity-60"
+                    >
+                        Payer la réservation
+                    </button>
+                    <button
+                        type="button"
+                        wire:click="replaceWithNewBooking"
+                        wire:loading.attr="disabled"
+                        wire:target="replaceWithNewBooking"
+                        class="w-full rounded-full border border-brand-navy/20 px-4 py-2.5 font-semibold text-brand-navy disabled:opacity-60"
+                    >
+                        <span wire:loading.remove wire:target="replaceWithNewBooking">Remplacer par une nouvelle</span>
+                        <span wire:loading wire:target="replaceWithNewBooking">Traitement…</span>
+                    </button>
+                    <button type="button" wire:click="closeUnpaidConflictModal" class="w-full rounded-full px-4 py-2 text-sm text-muted-foreground">
+                        Annuler
+                    </button>
+                </div>
+            </div>
+        </div>
+    @endif
 </div>

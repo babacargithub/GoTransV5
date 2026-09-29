@@ -33,6 +33,8 @@ class MobileMultipleBookingRequest extends FormRequest
 
     const ERROR_ALREADY_BOOKED = 'ALREADY_BOOKED';
 
+    const ERROR_UNPAID_BOOKING_EXISTS = 'UNPAID_BOOKING_EXISTS';
+
     protected $error_payload = [];
 
     /**
@@ -143,8 +145,11 @@ class MobileMultipleBookingRequest extends FormRequest
                         ->join('departs', 'bookings.depart_id', '=', 'departs.id')
                         ->where('departs.date', '>=', now())
                         ->where('departs.trajet_id', $depart->trajet_id)->first();
-                    if ($currentBooking != null) {
+                    if ($currentBooking == null) {
+                        continue;
+                    }
 
+                    if ($currentBooking->hasTicket()) {
                         $this->error_code = self::ERROR_ALREADY_BOOKED;
                         $this->error_payload = [
                             'customer_full_name' => $currentBooking->customer->full_name,
@@ -152,14 +157,38 @@ class MobileMultipleBookingRequest extends FormRequest
                             'current_booking_depart' => $currentBooking->depart->name];
                         $validator->errors()->add('phone_number', ''.$currentBooking->customer->full_name.' a déjà fait une réservation pour le départ '.
                             $currentBooking->depart->name);
+
+                        continue;
                     }
+
+                    // The matching booking is unpaid: let the caller explicitly confirm it wants to
+                    // replace it (see StudentBooking::replaceWithNewBooking()) instead of hard-rejecting
+                    // the new submission outright.
+                    $replacingBookingGroupId = $this->input('replacing_booking_group_id');
+                    if ($replacingBookingGroupId !== null && (string) $replacingBookingGroupId === (string) $currentBooking->group_id) {
+                        continue;
+                    }
+
+                    $this->error_code = self::ERROR_UNPAID_BOOKING_EXISTS;
+                    $this->error_payload = [
+                        'customer_full_name' => $currentBooking->customer->full_name,
+                        'current_booking_id' => $currentBooking->id,
+                        'current_booking_group_id' => $currentBooking->group_id,
+                        'current_booking_uuid' => BookingManager::ensureGroupHasUuid((string) $currentBooking->group_id),
+                        'current_booking_depart' => $currentBooking->depart->name];
+                    $validator->errors()->add('phone_number', ''.$currentBooking->customer->full_name.' a déjà une réservation non payée pour le départ '.
+                        $currentBooking->depart->name);
                 }
 
             },
             function (Validator $validator) {
                 // if payment_method is om, om_number is required
-                $validated = $this->validated();
-                if ($validated['payment_method'] == 'om' && ! isset($validated['om_number'])) {
+                //
+                // Reads raw input rather than $this->validated(): Validator::validated() throws
+                // immediately if the message bag already holds an error added by an earlier after()
+                // closure (bus full, already booked, unpaid conflict, …), which would replace this
+                // request's custom error_code/error_payload response with a generic exception.
+                if ($this->input('payment_method') == 'om' && ! filled($this->input('om_number'))) {
                     $validator->errors()->add('om_number', 'Le numéro orange money est requis pour le paiement orange money');
 
                 }

@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Website;
 
+use App\Http\Controllers\BookingController;
 use App\Http\Controllers\MobileAppController;
 use App\Http\Requests\MobileMultipleBookingRequest;
 use App\Http\Resources\MobileTrajetDepartsResource;
@@ -60,6 +61,28 @@ class StudentBooking extends Component
     public bool $showNonRefundableWarning = false;
 
     public ?string $formError = null;
+
+    /**
+     * The "vous avez déjà une réservation non payée" dialog: shown instead of a hard rejection
+     * when the conflicting booking has no ticket yet, so the customer can pay it or replace it.
+     */
+    public bool $showUnpaidConflictModal = false;
+
+    public ?string $unpaidConflictGroupId = null;
+
+    public ?string $unpaidConflictUuid = null;
+
+    public ?string $unpaidConflictDepartName = null;
+
+    public ?string $unpaidConflictCustomerName = null;
+
+    /**
+     * Set right before re-submitting after "Remplacer par une nouvelle" — tells the backend
+     * validation to let this specific unpaid group through instead of rejecting it again.
+     * Intentionally not `public`: it only needs to survive the synchronous
+     * replaceWithNewBooking() -> confirmBooking() call, never a Livewire round-trip.
+     */
+    private ?string $replacingBookingGroupId = null;
 
     public function mount(Depart $depart): void
     {
@@ -167,6 +190,7 @@ class StudentBooking extends Component
     {
         $this->formError = null;
         $this->resetBookingStepState();
+        $this->closeUnpaidConflictModal();
 
         if (! str_starts_with($name, 'passengers.')) {
             $this->resetErrorBag($name);
@@ -230,7 +254,20 @@ class StudentBooking extends Component
         try {
             $mobileRequest = $this->buildValidatedMobileBookingRequest();
         } catch (HttpResponseException $exception) {
-            $this->formError = data_get($exception->getResponse()->getData(true), 'message')
+            $responseData = $exception->getResponse()->getData(true);
+
+            if (data_get($responseData, 'error_code') === MobileMultipleBookingRequest::ERROR_UNPAID_BOOKING_EXISTS) {
+                $payload = data_get($responseData, 'error_payload', []);
+                $this->unpaidConflictGroupId = (string) data_get($payload, 'current_booking_group_id');
+                $this->unpaidConflictUuid = data_get($payload, 'current_booking_uuid');
+                $this->unpaidConflictDepartName = data_get($payload, 'current_booking_depart');
+                $this->unpaidConflictCustomerName = data_get($payload, 'customer_full_name');
+                $this->showUnpaidConflictModal = true;
+
+                return;
+            }
+
+            $this->formError = data_get($responseData, 'message')
                 ?? "Votre réservation n'a pas pu être enregistrée.";
 
             return;
@@ -271,6 +308,11 @@ class StudentBooking extends Component
 
         $bookingUuid = $this->tagGroupBookingsWithUuid((int) $groupId);
 
+        if ($this->replacingBookingGroupId !== null) {
+            $this->cancelBookingGroup($this->replacingBookingGroupId);
+            $this->replacingBookingGroupId = null;
+        }
+
         if ($this->paymentMethod === 'wave') {
             $waveLaunchUrl = data_get($responseData, 'paymentResponse.wave_launch_url');
 
@@ -288,6 +330,48 @@ class StudentBooking extends Component
             : 'Votre réservation a été enregistrée. Procédez au paiement pour confirmer vos billets.');
 
         $this->redirectRoute('website.bookings.show', ['uuid' => $bookingUuid]);
+    }
+
+    /**
+     * "Payer la réservation" — sends the customer to the existing unpaid group's own page to
+     * finish paying it, instead of creating a second, competing booking.
+     */
+    public function payExistingBooking(): void
+    {
+        if ($this->unpaidConflictUuid === null) {
+            $this->closeUnpaidConflictModal();
+
+            return;
+        }
+
+        $this->redirectRoute('website.bookings.show', ['uuid' => $this->unpaidConflictUuid]);
+    }
+
+    /**
+     * "Remplacer par une nouvelle" — cancels the previous unpaid group and re-submits this form's
+     * data as a fresh booking/checkout. A group submission overrides the whole old group, not just
+     * the conflicting passenger.
+     */
+    public function replaceWithNewBooking(): void
+    {
+        if ($this->unpaidConflictGroupId === null) {
+            $this->closeUnpaidConflictModal();
+
+            return;
+        }
+
+        $this->replacingBookingGroupId = $this->unpaidConflictGroupId;
+        $this->closeUnpaidConflictModal();
+        $this->confirmBooking();
+    }
+
+    public function closeUnpaidConflictModal(): void
+    {
+        $this->showUnpaidConflictModal = false;
+        $this->unpaidConflictGroupId = null;
+        $this->unpaidConflictUuid = null;
+        $this->unpaidConflictDepartName = null;
+        $this->unpaidConflictCustomerName = null;
     }
 
     public function render(): View
@@ -525,6 +609,10 @@ class StudentBooking extends Component
             $payload['om_number'] = trim((string) $this->orangeMoneyNumber);
         }
 
+        if ($this->replacingBookingGroupId !== null) {
+            $payload['replacing_booking_group_id'] = $this->replacingBookingGroupId;
+        }
+
         return $payload;
     }
 
@@ -561,6 +649,21 @@ class StudentBooking extends Component
             ->update(['uuid' => $bookingUuid]);
 
         return $bookingUuid;
+    }
+
+    /**
+     * Cancels every still-unpaid booking of a group (freeing seats, soft-deleting the rows) via
+     * the same legacy BookingController::cancelBooking() the back office uses. Paid rows are left
+     * untouched as a safety net in case the customer paid the old group in another tab while this
+     * dialog was open.
+     */
+    private function cancelBookingGroup(string $groupId): void
+    {
+        Booking::where('group_id', $groupId)->get()->each(function (Booking $booking): void {
+            if (! $booking->hasTicket()) {
+                app(BookingController::class)->cancelBooking($booking);
+            }
+        });
     }
 
     /* --------------------------------------------------------------------- */
