@@ -10,6 +10,8 @@ use App\Services\AccountService;
 use App\Services\ProfitService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 /**
@@ -166,5 +168,35 @@ class ProfitServiceTest extends TestCase
 
         $this->assertSame(50_000, $this->amountForAccount($januaryReport, 'revenue', $ticketSales->id));
         $this->assertSame(70_000, $this->amountForAccount($februaryReport, 'revenue', $ticketSales->id));
+    }
+
+    public function test_ticket_sales_for_upcoming_departs_are_excluded_until_the_depart_has_passed(): void
+    {
+        $caisse = $this->makeCaisse();
+        $ticketSales = $this->makeAccount('Ventes de billets', AccountType::TicketSales);
+        $baseline = $this->profitService->computeProfit();
+
+        $pastTicketId = $this->createTicketBookedOnDepartAt(now()->subDay());
+        $upcomingTicketId = $this->createTicketBookedOnDepartAt(now()->addDay());
+
+        foreach ([$pastTicketId => 30_000, $upcomingTicketId => 50_000] as $ticketId => $amount) {
+            $this->accountService->depositToCaisseAndCreditAccount(
+                $caisse, $ticketSales, $amount, 'Vente', 'Vente', 'TICKET_SALE', $ticketId,
+            );
+        }
+
+        $report = $this->profitService->computeProfit();
+
+        $this->assertSame(30_000, $this->amountForAccount($report, 'revenue', $ticketSales->id));
+        $this->assertSame($baseline->totalRevenue + 30_000, $report->totalRevenue);
+    }
+
+    private function createTicketBookedOnDepartAt(Carbon $departDate): int
+    {
+        $departId = DB::table('departs')->insertGetId(['date' => $departDate, 'name' => 'Test', 'closed' => false, 'locked' => false, 'created_at' => now(), 'updated_at' => now()]);
+        $ticketId = DB::table('tickets')->insertGetId(['number' => fake()->unique()->numberBetween(900000000, 999999999), 'price' => 10000, 'soldBy' => 'system', 'soldAt' => now(), 'used' => false, 'created_at' => now(), 'updated_at' => now()]);
+        Schema::withoutForeignKeyConstraints(fn () => DB::table('bookings')->insert(['depart_id' => $departId, 'ticket_id' => $ticketId, 'customer_id' => 0, 'point_dep_id' => 0, 'destination_id' => 0, 'paye' => true, 'created_at' => now(), 'updated_at' => now()]));
+
+        return $ticketId;
     }
 }
