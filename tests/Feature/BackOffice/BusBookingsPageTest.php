@@ -589,6 +589,49 @@ class BusBookingsPageTest extends TestCase
         $this->assertSame(0, BookingTransfer::count());
     }
 
+    public function test_transferring_an_upcoming_booking_only_needs_the_basic_transfer_permission(): void
+    {
+        ['bus' => $bus, 'booking' => $booking] = $this->createBusWithOnePassenger();
+        $targetBus = $this->createUpcomingDepartWithBus();
+
+        Livewire::actingAs($this->createUserWithPermissions([PermissionName::TransferBooking->value]))
+            ->test(BusBookings::class, ['bus' => $bus])
+            ->call('openBookingTransferModal', $booking->id)
+            ->call('transferBookingToBus', $targetBus->id)
+            ->assertSet('showTransferModal', false);
+
+        $this->assertSame($targetBus->id, $booking->fresh()->bus_id);
+    }
+
+    public function test_the_past_transfer_permission_also_allows_transferring_an_upcoming_booking(): void
+    {
+        ['bus' => $bus, 'booking' => $booking] = $this->createBusWithOnePassenger();
+        $targetBus = $this->createUpcomingDepartWithBus();
+
+        Livewire::actingAs($this->createUserWithPermissions([PermissionName::TransferPastBooking->value]))
+            ->test(BusBookings::class, ['bus' => $bus])
+            ->call('openBookingTransferModal', $booking->id)
+            ->call('transferBookingToBus', $targetBus->id)
+            ->assertSet('showTransferModal', false);
+
+        $this->assertSame($targetBus->id, $booking->fresh()->bus_id);
+    }
+
+    public function test_transferring_a_past_booking_requires_the_past_transfer_permission(): void
+    {
+        ['bus' => $bus, 'booking' => $booking] = $this->createBusWithOnePassenger();
+        $bus->depart->update(['date' => now()->subDay()]);
+        $targetBus = $this->createUpcomingDepartWithBus();
+
+        Livewire::actingAs($this->createUserWithPermissions([PermissionName::TransferBooking->value]))
+            ->test(BusBookings::class, ['bus' => $bus])
+            ->call('openBookingTransferModal', $booking->id)
+            ->call('transferBookingToBus', $targetBus->id)
+            ->assertSee('Transférer réservation passée');
+
+        $this->assertSame($bus->id, $booking->fresh()->bus_id);
+    }
+
     public function test_the_edit_modal_prefills_the_booking_and_only_offers_stops_of_its_trajet(): void
     {
         ['bus' => $bus, 'booking' => $booking] = $this->createBusWithOnePassenger();

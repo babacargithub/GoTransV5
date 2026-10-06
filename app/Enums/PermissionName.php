@@ -24,6 +24,7 @@ enum PermissionName: string
     case CloseDepart = 'close-depart';
     case FreezeDepart = 'freeze-depart';
     case UnfreezeDepart = 'unfreeze-depart';
+    case TransferBooking = 'transfer-booking';
     case TransferPastBooking = 'transfer-past-booking';
     case CancelUnpaidBooking = 'cancel-unpaid-booking';
     case CancelPaidBooking = 'cancel-paid-booking';
@@ -42,6 +43,31 @@ enum PermissionName: string
     case ManageAccounts = 'manage-accounts';
 
     /**
+     * Transferring a booking away from a departed trip loses the company money,
+     * so it needs the higher "past" privilege; an upcoming trip needs only the basic one.
+     */
+    public static function forBookingTransfer(bool $isDepartPassed): self
+    {
+        return $isDepartPassed ? self::TransferPastBooking : self::TransferBooking;
+    }
+
+    /**
+     * The "past" transfer permission is the higher privilege, so it also covers upcoming trips.
+     */
+    public static function isBookingTransferAllowedForCurrentUser(bool $isDepartPassed): bool
+    {
+        return self::forBookingTransfer($isDepartPassed)->allowedForCurrentUser()
+            || self::TransferPastBooking->allowedForCurrentUser();
+    }
+
+    public static function authorizeBookingTransferForCurrentUser(bool $isDepartPassed): void
+    {
+        if (! self::isBookingTransferAllowedForCurrentUser($isDepartPassed)) {
+            self::forBookingTransfer($isDepartPassed)->authorizeForCurrentUser();
+        }
+    }
+
+    /**
      * The French label seeded into the editable `permissions.label` column.
      */
     public function defaultLabel(): string
@@ -54,7 +80,8 @@ enum PermissionName: string
             self::CloseDepart => 'Clôturer un départ',
             self::FreezeDepart => 'Geler un départ',
             self::UnfreezeDepart => 'Dégeler un départ',
-            self::TransferPastBooking => 'Transférer une réservation passée',
+            self::TransferBooking => 'Transférer réservation',
+            self::TransferPastBooking => 'Transférer réservation passée',
             self::CancelUnpaidBooking => 'Annuler une réservation non payée',
             self::CancelPaidBooking => 'Annuler une réservation payée',
             self::RefundTicket => 'Rembourser un billet',

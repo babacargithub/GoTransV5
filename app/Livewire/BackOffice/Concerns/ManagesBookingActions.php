@@ -366,7 +366,11 @@ trait ManagesBookingActions
             return;
         }
 
-        if (! $this->ensurePermittedOrFlash(PermissionName::TransferPastBooking)) {
+        $isDepartPassed = $booking->depart->isPassed();
+
+        if (! PermissionName::isBookingTransferAllowedForCurrentUser($isDepartPassed)) {
+            $this->flashErrorMessage = 'Action non autorisée : la permission « '.PermissionName::forBookingTransfer($isDepartPassed)->defaultLabel().' » est requise.';
+
             return;
         }
 

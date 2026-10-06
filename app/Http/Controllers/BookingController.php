@@ -299,7 +299,7 @@ class BookingController extends Controller
 
     public function transferBooking(Booking $booking, Bus $targetBus)
     {
-        PermissionName::TransferPastBooking->authorizeForCurrentUser();
+        PermissionName::authorizeBookingTransferForCurrentUser($booking->depart->isPassed());
 
         if ($booking->bus->id == $targetBus->id) {
             return response()->json(['message' => 'Vous ne pouvez pas transférer une réservation sur le même bus'], 422);

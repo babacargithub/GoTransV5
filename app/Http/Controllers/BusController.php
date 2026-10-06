@@ -187,7 +187,7 @@ class BusController extends Controller
 
     public function transferBookings(Bus $sourceBus, Request $request)
     {
-        PermissionName::TransferPastBooking->authorizeForCurrentUser();
+        PermissionName::authorizeBookingTransferForCurrentUser($sourceBus->depart->isPassed());
 
         $validated = $request->validate([
             'targetBusId' => 'required|integer',
