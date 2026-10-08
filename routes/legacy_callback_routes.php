@@ -38,11 +38,6 @@ Route::group(['prefix' => 'public/api/mobile'], function () {
     Route::get('client_exists/{phoneNumber}', [MobileAppController::class, 'clientExists']);
     Route::get('app_params', [MobileAppController::class, 'params']);
     Route::post('logs', function (Request $request) {
-        $logs = $request->input('logs');
-        foreach ($logs as $log) {
-            $mobileAppLog = new MobileAppLog($log);
-            $mobileAppLog->save();
-        }
 
         return response()->json(['message' => 'Log saved']);
     });
