@@ -228,6 +228,18 @@ class DepartListPageTest extends TestCase
             ->assertSee('Bus RDV Deux');
     }
 
+    public function test_the_gestion_des_rendez_vous_dialog_excludes_schedules_of_disabled_point_departs(): void
+    {
+        ['depart' => $depart, 'schedules' => $schedules] = $this->createUpcomingDepartWithBusStopSchedules();
+        $schedules[0]->pointDep->update(['disabled' => true]);
+
+        Livewire::actingAs($this->createUserWithFullAccess())
+            ->test(DepartList::class)
+            ->call('openScheduleManagement', $depart->id)
+            ->assertCount('scheduleManagementRows', 1)
+            ->assertSet('scheduleManagementRows.0.rendezVousPoint', 'Rond-point');
+    }
+
     public function test_switching_the_scope_loads_the_other_bus_schedules(): void
     {
         ['depart' => $depart, 'otherBus' => $otherBus] = $this->createUpcomingDepartWithBusStopSchedules();
@@ -488,7 +500,7 @@ class DepartListPageTest extends TestCase
             ->assertCount('scheduleManagementRows', 0)
             ->call('addAllBusStopSchedules')
             ->assertSee('Les arrêts ont été ajoutés.')
-            ->assertCount('scheduleManagementRows', $trajet->pointDeps()->count());
+            ->assertCount('scheduleManagementRows', $trajet->pointDeps()->where('disabled', false)->count());
     }
 
     public function test_the_gestion_des_sieges_dialog_lists_the_bus_seats_with_their_state(): void

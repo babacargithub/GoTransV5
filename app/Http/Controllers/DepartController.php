@@ -228,6 +228,7 @@ class DepartController extends Controller
 
         $query
             ->join('point_deps', 'heure_departs.point_dep_id', '=', 'point_deps.id')
+            ->where('point_deps.disabled', false)
             ->select('heure_departs.*', 'point_deps.position')
             ->orderBy('point_deps.position');
 
@@ -492,7 +493,7 @@ class DepartController extends Controller
     private function generateDefaultBusStopSchedules(Depart $depart, Bus $bus, Horaire $horaire)
     {
         $busStopSchedules = [];
-        $pointDeps = $depart->trajet->pointDeps;
+        $pointDeps = $depart->trajet->pointDeps->where('disabled', false);
         foreach ($pointDeps as $pointDep) {
             $heure_point_dep = $this->determineHeureDepartForPointDepartBasedOnHoraire($horaire, $pointDep);
 
@@ -535,6 +536,7 @@ class DepartController extends Controller
 
         $depart = $bus->depart;
         $pointDeps = PointDep::where('trajet_id', $bus->depart->trajet_id)
+            ->where('disabled', false)
             ->orderBy('position')
             ->get();
         $busStopSchedules = [];
