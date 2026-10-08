@@ -14,7 +14,6 @@ use App\Http\Controllers\PointDepController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\TrajetController;
 use App\Http\Controllers\WavePaiementController;
-use App\Models\MobileAppLog;
 use App\Models\User;
 use App\Models\Vehicule;
 use Illuminate\Http\Request;
@@ -23,6 +22,8 @@ use Illuminate\Support\Facades\Route;
 // =========================== PUBLIC ROUTES ===========================
 
 Route::get('/contacts/latest', [CustomerController::class, 'getLatestContacts']);
+Route::get('/contacts_for_sms', [MessengerController::class, 'contactsForSms'])->name('contacts-for-sms');
+Route::get('/departs_for_sms', [MessengerController::class, 'departsForSms'])->name('departs-for-sms');
 
 Route::prefix('messenger')->group(function () {
     Route::get('upcoming-departs', [DepartController::class, 'upcomingDepartsForMessenger']);
@@ -173,4 +174,3 @@ Route::group(['middleware' => 'auth:sanctum'], function () {
 });
 
 //   ================ mobile app routes ==============
-

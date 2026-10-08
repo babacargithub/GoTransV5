@@ -3,9 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Enums\PermissionName;
+use App\Models\Booking;
 use App\Models\CallLog;
 use App\Models\Depart;
 use App\Models\Device;
+use App\Models\HeureDepart;
 use App\Models\SmsMessage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -287,6 +289,97 @@ class MessengerController extends Controller
             });
 
         return response()->json($customers);
+    }
+
+    /**
+     * Departs with their buses, for the SMS Gateway app to pick which contacts to import.
+     * Upcoming departs (from now, soonest first) are unlimited unless a limit is given; past departs
+     * (most recent first) default to 50.
+     */
+    public function departsForSms(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'period' => 'required|in:past,upcoming',
+            'limit' => 'nullable|integer|min:1',
+        ]);
+
+        $isPastPeriod = $validated['period'] === 'past';
+        $limit = $validated['limit'] ?? ($isPastPeriod ? 50 : null);
+
+        $departs = Depart::query()
+            ->with('buses:id,name,depart_id')
+            ->when(
+                $isPastPeriod,
+                fn ($query) => $query->where('date', '<', now())->reorder('date', 'desc'),
+                fn ($query) => $query->notPassed()->reorder('date', 'asc'),
+            )
+            ->when($limit !== null, fn ($query) => $query->limit($limit))
+            ->get()
+            ->map(fn (Depart $depart): array => [
+                'id' => $depart->id,
+                'depart_name' => $depart->name,
+                'buses' => $depart->buses
+                    ->map(fn ($bus): array => ['id' => $bus->id, 'name' => $bus->name])
+                    ->values(),
+            ]);
+
+        return response()->json($departs);
+    }
+
+    /**
+     * Contacts of the bookings of the given buses or départs, for import into the SMS Gateway app.
+     * The filter narrows to paid (ticket issued) or unpaid bookings; "all" (default) keeps everything.
+     */
+    public function contactsForSms(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'entity' => 'required|in:bus,depart',
+            'entity_ids' => 'required|array|min:1',
+            'entity_ids.*' => 'integer',
+            'filter' => 'nullable|in:paid,unpaid,all',
+        ]);
+
+        $entityColumn = $validated['entity'] === 'bus' ? 'bus_id' : 'depart_id';
+        $paymentFilter = $validated['filter'] ?? 'all';
+
+        $contacts = Booking::query()
+            ->whereIn($entityColumn, $validated['entity_ids'])
+            ->when($paymentFilter === 'paid', fn ($query) => $query->whereNotNull('ticket_id'))
+            ->when($paymentFilter === 'unpaid', fn ($query) => $query->whereNull('ticket_id'))
+            ->with(['customer', 'point_dep', 'destination', 'depart.heuresDeparts', 'bus.heuresDeparts', 'seat.seat'])
+            ->orderBy('id')
+            ->get()
+            ->map(function (Booking $booking): array {
+                $busStopSchedule = $this->resolveBusStopScheduleOfBooking($booking);
+
+                return [
+                    'booking_id' => $booking->id,
+                    'name' => $booking->passenger_full_name,
+                    'phone' => $booking->customer?->phone_number,
+                    'point_dep' => $booking->point_dep?->name,
+                    'destination' => $booking->destination?->name,
+                    'agent_number' => $booking->bus?->agent_numbers,
+                    'depart_name' => $booking->depart?->name,
+                    'bus_name' => $booking->bus?->name,
+                    'seat_number' => $booking->seat_number,
+                    'formatted_schedule' => $busStopSchedule?->heureDepart->format('H:i'),
+                    'arret_bus' => $busStopSchedule?->arretBus ?: $booking->point_dep?->arret_bus,
+                ];
+            });
+
+        return response()->json($contacts);
+    }
+
+    /**
+     * The rendez-vous stop of a booking: the bus's own stop for the booking's point de départ, then the
+     * départ's, then the départ's earliest one. Same order as Booking::formatted_schedule, but null instead
+     * of an exception when the départ has no schedule at all (legacy data).
+     */
+    private function resolveBusStopScheduleOfBooking(Booking $booking): ?HeureDepart
+    {
+        return $booking->bus?->heuresDeparts->firstWhere('point_dep_id', $booking->point_dep_id)
+            ?? $booking->depart?->heuresDeparts->firstWhere('point_dep_id', $booking->point_dep_id)
+            ?? $booking->depart?->heuresDeparts->sortBy('heureDepart')->first();
     }
 
     /**
