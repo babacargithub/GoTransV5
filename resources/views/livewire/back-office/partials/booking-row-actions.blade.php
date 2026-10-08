@@ -113,6 +113,16 @@
 
                 @if ($booking['hasTicket'])
                     <flux:button
+                        size="sm"
+                        variant="filled"
+                        icon="banknotes"
+                        class="w-full"
+                        wire:click="openPaymentDetails({{ $booking['id'] }})"
+                    >
+                        Détails du paiement
+                    </flux:button>
+
+                    <flux:button
                         :href="route('back-office.bookings.ticket', $booking['id'])"
                         target="_blank"
                         size="sm"

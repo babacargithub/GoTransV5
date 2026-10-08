@@ -7,10 +7,15 @@ use App\Http\Resources\BookingResource;
 use App\Livewire\BackOffice\Concerns\ManagesBookingActions;
 use App\Models\Booking;
 use App\Models\Bus;
+use App\Models\TicketPayment;
 use Illuminate\Contracts\View\View;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
+use Livewire\WithFileUploads;
 
 /**
  * Back office passengers page for a single bus.
@@ -28,8 +33,30 @@ use Livewire\Component;
 class BusBookings extends Component
 {
     use ManagesBookingActions;
+    use WithFileUploads;
+
+    public const PAYMENT_METHOD_CASH = 'cash';
+
+    public const PAYMENT_METHOD_WAVE = 'wave';
+
+    public const PAYMENT_METHOD_ORANGE_MONEY = 'om';
 
     public Bus $bus;
+
+    public bool $showPaymentMethodModal = false;
+
+    public ?int $paymentBookingId = null;
+
+    public string $paymentMethodChoice = self::PAYMENT_METHOD_CASH;
+
+    public string $providerTransactionId = '';
+
+    public string $proofNote = '';
+
+    /**
+     * @var array<int, TemporaryUploadedFile>
+     */
+    public array $proofScreenshots = [];
 
     public function mount(Bus $bus): void
     {
@@ -93,9 +120,95 @@ class BusBookings extends Component
 
     /* ---- payment collection + reminders (bus-scoped, not shared) ---- */
 
+    /**
+     * "Payer": opens the dialog asking how the customer actually paid.
+     */
     public function askToConfirmTicketPayment(int $bookingId): void
     {
-        $this->openConfirmationModal($bookingId, 'collect-ticket-payment');
+        $this->resetFlashMessages();
+        $this->resetValidation();
+        $this->paymentBookingId = $bookingId;
+        $this->paymentMethodChoice = self::PAYMENT_METHOD_CASH;
+        $this->providerTransactionId = '';
+        $this->proofNote = '';
+        $this->proofScreenshots = [];
+        $this->showPaymentMethodModal = true;
+    }
+
+    public function closePaymentMethodModal(): void
+    {
+        $this->showPaymentMethodModal = false;
+        $this->paymentBookingId = null;
+        $this->proofScreenshots = [];
+        $this->resetValidation();
+    }
+
+    /**
+     * Settle the booking manually. "Wave / OM non traité" means the customer really paid
+     * but the provider callback never handled it: the legacy saveTicketPayment credits
+     * the matching caisse, and we additionally keep the provider transaction id and the
+     * proofs (screenshots / raw text) on a TicketPayment linked to the ticket.
+     */
+    public function submitTicketPayment(): void
+    {
+        $this->resetFlashMessages();
+
+        $isProviderPayment = in_array($this->paymentMethodChoice, [self::PAYMENT_METHOD_WAVE, self::PAYMENT_METHOD_ORANGE_MONEY], true);
+
+        $this->validate([
+            'paymentMethodChoice' => ['required', 'in:'.implode(',', [self::PAYMENT_METHOD_CASH, self::PAYMENT_METHOD_WAVE, self::PAYMENT_METHOD_ORANGE_MONEY])],
+            'providerTransactionId' => [$isProviderPayment ? 'required' : 'nullable', 'string', 'max:100', 'unique:ticket_payments,provider_transaction_id'],
+            'proofNote' => ['nullable', 'string', 'max:2000'],
+            'proofScreenshots' => ['array', 'max:5'],
+            'proofScreenshots.*' => ['image', 'max:5120'],
+        ], attributes: [
+            'providerTransactionId' => 'ID de transaction',
+            'proofNote' => 'texte de preuve',
+            'proofScreenshots.*' => 'capture d\'écran',
+        ]);
+
+        $booking = $this->resolveBookingForActionOrFail($this->paymentBookingId);
+        $customerFullName = normalize_passenger_display_name($booking->customer->full_name);
+
+        $storedProofPaths = $isProviderPayment
+            ? array_map(fn ($screenshot): string => $screenshot->store('payment-proofs', 'local'), $this->proofScreenshots)
+            : [];
+
+        request()->merge(['payment_method' => $this->paymentMethodChoice]);
+        $legacyResponse = app(BookingController::class)->saveTicketPayment($booking, request());
+
+        if ($legacyResponse->getStatusCode() !== 200) {
+            Storage::disk('local')->delete($storedProofPaths);
+            $this->flashErrorMessage = data_get($legacyResponse->getData(true), 'message', "Le paiement n'a pas pu être encaissé.");
+            $this->closePaymentMethodModal();
+
+            return;
+        }
+
+        $ticket = $booking->fresh()->ticket;
+
+        DB::transaction(function () use ($ticket, $isProviderPayment, $storedProofPaths): void {
+            TicketPayment::create([
+                'ticket_id' => $ticket->id,
+                'payement_method' => $this->paymentMethodChoice,
+                'status' => TicketPayment::STATUS_SUCCESS,
+                'montant' => (int) $ticket->price,
+                'is_for_multiple_booking' => false,
+                'provider_transaction_id' => $isProviderPayment ? trim($this->providerTransactionId) : null,
+                'proofs' => $storedProofPaths === [] ? null : $storedProofPaths,
+                'proof_note' => $isProviderPayment && trim($this->proofNote) !== '' ? trim($this->proofNote) : null,
+                'recorded_by_user_id' => auth()->id(),
+            ]);
+        });
+
+        $this->flashStatusMessage = 'Paiement encaissé pour '.$customerFullName.'.';
+        $this->closePaymentMethodModal();
+        unset($this->bookingRows);
+    }
+
+    private function resolveBookingForActionOrFail(?int $bookingId): Booking
+    {
+        return $this->resolveBookingForAction((int) $bookingId);
     }
 
     public function sendWavePaymentReminder(int $bookingId): void
@@ -106,30 +219,6 @@ class BusBookings extends Component
     public function sendOrangeMoneyPaymentReminder(int $bookingId): void
     {
         $this->sendPaymentReminder($bookingId, 'om');
-    }
-
-    /**
-     * @return array{heading: string, body: string, confirmLabel: string, confirmVariant: string}
-     */
-    protected function hostConfirmationModalCopy(?string $actionName): array
-    {
-        if ($actionName === 'collect-ticket-payment') {
-            return [
-                'heading' => 'Encaisser le paiement',
-                'body' => 'Confirmez l\'encaissement du billet pour cette réservation. Un siège disponible sera attribué automatiquement et le client sera notifié.',
-                'confirmLabel' => 'Encaisser le paiement',
-                'confirmVariant' => 'primary',
-            ];
-        }
-
-        return $this->neutralConfirmationModalCopy();
-    }
-
-    protected function handleHostConfirmationAction(?string $actionName, int $bookingId): void
-    {
-        if ($actionName === 'collect-ticket-payment') {
-            $this->collectTicketPayment($bookingId);
-        }
     }
 
     protected function resolveBookingForAction(int $bookingId): Booking
@@ -146,24 +235,6 @@ class BusBookings extends Component
     {
         return view('livewire.back-office.bus-bookings')
             ->title($this->bus->name.' — Réservations');
-    }
-
-    private function collectTicketPayment(int $bookingId): void
-    {
-        $this->resetFlashMessages();
-
-        $booking = $this->resolveBookingForAction($bookingId);
-        $customerFullName = normalize_passenger_display_name($booking->customer->full_name);
-
-        $legacyResponse = app(BookingController::class)->saveTicketPayment($booking, request());
-
-        if ($legacyResponse->getStatusCode() === 200) {
-            $this->flashStatusMessage = 'Paiement encaissé pour '.$customerFullName.'.';
-        } else {
-            $this->flashErrorMessage = data_get($legacyResponse->getData(true), 'message', "Le paiement n'a pas pu être encaissé.");
-        }
-
-        unset($this->bookingRows);
     }
 
     private function sendPaymentReminder(int $bookingId, string $paymentMethod): void

@@ -9,6 +9,7 @@ use App\Models\Bus;
 use App\Models\Depart;
 use App\Models\Destination;
 use App\Models\PointDep;
+use App\Models\TicketPayment;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\Rule;
@@ -45,6 +46,10 @@ trait ManagesBookingActions
     public ?int $transferBookingId = null;
 
     public ?string $transferErrorMessage = null;
+
+    public bool $showPaymentDetailsModal = false;
+
+    public ?int $paymentDetailsBookingId = null;
 
     public bool $showEditModal = false;
 
@@ -101,6 +106,86 @@ trait ManagesBookingActions
         $this->flashErrorMessage = 'Action non autorisée : la permission « '.$requiredPermission->defaultLabel().' » est requise.';
 
         return false;
+    }
+
+    /* ================= détails du paiement ================= */
+
+    public function openPaymentDetails(int $bookingId): void
+    {
+        $this->resetFlashMessages();
+
+        if ($this->resolveBookingForActionOrFlash($bookingId) === null) {
+            return;
+        }
+
+        $this->paymentDetailsBookingId = $bookingId;
+        $this->showPaymentDetailsModal = true;
+    }
+
+    public function closePaymentDetails(): void
+    {
+        $this->showPaymentDetailsModal = false;
+        $this->paymentDetailsBookingId = null;
+    }
+
+    /**
+     * Full payment picture of the booking: the ticket, plus every TicketPayment linked to
+     * it (manual settlement: provider transaction id, screenshots, raw text) or to its
+     * booking group (online Wave / OM payment).
+     *
+     * @return array<string, mixed>|null
+     */
+    #[Computed]
+    public function paymentDetails(): ?array
+    {
+        if ($this->paymentDetailsBookingId === null) {
+            return null;
+        }
+
+        $booking = $this->resolveBookingForAction($this->paymentDetailsBookingId)->load('ticket');
+        $ticket = $booking->ticket;
+
+        if ($ticket === null) {
+            return ['hasTicket' => false];
+        }
+
+        $ticketPayments = TicketPayment::query()
+            ->where(function ($query) use ($ticket, $booking) {
+                $query->where('ticket_id', $ticket->id);
+
+                if ($booking->group_id !== null) {
+                    $query->orWhere('group_id', $booking->group_id);
+                }
+            })
+            ->with('recordedBy')
+            ->orderBy('id')
+            ->get();
+
+        return [
+            'hasTicket' => true,
+            'ticketNumber' => $ticket->number,
+            'ticketPrice' => (int) $ticket->price,
+            'ticketPaymentMethod' => $ticket->payment_method,
+            'soldBy' => $ticket->soldBy,
+            'soldAt' => $ticket->soldAt ?? $ticket->created_at,
+            'ticketComment' => $ticket->comment,
+            'payments' => $ticketPayments->map(fn (TicketPayment $ticketPayment): array => [
+                'id' => $ticketPayment->id,
+                'method' => $ticketPayment->payement_method,
+                'status' => $ticketPayment->status,
+                'amount' => (int) $ticketPayment->montant,
+                'phoneNumber' => $ticketPayment->phone_number,
+                'providerTransactionId' => $ticketPayment->provider_transaction_id,
+                'proofNote' => $ticketPayment->proof_note,
+                'recordedBy' => $ticketPayment->recordedBy?->username,
+                'isManual' => $ticketPayment->recorded_by_user_id !== null,
+                'createdAt' => $ticketPayment->created_at,
+                'proofUrls' => collect($ticketPayment->proofs ?? [])
+                    ->keys()
+                    ->map(fn (int $proofIndex): string => route('back-office.payment-proofs.show', [$ticketPayment, $proofIndex]))
+                    ->all(),
+            ])->all(),
+        ];
     }
 
     /* ================= annuler / rembourser ================= */

@@ -4,6 +4,7 @@ use App\Http\Controllers\BookingController;
 use App\Http\Controllers\BusController;
 use App\Http\Controllers\DepartController;
 use App\Http\Controllers\MobileAppController;
+use App\Http\Controllers\PaymentProofController;
 use App\Http\Controllers\SeoFilesController;
 use App\Http\Controllers\TicketController;
 use App\Http\Middleware\CachePublicHtmlResponse;
@@ -139,9 +140,7 @@ Route::withoutMiddleware([
     VerifyCsrfToken::class,
 ])->get('robots.txt', [SeoFilesController::class, 'fallbackRobots'])->name('robots.fallback');
 
-Route::get('/', function () {
-    return view('homepage');
-})->name('home');
+Route::get('/', DepartList::class)->middleware('auth')->name('home');
 
 Route::middleware(['auth:sanctum', 'verified'])->group(function () {
     Route::get('/dashboard', function () {
@@ -185,6 +184,10 @@ Route::middleware('auth')->prefix('back-office')->name('back-office.')->group(fu
 
     Route::get('bookings/{booking}/ticket', [TicketController::class, 'showBookingTicket'])
         ->name('bookings.ticket');
+
+    Route::get('ticket-payments/{ticketPayment}/proofs/{proofIndex}', [PaymentProofController::class, 'show'])
+        ->whereNumber('proofIndex')
+        ->name('payment-proofs.show');
 
     Route::post('bookings/{booking}/save_ticket_payment', [BookingController::class, 'saveTicketPayment'])
         ->name('bookings.save-ticket-payment');

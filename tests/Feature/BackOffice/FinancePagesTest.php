@@ -7,6 +7,7 @@ use App\Livewire\BackOffice\OrangeMoneyPage;
 use App\Livewire\BackOffice\WavePaymentsPage;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Http\Client\Factory as HttpClientFactory;
 use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -51,6 +52,33 @@ class FinancePagesTest extends TestCase
             ->assertSee('Paiements OM')
             ->assertSet('orangeMoneyBalance', null)
             ->assertSet('orangeMoneyTransactions', null);
+    }
+
+    public function test_the_om_transactions_show_the_orange_transaction_id_and_can_be_searched(): void
+    {
+        // setUp already registered a catch-all 503 stub, which would win over these.
+        Http::swap(new HttpClientFactory);
+        Http::fake([
+            '*oauth/token' => Http::response(['access_token' => 'fake-token']),
+            '*eWallet/v1/transactions*' => Http::response(['content' => [
+                ['transactionId' => 'MP261008.1207.A33744', 'reference' => 'globesoft.1791461235', 'customer' => ['id' => '221771234567'], 'amount' => ['value' => 4040], 'status' => 'SUCCESS'],
+                ['transactionId' => 'MP261008.1145.B11111', 'reference' => 'globesoft.1791459951', 'customer' => ['id' => '221785550000'], 'amount' => ['value' => 2000], 'status' => 'SUCCESS'],
+            ]]),
+            '*' => Http::response([], 503),
+        ]);
+
+        Livewire::actingAs(User::factory()->create())
+            ->test(OrangeMoneyPage::class)
+            ->assertSee('MP261008.1207.A33744')
+            ->assertDontSee('globesoft.1791461235')
+            ->set('transactionSearch', '77 123 45 67')
+            ->assertSee('MP261008.1207.A33744')
+            ->assertDontSee('MP261008.1145.B11111')
+            ->set('transactionSearch', 'b11111')
+            ->assertSee('MP261008.1145.B11111')
+            ->assertDontSee('MP261008.1207.A33744')
+            ->set('transactionSearch', 'nothing-matches')
+            ->assertSee('Aucune transaction ne correspond');
     }
 
     public function test_the_withdraw_form_requires_every_field(): void

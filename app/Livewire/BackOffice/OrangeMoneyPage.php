@@ -20,6 +20,8 @@ use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 #[Layout('components.layouts.back-office')]
 class OrangeMoneyPage extends Component
 {
+    public string $transactionSearch = '';
+
     public bool $showWithdrawModal = false;
 
     public ?int $withdrawAmount = null;
@@ -61,6 +63,41 @@ class OrangeMoneyPage extends Component
         } catch (\Throwable) {
             return null;
         }
+    }
+
+    /**
+     * Transactions narrowed by the search box: matches the Orange transactionId (MP...),
+     * our own globesoft reference, or the customer phone number (digits only, so
+     * "77 123 45 67" finds "221771234567"). Null when the OM API is unreachable.
+     *
+     * @return array<int, array<string, mixed>>|null
+     */
+    #[Computed]
+    public function filteredOrangeMoneyTransactions(): ?array
+    {
+        $orangeMoneyTransactions = $this->orangeMoneyTransactions;
+        $searchTerm = mb_strtolower(trim($this->transactionSearch));
+
+        if ($orangeMoneyTransactions === null || $searchTerm === '') {
+            return $orangeMoneyTransactions;
+        }
+
+        $searchDigits = preg_replace('/\D+/', '', $searchTerm);
+
+        return array_values(array_filter(
+            $orangeMoneyTransactions,
+            function (array $orangeMoneyTransaction) use ($searchTerm, $searchDigits): bool {
+                $matchesIdentifier = collect([
+                    data_get($orangeMoneyTransaction, 'transactionId'),
+                    data_get($orangeMoneyTransaction, 'reference'),
+                ])->contains(fn ($identifier) => is_string($identifier) && str_contains(mb_strtolower($identifier), $searchTerm));
+
+                $customerPhoneDigits = preg_replace('/\D+/', '', (string) data_get($orangeMoneyTransaction, 'customer.id', ''));
+                $matchesPhoneNumber = $searchDigits !== '' && str_contains($customerPhoneDigits, $searchDigits);
+
+                return $matchesIdentifier || $matchesPhoneNumber;
+            }
+        ));
     }
 
     public function openWithdrawModal(): void
@@ -117,7 +154,7 @@ class OrangeMoneyPage extends Component
             return;
         }
 
-        unset($this->orangeMoneyBalance, $this->orangeMoneyTransactions);
+        unset($this->orangeMoneyBalance, $this->orangeMoneyTransactions, $this->filteredOrangeMoneyTransactions);
         $this->closeWithdrawModal();
         session()->flash('status', 'Le retrait de '.number_format((int) $this->withdrawAmount, 0, ',', ' ').' FCFA a été envoyé.');
     }

@@ -1,4 +1,4 @@
-<div class="mx-auto w-full max-w-3xl">
+<div class="mx-auto w-full max-w-3xl lg:max-w-6xl">
     <div class="flex items-start justify-between gap-4">
         <div>
             <flux:heading size="xl" level="1">Paiements OM</flux:heading>
@@ -29,7 +29,12 @@
 
     <flux:heading size="lg" class="mt-8">Transactions récentes</flux:heading>
 
-    @php($orangeMoneyTransactions = $this->orangeMoneyTransactions)
+    <div class="mt-4 max-w-md">
+        <flux:input wire:model.live.debounce.300ms="transactionSearch" icon="magnifying-glass" clearable
+                    placeholder="Rechercher par téléphone ou ID de transaction" />
+    </div>
+
+    @php($orangeMoneyTransactions = $this->filteredOrangeMoneyTransactions)
 
     @if ($orangeMoneyTransactions === null)
         <flux:callout class="mt-4" variant="warning" icon="exclamation-triangle">
@@ -37,13 +42,14 @@
         </flux:callout>
     @elseif (count($orangeMoneyTransactions) === 0)
         <flux:callout class="mt-4" icon="information-circle">
-            <flux:callout.text>Aucune transaction récente.</flux:callout.text>
+            <flux:callout.text>{{ trim($transactionSearch) === '' ? 'Aucune transaction récente.' : 'Aucune transaction ne correspond à votre recherche.' }}</flux:callout.text>
         </flux:callout>
     @else
         <div class="mt-4 overflow-x-auto">
             <flux:table>
                 <flux:table.columns>
                     <flux:table.column>Référence</flux:table.column>
+                    <flux:table.column>Téléphone</flux:table.column>
                     <flux:table.column>Type</flux:table.column>
                     <flux:table.column align="end">Montant</flux:table.column>
                     <flux:table.column>Statut</flux:table.column>
@@ -53,10 +59,12 @@
                 <flux:table.rows>
                     @foreach ($orangeMoneyTransactions as $orangeMoneyTransaction)
                         @php($amount = data_get($orangeMoneyTransaction, 'amount.value', data_get($orangeMoneyTransaction, 'amount')))
+                        @php($customerPhoneNumber = data_get($orangeMoneyTransaction, 'customer.id', data_get($orangeMoneyTransaction, 'sender.id', data_get($orangeMoneyTransaction, 'receiver.id', data_get($orangeMoneyTransaction, 'msisdn', '—')))))
                         <flux:table.row wire:key="om-transaction-{{ $loop->index }}">
                             <flux:table.cell variant="strong">
-                                {{ data_get($orangeMoneyTransaction, 'reference', data_get($orangeMoneyTransaction, 'id', '—')) }}
+                                {{ data_get($orangeMoneyTransaction, 'transactionId', data_get($orangeMoneyTransaction, 'reference', data_get($orangeMoneyTransaction, 'id', '—'))) }}
                             </flux:table.cell>
+                            <flux:table.cell>{{ $customerPhoneNumber }}</flux:table.cell>
                             <flux:table.cell>{{ data_get($orangeMoneyTransaction, 'type', '—') }}</flux:table.cell>
                             <flux:table.cell align="end">
                                 {{ is_numeric($amount) ? number_format((float) $amount, 0, ',', ' ').' FCFA' : '—' }}

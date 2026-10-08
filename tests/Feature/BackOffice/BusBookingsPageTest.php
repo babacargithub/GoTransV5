@@ -5,6 +5,7 @@ namespace Tests\Feature\BackOffice;
 use App\Enums\BookingTransferType;
 use App\Enums\BookingType;
 use App\Enums\PermissionName;
+use App\Jobs\RecordTicketPaymentInCaisse;
 use App\Livewire\BackOffice\BusBookings;
 use App\Manager\BookingManager;
 use App\Models\Booking;
@@ -16,9 +17,13 @@ use App\Models\HeureDepart;
 use App\Models\PointDep;
 use App\Models\Seat;
 use App\Models\Ticket;
+use App\Models\TicketPayment;
 use App\Models\Trajet;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 use Livewire\Livewire;
@@ -31,6 +36,15 @@ class BusBookingsPageTest extends TestCase
     /**
      * @return array{bus: Bus, booking: Booking, customer: Customer}
      */
+    private function giveBusFreeSeats(Bus $bus, int $numberOfSeats = 2): void
+    {
+        $bus->seats()->createMany(
+            Seat::query()->orderBy('number')->limit($numberOfSeats)->get()
+                ->map(fn (Seat $seat): array => ['seat_id' => $seat->id, 'booked' => false, 'price' => 3550])
+                ->all()
+        );
+    }
+
     private function createBusWithOnePassenger(): array
     {
         $trajet = Trajet::query()
@@ -424,19 +438,130 @@ class BusBookingsPageTest extends TestCase
         $this->assertNotSoftDeleted($paidBooking->fresh());
     }
 
-    public function test_paying_a_ticket_asks_for_confirmation_before_charging(): void
+    public function test_paying_a_ticket_opens_the_payment_method_dialog_before_charging(): void
     {
         ['bus' => $bus, 'booking' => $booking] = $this->createBusWithOnePassenger();
 
         Livewire::actingAs($this->createUserWithFullAccess())
             ->test(BusBookings::class, ['bus' => $bus])
             ->call('askToConfirmTicketPayment', $booking->id)
-            ->assertSet('showConfirmationModal', true)
-            ->assertSet('pendingActionName', 'collect-ticket-payment')
-            ->assertSee('Encaisser le paiement');
+            ->assertSet('showPaymentMethodModal', true)
+            ->assertSee('Cash / Transfert reçu')
+            ->assertSee('Wave non traité')
+            ->assertSee('O.M non traité');
 
-        // The ticket is only charged once the modal is confirmed.
         $this->assertNull($booking->fresh()->ticket_id);
+    }
+
+    public function test_a_wave_payment_requires_the_provider_transaction_id(): void
+    {
+        ['bus' => $bus, 'booking' => $booking] = $this->createBusWithOnePassenger();
+
+        Livewire::actingAs($this->createUserWithFullAccess())
+            ->test(BusBookings::class, ['bus' => $bus])
+            ->call('askToConfirmTicketPayment', $booking->id)
+            ->set('paymentMethodChoice', 'wave')
+            ->call('submitTicketPayment')
+            ->assertHasErrors(['providerTransactionId' => 'required']);
+
+        $this->assertNull($booking->fresh()->ticket_id);
+    }
+
+    public function test_an_unprocessed_wave_payment_is_settled_with_its_transaction_id_and_screenshot_proof(): void
+    {
+        Queue::fake();
+        Storage::fake('local');
+        ['bus' => $bus, 'booking' => $booking] = $this->createBusWithOnePassenger();
+        $this->giveBusFreeSeats($bus);
+
+        Livewire::actingAs($this->createUserWithFullAccess())
+            ->test(BusBookings::class, ['bus' => $bus])
+            ->call('askToConfirmTicketPayment', $booking->id)
+            ->set('paymentMethodChoice', 'wave')
+            ->set('providerTransactionId', 'T_ABC123')
+            ->set('proofNote', 'SMS Wave: paiement recu')
+            ->set('proofScreenshots', [UploadedFile::fake()->image('proof.png')])
+            ->call('submitTicketPayment')
+            ->assertHasNoErrors()
+            ->assertSet('showPaymentMethodModal', false);
+
+        $booking->refresh();
+        $this->assertNotNull($booking->ticket_id);
+        $this->assertSame('wave', $booking->ticket->payment_method);
+
+        $ticketPayment = TicketPayment::where('ticket_id', $booking->ticket_id)->firstOrFail();
+        $this->assertSame('T_ABC123', $ticketPayment->provider_transaction_id);
+        $this->assertSame('SMS Wave: paiement recu', $ticketPayment->proof_note);
+        $this->assertCount(1, $ticketPayment->proofs);
+        Storage::disk('local')->assertExists($ticketPayment->proofs[0]);
+        Queue::assertPushed(RecordTicketPaymentInCaisse::class);
+    }
+
+    public function test_a_provider_transaction_id_cannot_be_used_twice(): void
+    {
+        Queue::fake();
+        ['bus' => $bus, 'booking' => $booking] = $this->createBusWithOnePassenger();
+        TicketPayment::create(['payement_method' => 'om', 'provider_transaction_id' => 'MP1.A', 'montant' => 1000, 'status' => 'SUCCESS']);
+
+        Livewire::actingAs($this->createUserWithFullAccess())
+            ->test(BusBookings::class, ['bus' => $bus])
+            ->call('askToConfirmTicketPayment', $booking->id)
+            ->set('paymentMethodChoice', 'om')
+            ->set('providerTransactionId', 'MP1.A')
+            ->call('submitTicketPayment')
+            ->assertHasErrors(['providerTransactionId' => 'unique']);
+
+        $this->assertNull($booking->fresh()->ticket_id);
+    }
+
+    public function test_a_cash_payment_is_settled_without_a_transaction_id(): void
+    {
+        Queue::fake();
+        ['bus' => $bus, 'booking' => $booking] = $this->createBusWithOnePassenger();
+        $this->giveBusFreeSeats($bus);
+
+        Livewire::actingAs($this->createUserWithFullAccess())
+            ->test(BusBookings::class, ['bus' => $bus])
+            ->call('askToConfirmTicketPayment', $booking->id)
+            ->call('submitTicketPayment')
+            ->assertHasNoErrors()
+            ->assertSet('flashErrorMessage', null);
+
+        $booking->refresh();
+        $this->assertSame('cash', $booking->ticket->payment_method);
+        $this->assertNull(TicketPayment::where('ticket_id', $booking->ticket_id)->value('provider_transaction_id'));
+    }
+
+    public function test_the_payment_details_dialog_shows_the_transaction_id_and_proof_screenshots(): void
+    {
+        Storage::fake('local');
+        ['bus' => $bus, 'booking' => $booking] = $this->createBusWithOnePassenger();
+        $ticket = $this->attachWaveTicket($booking);
+        Storage::disk('local')->put('payment-proofs/shot.png', 'img');
+        $ticketPayment = TicketPayment::create([
+            'ticket_id' => $ticket->id,
+            'payement_method' => 'wave',
+            'status' => 'SUCCESS',
+            'montant' => 2000,
+            'provider_transaction_id' => 'T_DETAIL_1',
+            'proofs' => ['payment-proofs/shot.png'],
+            'recorded_by_user_id' => $this->createUserWithFullAccess()->id,
+        ]);
+
+        $user = $this->createUserWithFullAccess();
+        Livewire::actingAs($user)
+            ->test(BusBookings::class, ['bus' => $bus])
+            ->assertSee('Détails du paiement')
+            ->call('openPaymentDetails', $booking->id)
+            ->assertSee('T_DETAIL_1')
+            ->assertSee(route('back-office.payment-proofs.show', [$ticketPayment, 0]), false);
+
+        $this->actingAs($user)
+            ->get(route('back-office.payment-proofs.show', [$ticketPayment, 0]))
+            ->assertOk();
+        $this->actingAs($user)
+            ->get(route('back-office.payment-proofs.show', [$ticketPayment, 5]))
+            ->assertNotFound();
     }
 
     public function test_the_payment_reminder_route_rejects_an_unknown_method_with_a_flash_error(): void
