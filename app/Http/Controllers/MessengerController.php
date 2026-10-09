@@ -9,9 +9,11 @@ use App\Models\Depart;
 use App\Models\Device;
 use App\Models\HeureDepart;
 use App\Models\SmsMessage;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
@@ -21,6 +23,10 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class MessengerController extends Controller
 {
+    public const SMS_GATEWAY_TOKEN_ABILITY = 'sms-gateway';
+
+    public const SMS_GATEWAY_TOKEN_LIFETIME_IN_DAYS = 90;
+
     /**
      * Get a batch of SMS messages for a specific device
      *
@@ -292,12 +298,44 @@ class MessengerController extends Controller
     }
 
     /**
+     * Exchanges username/password for a long-lived token that only opens the SMS Gateway routes.
+     * The user must be allowed to send messages.
+     */
+    public function issueSmsGatewayToken(Request $request): JsonResponse
+    {
+        $credentials = $request->validate([
+            'username' => 'required|string',
+            'password' => 'required|string',
+        ]);
+
+        if (! Auth::validate($credentials)) {
+            return response()->json(['message' => 'Identifiants invalides.'], 401);
+        }
+
+        $user = User::where('username', $credentials['username'])->firstOrFail();
+
+        if (! $user->can(PermissionName::SendMessages->value)) {
+            return response()->json(['message' => 'Cet utilisateur n\'est pas autorisé à envoyer des messages.'], 403);
+        }
+
+        $expiresAt = now()->addDays(self::SMS_GATEWAY_TOKEN_LIFETIME_IN_DAYS);
+        $token = $user->createToken('sms-gateway', [self::SMS_GATEWAY_TOKEN_ABILITY], $expiresAt);
+
+        return response()->json([
+            'token' => $token->plainTextToken,
+            'expires_at' => $expiresAt->toIso8601String(),
+        ]);
+    }
+
+    /**
      * Departs with their buses, for the SMS Gateway app to pick which contacts to import.
      * Upcoming departs (from now, soonest first) are unlimited unless a limit is given; past departs
      * (most recent first) default to 50.
      */
     public function departsForSms(Request $request): JsonResponse
     {
+        PermissionName::SendMessages->authorizeForCurrentUser();
+
         $validated = $request->validate([
             'period' => 'required|in:past,upcoming',
             'limit' => 'nullable|integer|min:1',
@@ -332,6 +370,8 @@ class MessengerController extends Controller
      */
     public function contactsForSms(Request $request): JsonResponse
     {
+        PermissionName::SendMessages->authorizeForCurrentUser();
+
         $validated = $request->validate([
             'entity' => 'required|in:bus,depart',
             'entity_ids' => 'required|array|min:1',

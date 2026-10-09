@@ -18,12 +18,16 @@ use App\Models\User;
 use App\Models\Vehicule;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use Laravel\Sanctum\Http\Middleware\CheckAbilities;
 
 // =========================== PUBLIC ROUTES ===========================
 
 Route::get('/contacts/latest', [CustomerController::class, 'getLatestContacts']);
-Route::get('/contacts_for_sms', [MessengerController::class, 'contactsForSms'])->name('contacts-for-sms');
-Route::get('/departs_for_sms', [MessengerController::class, 'departsForSms'])->name('departs-for-sms');
+
+// SMS Gateway desktop app: exchange username/password for a 90-day token limited to the SMS routes below.
+Route::post('/sms_gateway/token', [MessengerController::class, 'issueSmsGatewayToken'])
+    ->middleware('throttle:10,1')
+    ->name('sms-gateway.token');
 
 Route::prefix('messenger')->group(function () {
     Route::get('upcoming-departs', [DepartController::class, 'upcomingDepartsForMessenger']);
@@ -90,6 +94,12 @@ Route::post('/login', function (Request $request) {
 
 // // =========================== PROTECTED ROUTES ===========================
 Route::group(['middleware' => 'auth:sanctum'], function () {
+    // Accepts the SMS Gateway token (ability "sms-gateway") and full-ability tokens such as the mobile login's.
+    Route::middleware(CheckAbilities::class.':'.MessengerController::SMS_GATEWAY_TOKEN_ABILITY)->group(function () {
+        Route::get('/contacts_for_sms', [MessengerController::class, 'contactsForSms'])->name('contacts-for-sms');
+        Route::get('/departs_for_sms', [MessengerController::class, 'departsForSms'])->name('departs-for-sms');
+    });
+
     Route::get('buses/{bus}/bookings', [BusController::class, 'bookings']);
     Route::get('buses/{bus}/bookings_for_export', [BusController::class, 'bookingsForExport']);
     Route::get('departs/{depart}/bookings_grouping', [DepartController::class, 'bookingGroupingsCount']);
