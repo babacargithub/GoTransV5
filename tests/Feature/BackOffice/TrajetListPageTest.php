@@ -177,6 +177,39 @@ class TrajetListPageTest extends TestCase
         $this->assertDatabaseMissing('point_deps', ['id' => $pointDep->id]);
     }
 
+    public function test_new_destinations_default_to_the_last_position_and_the_dialog_orders_by_position(): void
+    {
+        $trajet = $this->createTrajet();
+        $trajet->destinations()->create(['name' => 'Lointaine', 'position' => 20]);
+        $trajet->destinations()->create(['name' => 'Proche', 'position' => 5]);
+
+        $component = Livewire::actingAs(User::factory()->create())
+            ->test(TrajetList::class)
+            ->call('openDestinationsDialog', $trajet->id);
+
+        $this->assertSame(['Proche', 'Lointaine'], array_column($component->get('dialogDestinationRows'), 'name'));
+
+        $component->call('startAddingDestination')->assertSet('destinationForm.position', 21);
+    }
+
+    public function test_a_destination_position_can_be_edited_and_must_be_a_non_negative_integer(): void
+    {
+        $trajet = $this->createTrajet();
+        $destination = $trajet->destinations()->create(['name' => 'Pout', 'position' => 1]);
+
+        $component = Livewire::actingAs(User::factory()->create())
+            ->test(TrajetList::class)
+            ->call('openDestinationsDialog', $trajet->id)
+            ->call('startEditingDestination', $destination->id)
+            ->set('destinationForm.position', -3)
+            ->call('saveDestinationForm')
+            ->assertHasErrors(['destinationForm.position']);
+
+        $component->set('destinationForm.position', 12)->call('saveDestinationForm')->assertHasNoErrors();
+
+        $this->assertSame(12, (int) $destination->fresh()->position);
+    }
+
     public function test_the_destinations_dialog_adds_edits_and_deletes_a_destination(): void
     {
         $trajet = $this->createTrajet();

@@ -98,12 +98,13 @@ class TrajetList extends Component
     /**
      * Editing state for the destination form. `id` null means "new".
      *
-     * @var array{id: int|null, name: string, tarif: float|null}
+     * @var array{id: int|null, name: string, tarif: float|null, position: int|null}
      */
     public array $destinationForm = [
         'id' => null,
         'name' => '',
         'tarif' => null,
+        'position' => null,
     ];
 
     public ?string $destinationFormErrorMessage = null;
@@ -498,7 +499,10 @@ class TrajetList extends Component
     /**
      * Destinations of the trajet the dialog is open on.
      *
-     * @return array<int, array{id: int, name: string, tarif: float|null}>
+     * Ordered along the route: the last row is the farthest destination, the default one
+     * used for website bookings when the customer has not chosen.
+     *
+     * @return array<int, array{id: int, name: string, tarif: float|null, position: int}>
      */
     #[Computed]
     public function dialogDestinationRows(): array
@@ -509,19 +513,26 @@ class TrajetList extends Component
 
         return Destination::query()
             ->where('trajet_id', $this->destinationsDialogTrajetId)
+            ->orderBy('position')
             ->orderBy('name')
             ->get()
             ->map(fn (Destination $destination): array => [
                 'id' => $destination->id,
                 'name' => $destination->name,
                 'tarif' => $destination->tarif !== null ? (float) $destination->tarif : null,
+                'position' => (int) $destination->position,
             ])
             ->all();
     }
 
     public function startAddingDestination(): void
     {
-        $this->destinationForm = ['id' => null, 'name' => '', 'tarif' => null];
+        $this->destinationForm = [
+            'id' => null,
+            'name' => '',
+            'tarif' => null,
+            'position' => $this->nextDestinationPosition(),
+        ];
         $this->destinationFormErrorMessage = null;
         $this->resetValidation();
         $this->showDestinationForm = true;
@@ -535,10 +546,21 @@ class TrajetList extends Component
             'id' => $destination->id,
             'name' => (string) $destination->name,
             'tarif' => $destination->tarif !== null ? (float) $destination->tarif : null,
+            'position' => (int) $destination->position,
         ];
         $this->destinationFormErrorMessage = null;
         $this->resetValidation();
         $this->showDestinationForm = true;
+    }
+
+    /**
+     * A new destination goes last by default, i.e. becomes the farthest of the trajet.
+     */
+    private function nextDestinationPosition(): int
+    {
+        return (int) Destination::query()
+            ->where('trajet_id', $this->destinationsDialogTrajetId)
+            ->max('position') + 1;
     }
 
     public function cancelDestinationForm(): void
@@ -557,22 +579,26 @@ class TrajetList extends Component
         $validated = $this->validate([
             'destinationForm.name' => ['required', 'string', 'max:255'],
             'destinationForm.tarif' => ['nullable', 'numeric', 'min:0'],
+            'destinationForm.position' => ['required', 'integer', 'min:0'],
         ], attributes: [
             'destinationForm.name' => 'nom',
             'destinationForm.tarif' => 'tarif',
+            'destinationForm.position' => 'position',
         ]);
 
         $name = $validated['destinationForm']['name'];
         $tarif = $validated['destinationForm']['tarif'];
+        $position = (int) $validated['destinationForm']['position'];
 
         if ($this->destinationForm['id'] === null) {
             $trajet = Trajet::findOrFail($this->destinationsDialogTrajetId);
             $trajet->destinations()->create($tarif !== null
-                ? ['name' => $name, 'tarif' => $tarif]
-                : ['name' => $name]);
+                ? ['name' => $name, 'tarif' => $tarif, 'position' => $position]
+                : ['name' => $name, 'position' => $position]);
         } else {
             $destination = Destination::findOrFail($this->destinationForm['id']);
             $destination->name = $name;
+            $destination->position = $position;
             if ($tarif !== null) {
                 $destination->tarif = $tarif;
             }

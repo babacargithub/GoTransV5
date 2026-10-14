@@ -101,6 +101,20 @@ class StudentBookingFormTest extends TestCase
             ->assertSee('<meta name="robots" content="noindex, follow">', false);
     }
 
+    public function test_the_destination_preview_shows_the_farthest_destination_by_position(): void
+    {
+        ['trajet' => $trajet, 'depart' => $depart] = $this->createBookableDepart();
+
+        Destination::where('trajet_id', $trajet->id)->delete();
+        Destination::create(['name' => 'Tivaoune EDK', 'trajet_id' => $trajet->id, 'position' => 1]);
+        Destination::create(['name' => 'DAKAR-THIES', 'trajet_id' => $trajet->id, 'position' => 9]);
+        Destination::create(['name' => 'Pout', 'trajet_id' => $trajet->id, 'position' => 3]);
+
+        $bookingComponent = Livewire::test(StudentBooking::class, ['depart' => $depart]);
+
+        $this->assertSame('DAKAR-THIES', $bookingComponent->instance()->guessedDestinationName());
+    }
+
     public function test_choosing_a_passenger_count_renders_that_many_rows(): void
     {
         ['depart' => $depart] = $this->createBookableDepart();

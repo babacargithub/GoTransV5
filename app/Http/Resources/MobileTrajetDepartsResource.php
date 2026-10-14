@@ -86,6 +86,7 @@ class MobileTrajetDepartsResource extends JsonResource
                     return [
                         'name' => $destination->name,
                         'id' => $destination->id,
+                        'position' => $destination->position,
                     ];
                 }),
         ];

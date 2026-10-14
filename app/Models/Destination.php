@@ -8,16 +8,20 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Destination extends Model
 {
     //
-    protected $fillable =[
-        "name",
-        "tarif",
-        "trajet_id",
+    protected $fillable = [
+        'name',
+        'tarif',
+        'trajet_id',
+        'position',
     ];
+
     public $timestamps = false;
+
     public function trajet(): BelongsTo
     {
         return $this->belongsTo(Trajet::class);
     }
+
     protected static function boot()
     {
         parent::boot();

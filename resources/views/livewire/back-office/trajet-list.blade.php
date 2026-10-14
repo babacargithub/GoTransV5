@@ -247,6 +247,13 @@
                             <flux:input type="number" wire:model="destinationForm.tarif" />
                             <flux:error name="destinationForm.tarif" />
                         </flux:field>
+
+                        <flux:field>
+                            <flux:label>Position sur le trajet</flux:label>
+                            <flux:description>Plus le nombre est grand, plus la destination est éloignée. La plus éloignée est choisie par défaut pour les réservations en ligne.</flux:description>
+                            <flux:input type="number" min="0" wire:model="destinationForm.position" />
+                            <flux:error name="destinationForm.position" />
+                        </flux:field>
                     </div>
 
                     <div class="flex justify-end gap-2">
@@ -266,6 +273,7 @@
                 <div class="overflow-x-auto">
                     <flux:table>
                         <flux:table.columns>
+                            <flux:table.column align="end">Position</flux:table.column>
                             <flux:table.column>Nom</flux:table.column>
                             <flux:table.column align="end">Tarif</flux:table.column>
                             <flux:table.column />
@@ -274,6 +282,7 @@
                         <flux:table.rows>
                             @foreach ($this->dialogDestinationRows as $dialogDestinationRow)
                                 <flux:table.row wire:key="dialog-destination-{{ $dialogDestinationRow['id'] }}">
+                                    <flux:table.cell align="end">{{ $dialogDestinationRow['position'] }}</flux:table.cell>
                                     <flux:table.cell variant="strong">{{ $dialogDestinationRow['name'] }}</flux:table.cell>
                                     <flux:table.cell align="end">
                                         {{ $dialogDestinationRow['tarif'] !== null ? number_format($dialogDestinationRow['tarif'], 0, ',', ' ').' FCFA' : '—' }}

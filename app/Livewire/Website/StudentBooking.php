@@ -120,9 +120,20 @@ class StudentBooking extends Component
     #[Computed]
     public function guessedDestinationName(): ?string
     {
-        // TODO: the destination is currently hard-coded to the trajet's first destination.
-        // A later iteration must resolve it from each passenger's chosen drop-off point.
-        return collect($this->trajetResource['destinations'] ?? [])->value('name');
+        return $this->defaultDestination()['name'] ?? null;
+    }
+
+    /**
+     * Used when the customer has not chosen a destination: the farthest one along the trajet
+     * (highest `position`). A later iteration must resolve it from each passenger's drop-off point.
+     *
+     * @return array{id: int, name: string, position: int}|null
+     */
+    private function defaultDestination(): ?array
+    {
+        return collect($this->trajetResource['destinations'] ?? [])
+            ->sortByDesc('position')
+            ->first();
     }
 
     #[Computed]
@@ -616,13 +627,9 @@ class StudentBooking extends Component
         return $payload;
     }
 
-    /**
-     * TODO: the destination is currently hard-coded to the trajet's first destination.
-     * A later iteration must resolve it from each passenger's chosen drop-off point.
-     */
     private function guessedDestinationId(): int
     {
-        return (int) collect($this->trajetResource['destinations'] ?? [])->value('id');
+        return (int) ($this->defaultDestination()['id'] ?? 0);
     }
 
     /**
