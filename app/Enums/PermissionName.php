@@ -41,6 +41,8 @@ enum PermissionName: string
     case SendMessages = 'send-messages';
     case ManageCaisse = 'manage-caisse';
     case ManageAccounts = 'manage-accounts';
+    case CreateUser = 'create-user';
+    case EditUser = 'edit-user';
 
     /**
      * Transferring a booking away from a departed trip loses the company money,
@@ -97,6 +99,8 @@ enum PermissionName: string
             self::SendMessages => 'Envoyer des messages',
             self::ManageCaisse => 'Gérer les caisses',
             self::ManageAccounts => 'Gérer les comptes',
+            self::CreateUser => 'Créer un utilisateur',
+            self::EditUser => 'Modifier les permissions et rôles d\'un utilisateur',
         };
     }
 

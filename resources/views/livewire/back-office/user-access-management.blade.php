@@ -50,15 +50,22 @@
                     {{ $showInactiveUsers ? 'Tous les utilisateurs' : 'Utilisateurs actifs' }}
                 </flux:text>
 
-                @if ($showInactiveUsers)
-                    <flux:button size="sm" variant="subtle" icon="funnel" wire:click="showActiveUsersOnly">
-                        Actifs uniquement
-                    </flux:button>
-                @else
-                    <flux:button size="sm" variant="subtle" wire:click="showAllUsers">
-                        TOUS
-                    </flux:button>
-                @endif
+                <div class="flex items-center gap-2">
+                    @if ($showInactiveUsers)
+                        <flux:button size="sm" variant="subtle" icon="funnel" wire:click="showActiveUsersOnly">
+                            Actifs uniquement
+                        </flux:button>
+                    @else
+                        <flux:button size="sm" variant="subtle" wire:click="showAllUsers">
+                            TOUS
+                        </flux:button>
+                    @endif
+                    @can(\App\Enums\PermissionName::CreateUser->value)
+                        <flux:button size="sm" variant="primary" icon="plus" wire:click="openCreateUser">
+                            Ajouter un utilisateur
+                        </flux:button>
+                    @endcan
+                </div>
             </div>
 
             <div class="mt-4 overflow-x-auto">
@@ -92,6 +99,7 @@
                                 </flux:table.cell>
                                 <flux:table.cell>
                                     <div class="flex items-center justify-end gap-2">
+                                      @can(\App\Enums\PermissionName::EditUser->value)
                                         <flux:button
                                             size="sm"
                                             variant="filled"
@@ -108,6 +116,7 @@
                                         >
                                             Rôles
                                         </flux:button>
+                                      @endcan
                                     </div>
                                 </flux:table.cell>
                             </flux:table.row>
@@ -230,6 +239,47 @@
     @endif
 
     {{-- ============================ MODALS ============================ --}}
+
+    {{-- User create --}}
+    <flux:modal wire:model.self="showCreateUserModal" wire:key="create-user-modal" class="w-full max-w-lg">
+        <form wire:submit="createUser" class="space-y-6">
+            <flux:heading size="lg">Ajouter un utilisateur</flux:heading>
+
+            <flux:field>
+                <flux:label>Nom</flux:label>
+                <flux:input wire:model="newUserName" placeholder="Awa Diallo" />
+                <flux:error name="newUserName" />
+            </flux:field>
+
+            <flux:field>
+                <flux:label>Identifiant</flux:label>
+                <flux:input wire:model="newUserUsername" autocomplete="off" placeholder="awa.diallo" />
+                <flux:error name="newUserUsername" />
+            </flux:field>
+
+            <flux:field>
+                <flux:label>Mot de passe</flux:label>
+                <flux:input type="password" wire:model="newUserPassword" autocomplete="new-password" viewable />
+                <flux:error name="newUserPassword" />
+            </flux:field>
+
+            <flux:field>
+                <flux:label>Permissions</flux:label>
+                <flux:checkbox.group wire:model="newUserPermissionNames" class="max-h-60 space-y-3 overflow-y-auto">
+                    @foreach ($this->permissionCatalogue as $permissionRow)
+                        <flux:checkbox :value="$permissionRow['name']" :label="$permissionRow['label']" />
+                    @endforeach
+                </flux:checkbox.group>
+            </flux:field>
+
+            <div class="flex items-center justify-end gap-2">
+                <flux:button variant="ghost" wire:click="$set('showCreateUserModal', false)">Annuler</flux:button>
+                <flux:button type="submit" variant="primary" wire:loading.attr="disabled" wire:target="createUser">
+                    Créer
+                </flux:button>
+            </div>
+        </form>
+    </flux:modal>
 
     {{-- User permissions --}}
     <flux:modal wire:model.self="showUserPermissionsModal" wire:key="user-permissions-modal" class="w-full max-w-lg">

@@ -2,6 +2,7 @@
 
 namespace App\Livewire\BackOffice;
 
+use App\Enums\PermissionName;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
@@ -28,6 +29,19 @@ class UserAccessManagement extends Component
     public string $activeTab = 'users';
 
     public bool $showInactiveUsers = false;
+
+    // --- User creation dialog ---------------------------------------------------
+
+    public bool $showCreateUserModal = false;
+
+    public string $newUserName = '';
+
+    public string $newUserUsername = '';
+
+    public string $newUserPassword = '';
+
+    /** @var array<int, string> */
+    public array $newUserPermissionNames = [];
 
     // --- User permissions dialog -------------------------------------------------
 
@@ -158,10 +172,80 @@ class UserAccessManagement extends Component
             ->all();
     }
 
+    /**
+     * Flash an error and return false when the current user lacks the permission.
+     */
+    private function ensurePermittedOrFlash(PermissionName $permission): bool
+    {
+        if ($permission->allowedForCurrentUser()) {
+            return true;
+        }
+
+        session()->flash('error', 'Action non autorisée : la permission « '.$permission->defaultLabel().' » est requise.');
+        $this->showCreateUserModal = false;
+        $this->showUserPermissionsModal = false;
+        $this->showUserRolesModal = false;
+
+        return false;
+    }
+
+    // --- User: create ---------------------------------------------------------
+
+    public function openCreateUser(): void
+    {
+        if (! $this->ensurePermittedOrFlash(PermissionName::CreateUser)) {
+            return;
+        }
+
+        $this->reset('newUserName', 'newUserUsername', 'newUserPassword', 'newUserPermissionNames');
+        $this->resetValidation();
+        $this->showCreateUserModal = true;
+    }
+
+    public function createUser(): void
+    {
+        if (! $this->ensurePermittedOrFlash(PermissionName::CreateUser)) {
+            return;
+        }
+
+        $validated = $this->validate([
+            'newUserName' => ['required', 'string', 'max:255'],
+            'newUserUsername' => ['required', 'string', 'max:190', 'regex:/^[A-Za-z0-9._-]+$/', Rule::unique('users', 'username')],
+            'newUserPassword' => ['required', 'string', 'min:8', 'max:255'],
+            'newUserPermissionNames' => ['array'],
+            'newUserPermissionNames.*' => ['string', Rule::exists('permissions', 'name')],
+        ], attributes: [
+            'newUserName' => 'nom',
+            'newUserUsername' => 'identifiant',
+            'newUserPassword' => 'mot de passe',
+        ]);
+
+        $username = mb_strtolower($validated['newUserUsername']);
+
+        // The users table requires a unique email, which this form does not collect.
+        $user = (new User)->forceFill([
+            'name' => $validated['newUserName'],
+            'username' => $username,
+            'email' => $username.'@users.invalid',
+            'password' => $validated['newUserPassword'],
+            'active' => true,
+        ]);
+        $user->save();
+        $user->syncPermissions($validated['newUserPermissionNames']);
+
+        unset($this->userRows);
+        $this->showCreateUserModal = false;
+        session()->flash('status', 'L\'utilisateur « '.$user->name.' » a été créé.');
+    }
+
     // --- User: permissions ----------------------------------------------------
 
     public function openUserPermissions(int $userId): void
     {
+        if (! $this->ensurePermittedOrFlash(PermissionName::EditUser)) {
+            return;
+        }
+
         $user = User::findOrFail($userId);
 
         $this->managedUserId = $user->id;
@@ -180,6 +264,10 @@ class UserAccessManagement extends Component
 
     public function saveUserPermissions(): void
     {
+        if (! $this->ensurePermittedOrFlash(PermissionName::EditUser)) {
+            return;
+        }
+
         if ($this->managedUserId === null) {
             return;
         }
@@ -196,6 +284,10 @@ class UserAccessManagement extends Component
 
     public function openUserRoles(int $userId): void
     {
+        if (! $this->ensurePermittedOrFlash(PermissionName::EditUser)) {
+            return;
+        }
+
         $user = User::findOrFail($userId);
 
         $this->managedUserId = $user->id;
@@ -205,6 +297,10 @@ class UserAccessManagement extends Component
 
     public function saveUserRoles(): void
     {
+        if (! $this->ensurePermittedOrFlash(PermissionName::EditUser)) {
+            return;
+        }
+
         if ($this->managedUserId === null) {
             return;
         }

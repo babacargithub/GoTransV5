@@ -9,6 +9,7 @@ use App\Models\Role;
 use App\Models\User;
 use Database\Seeders\PermissionCatalogueSeeder;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\Hash;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -33,7 +34,7 @@ class UserAccessManagementPageTest extends TestCase
         $activeUser = User::factory()->create(['name' => 'Actif Diallo', 'active' => true]);
         $inactiveUser = User::factory()->create(['name' => 'Inactif Sow', 'active' => false]);
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(UserAccessManagement::class)
             ->assertSee($activeUser->name)
             ->assertDontSee($inactiveUser->name)
@@ -44,11 +45,71 @@ class UserAccessManagementPageTest extends TestCase
             ->assertDontSee($inactiveUser->name);
     }
 
+    public function test_creating_a_user_stores_credentials_and_direct_permissions(): void
+    {
+        Livewire::actingAs($this->createUserWithFullAccess())
+            ->test(UserAccessManagement::class)
+            ->call('openCreateUser')
+            ->set('newUserName', 'Awa Diallo')
+            ->set('newUserUsername', 'Awa.Diallo')
+            ->set('newUserPassword', 'secret-password')
+            ->set('newUserPermissionNames', [PermissionName::CancelPaidBooking->value])
+            ->call('createUser')
+            ->assertHasNoErrors()
+            ->assertSet('showCreateUserModal', false);
+
+        $createdUser = User::where('username', 'awa.diallo')->firstOrFail();
+        $this->assertSame('Awa Diallo', $createdUser->name);
+        $this->assertTrue((bool) $createdUser->active);
+        $this->assertTrue(Hash::check('secret-password', $createdUser->password));
+        $this->assertTrue($createdUser->hasDirectPermission(PermissionName::CancelPaidBooking->value));
+    }
+
+    public function test_creating_a_user_requires_a_unique_username_and_a_password(): void
+    {
+        $existingUser = User::factory()->create(['username' => 'taken']);
+
+        Livewire::actingAs($this->createUserWithFullAccess())
+            ->test(UserAccessManagement::class)
+            ->set('newUserName', 'Autre')
+            ->set('newUserUsername', $existingUser->username)
+            ->set('newUserPassword', '')
+            ->call('createUser')
+            ->assertHasErrors(['newUserUsername', 'newUserPassword']);
+    }
+
+    public function test_creating_a_user_is_refused_without_the_create_user_permission(): void
+    {
+        Livewire::actingAs($this->createUserWithPermissions([PermissionName::EditUser->value]))
+            ->test(UserAccessManagement::class)
+            ->set('newUserName', 'Awa Diallo')
+            ->set('newUserUsername', 'awa.refused')
+            ->set('newUserPassword', 'secret-password')
+            ->call('createUser');
+
+        $this->assertDatabaseMissing('users', ['username' => 'awa.refused']);
+    }
+
+    public function test_a_user_with_only_the_create_user_permission_cannot_edit_permissions(): void
+    {
+        $targetUser = User::factory()->create();
+
+        Livewire::actingAs($this->createUserWithPermissions([PermissionName::CreateUser->value]))
+            ->test(UserAccessManagement::class)
+            ->call('openUserPermissions', $targetUser->id)
+            ->assertSet('showUserPermissionsModal', false)
+            ->set('managedUserId', $targetUser->id)
+            ->set('selectedPermissionNames', [PermissionName::RefundTicket->value])
+            ->call('saveUserPermissions');
+
+        $this->assertFalse($targetUser->fresh()->hasDirectPermission(PermissionName::RefundTicket->value));
+    }
+
     public function test_granting_direct_permissions_to_a_user_persists(): void
     {
         $user = User::factory()->create();
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(UserAccessManagement::class)
             ->call('openUserPermissions', $user->id)
             ->assertSet('showUserPermissionsModal', true)
@@ -66,7 +127,7 @@ class UserAccessManagementPageTest extends TestCase
         $user = User::factory()->create();
         $role = Role::create(['name' => 'agent-guichet', 'label' => 'Agent guichet', 'guard_name' => 'web']);
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(UserAccessManagement::class)
             ->call('openUserRoles', $user->id)
             ->set('selectedRoleNames', [$role->name])
@@ -79,7 +140,7 @@ class UserAccessManagementPageTest extends TestCase
     {
         $permission = Permission::where('name', PermissionName::CancelPaidBooking->value)->firstOrFail();
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(UserAccessManagement::class)
             ->call('openEditPermission', $permission->id)
             ->set('permissionLabel', 'Annuler un billet réglé')
@@ -93,7 +154,7 @@ class UserAccessManagementPageTest extends TestCase
 
     public function test_creating_a_permission_requires_a_kebab_case_name(): void
     {
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(UserAccessManagement::class)
             ->call('openCreatePermission')
             ->set('permissionName', 'Not Kebab')
@@ -104,7 +165,7 @@ class UserAccessManagementPageTest extends TestCase
 
     public function test_creating_and_deleting_a_permission(): void
     {
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(UserAccessManagement::class)
             ->call('openCreatePermission')
             ->set('permissionName', 'view-reports')
@@ -116,7 +177,7 @@ class UserAccessManagementPageTest extends TestCase
 
         $created = Permission::where('name', 'view-reports')->firstOrFail();
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(UserAccessManagement::class)
             ->call('askToDeletePermission', $created->id)
             ->assertSet('showDeletePermissionModal', true)
@@ -129,7 +190,7 @@ class UserAccessManagementPageTest extends TestCase
     {
         $role = Role::create(['name' => 'superviseur', 'label' => 'Superviseur', 'guard_name' => 'web']);
 
-        Livewire::actingAs(User::factory()->create())
+        Livewire::actingAs($this->createUserWithFullAccess())
             ->test(UserAccessManagement::class)
             ->call('openRolePermissions', $role->id)
             ->set('selectedRolePermissionNames', [PermissionName::FreezeDepart->value, PermissionName::UnfreezeDepart->value])
@@ -141,7 +202,7 @@ class UserAccessManagementPageTest extends TestCase
 
     public function test_creating_and_deleting_a_role(): void
     {
-        $component = Livewire::actingAs(User::factory()->create())
+        $component = Livewire::actingAs($this->createUserWithFullAccess())
             ->test(UserAccessManagement::class)
             ->call('openCreateRole')
             ->set('roleName', 'chef-de-gare')
