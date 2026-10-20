@@ -20,17 +20,7 @@
     <flux:heading size="xl" level="1">Réservations — {{ $bus->name }}</flux:heading>
     <flux:text class="mt-1">{{ $this->departLabel() }}</flux:text>
 
-    @if ($flashStatusMessage)
-        <flux:callout class="mt-4" variant="success" icon="check-circle" wire:key="flash-status">
-            <flux:callout.text>{{ $flashStatusMessage }}</flux:callout.text>
-        </flux:callout>
-    @endif
-
-    @if ($flashErrorMessage)
-        <flux:callout class="mt-4" variant="danger" icon="exclamation-triangle" wire:key="flash-error">
-            <flux:callout.text>{{ $flashErrorMessage }}</flux:callout.text>
-        </flux:callout>
-    @endif
+    <x-flash-toasts :status="$flashStatusMessage" :error="$flashErrorMessage" />
 
     <div class="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <flux:card class="space-y-1">

@@ -60,7 +60,7 @@ class CaisseBalancesPage extends Component
             return true;
         }
 
-        $this->flashErrorMessage = 'Action non autorisée : la permission « '.$requiredPermission->defaultLabel().' » est requise.';
+        $this->flashErrorMessage = $requiredPermission->unauthorizedMessage();
 
         return false;
     }

@@ -38,11 +38,7 @@
         </div>
     @endif
 
-    @if (session('status'))
-        <div class="mt-6 rounded-xl border border-brand-cyan bg-brand-cyan/10 px-4 py-3 text-sm" role="status">
-            {{ session('status') }}
-        </div>
-    @endif
+    <x-flash-toasts />
 
     <p @class([
         'mt-6 inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-semibold',

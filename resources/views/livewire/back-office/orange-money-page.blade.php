@@ -10,11 +10,7 @@
         </flux:button>
     </div>
 
-    @if (session('status'))
-        <flux:callout class="mt-4" variant="success" icon="check-circle">
-            <flux:callout.text>{{ session('status') }}</flux:callout.text>
-        </flux:callout>
-    @endif
+    <x-flash-toasts />
 
     <flux:separator class="my-6" variant="subtle" />
 

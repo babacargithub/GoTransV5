@@ -115,6 +115,14 @@ enum PermissionName: string
     }
 
     /**
+     * The user-facing message shown when this permission is missing.
+     */
+    public function unauthorizedMessage(): string
+    {
+        return 'Vous n\'avez pas l\'autorisation de « '.$this->defaultLabel().' ».';
+    }
+
+    /**
      * Whether the currently authenticated user may perform this action.
      *
      * Goes through the Gate, so a user holding {@see self::FullAccess} passes
@@ -135,9 +143,7 @@ enum PermissionName: string
     public function authorizeForCurrentUser(): void
     {
         if (! $this->allowedForCurrentUser()) {
-            throw new AuthorizationException(
-                'Action non autorisée : la permission « '.$this->defaultLabel().' » est requise.'
-            );
+            throw new AuthorizationException($this->unauthorizedMessage());
         }
     }
 }

@@ -12,17 +12,7 @@
     <flux:heading size="xl" level="1">Caisses</flux:heading>
     <flux:text class="mt-1">Tills, comptes et recettes de billets</flux:text>
 
-    @if ($flashStatusMessage)
-        <flux:callout class="mt-4" variant="success" icon="check-circle">
-            <flux:callout.text>{{ $flashStatusMessage }}</flux:callout.text>
-        </flux:callout>
-    @endif
-
-    @if ($flashErrorMessage)
-        <flux:callout class="mt-4" variant="danger" icon="exclamation-triangle">
-            <flux:callout.text>{{ $flashErrorMessage }}</flux:callout.text>
-        </flux:callout>
-    @endif
+    <x-flash-toasts :status="$flashStatusMessage" :error="$flashErrorMessage" />
 
     {{-- Tabs --}}
     <div class="mt-6 flex gap-1 border-b border-zinc-200 dark:border-zinc-700">

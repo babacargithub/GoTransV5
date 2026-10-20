@@ -4,17 +4,7 @@
         <flux:text class="mt-1">Les comptes, leurs rôles et leurs permissions</flux:text>
     </div>
 
-    @if (session('status'))
-        <flux:callout class="mt-4" variant="success" icon="check-circle">
-            <flux:callout.text>{{ session('status') }}</flux:callout.text>
-        </flux:callout>
-    @endif
-
-    @if (session('error'))
-        <flux:callout class="mt-4" variant="danger" icon="exclamation-triangle">
-            <flux:callout.text>{{ session('error') }}</flux:callout.text>
-        </flux:callout>
-    @endif
+    <x-flash-toasts />
 
     {{-- Tabs --}}
     <div class="mt-6 flex gap-1 border-b border-zinc-200 dark:border-zinc-700">

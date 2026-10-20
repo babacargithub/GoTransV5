@@ -14,17 +14,7 @@
         </flux:button>
     </div>
 
-    @if (session('status'))
-        <flux:callout class="mt-4" variant="success" icon="check-circle">
-            <flux:callout.text>{{ session('status') }}</flux:callout.text>
-        </flux:callout>
-    @endif
-
-    @if (session('error'))
-        <flux:callout class="mt-4" variant="danger" icon="exclamation-triangle">
-            <flux:callout.text>{{ session('error') }}</flux:callout.text>
-        </flux:callout>
-    @endif
+    <x-flash-toasts />
 
     <div class="mt-6 flex flex-wrap items-end justify-between gap-4">
         <flux:select wire:model.live="trajetFilter" class="max-w-xs" aria-label="Filtrer par trajet">

@@ -89,17 +89,6 @@
             </div>
         @endif
 
-        <!-- Flash Messages -->
-        @if(session()->has('message'))
-            <div class="mt-6 bg-green-50 border-l-4 border-green-500 p-4 rounded-r-lg">
-                <p class="text-green-700 font-semibold">{{ session('message') }}</p>
-            </div>
-        @endif
-
-        @if(session()->has('error'))
-            <div class="mt-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg">
-                <p class="text-red-700 font-semibold">{{ session('error') }}</p>
-            </div>
-        @endif
+        <x-flash-toasts :status="session('message')" :error="session('error')" />
     </div>
 </div>

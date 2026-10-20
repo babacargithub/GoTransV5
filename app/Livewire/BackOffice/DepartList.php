@@ -408,7 +408,7 @@ class DepartList extends Component
         }
 
         if (! PermissionName::DeleteBus->allowedForCurrentUser()) {
-            session()->flash('error', 'Action non autorisée : la permission « '.PermissionName::DeleteBus->defaultLabel().' » est requise.');
+            session()->flash('error', PermissionName::DeleteBus->unauthorizedMessage());
 
             return;
         }
@@ -707,7 +707,7 @@ class DepartList extends Component
         ]);
 
         if (! PermissionName::UpdateSchedules->allowedForCurrentUser()) {
-            $this->scheduleManagementFlashMessage = 'Action non autorisée : la permission « '.PermissionName::UpdateSchedules->defaultLabel().' » est requise.';
+            $this->scheduleManagementFlashMessage = PermissionName::UpdateSchedules->unauthorizedMessage();
 
             return;
         }

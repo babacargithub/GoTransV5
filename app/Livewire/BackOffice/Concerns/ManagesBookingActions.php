@@ -103,7 +103,7 @@ trait ManagesBookingActions
             return true;
         }
 
-        $this->flashErrorMessage = 'Action non autorisée : la permission « '.$requiredPermission->defaultLabel().' » est requise.';
+        $this->flashErrorMessage = $requiredPermission->unauthorizedMessage();
 
         return false;
     }
@@ -454,7 +454,7 @@ trait ManagesBookingActions
         $isDepartPassed = $booking->depart->isPassed();
 
         if (! PermissionName::isBookingTransferAllowedForCurrentUser($isDepartPassed)) {
-            $this->flashErrorMessage = 'Action non autorisée : la permission « '.PermissionName::forBookingTransfer($isDepartPassed)->defaultLabel().' » est requise.';
+            $this->flashErrorMessage = PermissionName::forBookingTransfer($isDepartPassed)->unauthorizedMessage();
 
             return;
         }

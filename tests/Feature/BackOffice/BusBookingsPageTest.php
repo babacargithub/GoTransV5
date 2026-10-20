@@ -409,7 +409,7 @@ class BusBookingsPageTest extends TestCase
             ->test(BusBookings::class, ['bus' => $bus])
             ->call('askToConfirmBookingCancellation', $booking->id)
             ->call('confirmPendingAction')
-            ->assertSee('Action non autorisée');
+            ->assertSee('Vous n\'avez pas l\'autorisation de');
 
         $this->assertNotSoftDeleted($booking);
     }
@@ -433,7 +433,7 @@ class BusBookingsPageTest extends TestCase
             ->test(BusBookings::class, ['bus' => $paidBus])
             ->call('askToConfirmBookingCancellation', $paidBooking->id)
             ->call('confirmPendingAction')
-            ->assertSee('Action non autorisée');
+            ->assertSee('Vous n\'avez pas l\'autorisation de');
 
         $this->assertNotSoftDeleted($paidBooking->fresh());
     }

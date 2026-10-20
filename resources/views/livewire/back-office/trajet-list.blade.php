@@ -6,17 +6,7 @@
         </div>
     </div>
 
-    @if (session('status'))
-        <flux:callout class="mt-4" variant="success" icon="check-circle">
-            <flux:callout.text>{{ session('status') }}</flux:callout.text>
-        </flux:callout>
-    @endif
-
-    @if (session('error'))
-        <flux:callout class="mt-4" variant="danger" icon="exclamation-triangle">
-            <flux:callout.text>{{ session('error') }}</flux:callout.text>
-        </flux:callout>
-    @endif
+    <x-flash-toasts />
 
     <flux:separator class="my-6" variant="subtle" />
 

@@ -181,7 +181,7 @@ class UserAccessManagement extends Component
             return true;
         }
 
-        session()->flash('error', 'Action non autorisée : la permission « '.$permission->defaultLabel().' » est requise.');
+        session()->flash('error', $permission->unauthorizedMessage());
         $this->showCreateUserModal = false;
         $this->showUserPermissionsModal = false;
         $this->showUserRolesModal = false;
