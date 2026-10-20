@@ -246,4 +246,36 @@ class CaisseManagementTest extends TestCase
 
         $this->assertFalse($caisse->fresh()->isLockedForToday());
     }
+
+    public function test_caisse_transactions_modal_filters_by_type_and_date_and_computes_totals_and_pages(): void
+    {
+        $user = $this->createUserWithFullAccess();
+        $caisse = Caisse::create(['name' => 'Caisse gare Sud']);
+        $caisse->transactions()->create(['amount' => 1000, 'transaction_type' => 'DEPOSIT', 'created_at' => '2026-01-10 10:00:00']);
+        $caisse->transactions()->create(['amount' => 4000, 'transaction_type' => 'DEPOSIT', 'created_at' => '2026-02-10 10:00:00']);
+        $caisse->transactions()->create(['amount' => 1500, 'transaction_type' => 'WITHDRAW', 'created_at' => '2026-02-11 10:00:00']);
+
+        $component = Livewire::actingAs($user)
+            ->test(CaisseBalancesPage::class)
+            ->call('openCaisseTransactions', $caisse->id);
+
+        $unfiltered = $component->get('caisseTransactionsForModal');
+        $this->assertSame(5000, $unfiltered['totalCredits']);
+        $this->assertSame(1500, $unfiltered['totalDebits']);
+        $this->assertSame(3500, $unfiltered['difference']);
+        $this->assertSame(3, $unfiltered['totalCount']);
+
+        $component->set('caisseTransactionsType', 'DEBIT')->set('caisseTransactionsDateFrom', '2026-02-01');
+        $filtered = $component->get('caisseTransactionsForModal');
+        $this->assertSame(0, $filtered['totalCredits']);
+        $this->assertSame(1500, $filtered['totalDebits']);
+        $this->assertSame(-1500, $filtered['difference']);
+        $this->assertCount(1, $filtered['transactions']);
+
+        $component->set('caisseTransactionsType', null)->set('caisseTransactionsDateFrom', null)->set('caisseTransactionsPerPage', 2);
+        $firstPage = $component->get('caisseTransactionsForModal');
+        $this->assertCount(2, $firstPage['transactions']);
+        $this->assertSame(2, $firstPage['lastPage']);
+        $this->assertSame(3500, $firstPage['difference']);
+    }
 }

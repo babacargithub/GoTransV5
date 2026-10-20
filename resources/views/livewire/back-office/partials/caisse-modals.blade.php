@@ -218,12 +218,48 @@
 </flux:modal>
 
 {{-- Transactions d'une caisse --}}
-<flux:modal wire:model.self="showCaisseTransactionsModal" wire:key="caisse-transactions-modal" class="w-full max-w-2xl">
+<flux:modal wire:model.self="showCaisseTransactionsModal" wire:key="caisse-transactions-modal" class="w-full max-w-5xl">
     @if ($showCaisseTransactionsModal)
         <div class="space-y-6">
             <flux:heading size="lg">Transactions — {{ $this->caisseNameForId($viewingCaisseTransactionsId) }}</flux:heading>
 
-            @if (count($this->caisseTransactionsForModal) === 0)
+            @php($caisseTransactionsView = $this->caisseTransactionsForModal)
+
+            <div class="grid gap-4 sm:grid-cols-3">
+                <flux:field>
+                    <flux:label>Du</flux:label>
+                    <flux:input type="date" wire:model.live="caisseTransactionsDateFrom" />
+                </flux:field>
+                <flux:field>
+                    <flux:label>Au</flux:label>
+                    <flux:input type="date" wire:model.live="caisseTransactionsDateTo" />
+                </flux:field>
+                <flux:field>
+                    <flux:label>Type</flux:label>
+                    <flux:select wire:model.live="caisseTransactionsType">
+                        <flux:select.option value="">Tous</flux:select.option>
+                        <flux:select.option value="CREDIT">Crédit</flux:select.option>
+                        <flux:select.option value="DEBIT">Débit</flux:select.option>
+                    </flux:select>
+                </flux:field>
+            </div>
+
+            <div class="grid gap-3 sm:grid-cols-3">
+                <div class="rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
+                    <flux:text size="sm">Total crédits</flux:text>
+                    <div class="font-semibold text-green-600">{{ number_format($caisseTransactionsView['totalCredits'], 0, ',', ' ') }} FCFA</div>
+                </div>
+                <div class="rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
+                    <flux:text size="sm">Total débits</flux:text>
+                    <div class="font-semibold text-red-600">{{ number_format($caisseTransactionsView['totalDebits'], 0, ',', ' ') }} FCFA</div>
+                </div>
+                <div class="rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
+                    <flux:text size="sm">Différence</flux:text>
+                    <div @class(['font-semibold', 'text-green-600' => $caisseTransactionsView['difference'] >= 0, 'text-red-600' => $caisseTransactionsView['difference'] < 0])>{{ number_format($caisseTransactionsView['difference'], 0, ',', ' ') }} FCFA</div>
+                </div>
+            </div>
+
+            @if (count($caisseTransactionsView['transactions']) === 0)
                 <flux:callout icon="information-circle">
                     <flux:callout.text>Aucune transaction pour cette caisse.</flux:callout.text>
                 </flux:callout>
@@ -237,7 +273,7 @@
                             <flux:table.column align="end">Montant</flux:table.column>
                         </flux:table.columns>
                         <flux:table.rows>
-                            @foreach ($this->caisseTransactionsForModal as $transaction)
+                            @foreach ($caisseTransactionsView['transactions'] as $transaction)
                                 <flux:table.row wire:key="caisse-tx-{{ $transaction['id'] }}">
                                     <flux:table.cell>{{ $transaction['createdAt'] }}</flux:table.cell>
                                     <flux:table.cell>{{ $transaction['label'] ?? '—' }}</flux:table.cell>
@@ -253,6 +289,19 @@
                             @endforeach
                         </flux:table.rows>
                     </flux:table>
+                </div>
+
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <flux:text size="sm">{{ $caisseTransactionsView['totalCount'] }} transaction(s) — page {{ $caisseTransactionsView['currentPage'] }} / {{ $caisseTransactionsView['lastPage'] }}</flux:text>
+                    <div class="flex items-center gap-2">
+                        <flux:select wire:model.live="caisseTransactionsPerPage" size="sm" class="!w-24">
+                            @foreach ([10, 25, 50, 100] as $rowsPerPageOption)
+                                <flux:select.option value="{{ $rowsPerPageOption }}">{{ $rowsPerPageOption }} / page</flux:select.option>
+                            @endforeach
+                        </flux:select>
+                        <flux:button size="sm" icon="chevron-left" aria-label="Page précédente" :disabled="$caisseTransactionsView['currentPage'] <= 1" wire:click="goToCaisseTransactionsPage({{ $caisseTransactionsView['currentPage'] - 1 }})" />
+                        <flux:button size="sm" icon="chevron-right" aria-label="Page suivante" :disabled="$caisseTransactionsView['currentPage'] >= $caisseTransactionsView['lastPage']" wire:click="goToCaisseTransactionsPage({{ $caisseTransactionsView['currentPage'] + 1 }})" />
+                    </div>
                 </div>
             @endif
 

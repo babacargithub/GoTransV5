@@ -78,6 +78,17 @@ trait ManagesCaisses
 
     public ?int $viewingCaisseTransactionsId = null;
 
+    /** @var 'CREDIT'|'DEBIT'|null */
+    public ?string $caisseTransactionsType = null;
+
+    public ?string $caisseTransactionsDateFrom = null;
+
+    public ?string $caisseTransactionsDateTo = null;
+
+    public int $caisseTransactionsPage = 1;
+
+    public int $caisseTransactionsPerPage = 50;
+
     /**
      * @return array<int, array{id: int, name: string, code: string|null, balance: int, isSystemCaisse: bool, closed: bool, isLockedForToday: bool}>
      */
@@ -511,6 +522,10 @@ trait ManagesCaisses
     public function openCaisseTransactions(int $caisseId): void
     {
         $this->viewingCaisseTransactionsId = $caisseId;
+        $this->caisseTransactionsType = null;
+        $this->caisseTransactionsDateFrom = null;
+        $this->caisseTransactionsDateTo = null;
+        $this->caisseTransactionsPage = 1;
         $this->showCaisseTransactionsModal = true;
     }
 
@@ -520,28 +535,91 @@ trait ManagesCaisses
         $this->viewingCaisseTransactionsId = null;
     }
 
+    public function updatedCaisseTransactionsType(): void
+    {
+        $this->caisseTransactionsPage = 1;
+    }
+
+    public function updatedCaisseTransactionsDateFrom(): void
+    {
+        $this->caisseTransactionsPage = 1;
+    }
+
+    public function updatedCaisseTransactionsDateTo(): void
+    {
+        $this->caisseTransactionsPage = 1;
+    }
+
+    public function updatedCaisseTransactionsPerPage(): void
+    {
+        $this->caisseTransactionsPage = 1;
+    }
+
+    public function goToCaisseTransactionsPage(int $pageNumber): void
+    {
+        $this->caisseTransactionsPage = max(1, $pageNumber);
+    }
+
     /**
-     * @return array<int, array{id: int, amount: int, effectiveAmount: int, label: string|null, transactionType: string, createdAt: string}>
+     * Transactions of the viewed caisse with the type / date-range filters
+     * applied. Totals are computed over the whole filtered set, not just the
+     * current page; credit = DEPOSIT, debit = WITHDRAW.
+     *
+     * @return array{transactions: array<int, array{id: int, amount: int, effectiveAmount: int, label: string|null, transactionType: string, createdAt: string}>, totalCredits: int, totalDebits: int, difference: int, currentPage: int, lastPage: int, totalCount: int}
      */
     #[Computed]
     public function caisseTransactionsForModal(): array
     {
+        $emptyResult = [
+            'transactions' => [],
+            'totalCredits' => 0,
+            'totalDebits' => 0,
+            'difference' => 0,
+            'currentPage' => 1,
+            'lastPage' => 1,
+            'totalCount' => 0,
+        ];
+
         if ($this->viewingCaisseTransactionsId === null) {
-            return [];
+            return $emptyResult;
         }
 
-        return Caisse::findOrFail($this->viewingCaisseTransactionsId)
+        $filteredTransactionsQuery = Caisse::findOrFail($this->viewingCaisseTransactionsId)
             ->transactions()
+            ->when($this->caisseTransactionsType === 'CREDIT', fn ($query) => $query->where('transaction_type', CaisseTransactionType::Deposit))
+            ->when($this->caisseTransactionsType === 'DEBIT', fn ($query) => $query->where('transaction_type', CaisseTransactionType::Withdraw))
+            ->when($this->caisseTransactionsDateFrom, fn ($query, string $dateFrom) => $query->whereDate('created_at', '>=', $dateFrom))
+            ->when($this->caisseTransactionsDateTo, fn ($query, string $dateTo) => $query->whereDate('created_at', '<=', $dateTo));
+
+        $totalCredits = (int) (clone $filteredTransactionsQuery)
+            ->where('transaction_type', CaisseTransactionType::Deposit)
+            ->sum('amount');
+        $totalDebits = (int) (clone $filteredTransactionsQuery)
+            ->where('transaction_type', CaisseTransactionType::Withdraw)
+            ->sum('amount');
+
+        $transactionsPaginator = $filteredTransactionsQuery
             ->orderByDesc('created_at')
-            ->get()
-            ->map(fn ($transaction): array => [
-                'id' => $transaction->id,
-                'amount' => $transaction->amount,
-                'effectiveAmount' => $transaction->effective_amount,
-                'label' => $transaction->label,
-                'transactionType' => $transaction->transaction_type->value,
-                'createdAt' => $transaction->created_at->format('d/m/Y H:i'),
-            ])
-            ->all();
+            ->orderByDesc('id')
+            ->paginate(max(1, $this->caisseTransactionsPerPage), page: $this->caisseTransactionsPage);
+
+        return [
+            'transactions' => $transactionsPaginator->getCollection()
+                ->map(fn ($transaction): array => [
+                    'id' => $transaction->id,
+                    'amount' => $transaction->amount,
+                    'effectiveAmount' => $transaction->effective_amount,
+                    'label' => $transaction->label,
+                    'transactionType' => $transaction->transaction_type->value,
+                    'createdAt' => $transaction->created_at->format('d/m/Y H:i'),
+                ])
+                ->all(),
+            'totalCredits' => $totalCredits,
+            'totalDebits' => $totalDebits,
+            'difference' => $totalCredits - $totalDebits,
+            'currentPage' => $transactionsPaginator->currentPage(),
+            'lastPage' => $transactionsPaginator->lastPage(),
+            'totalCount' => $transactionsPaginator->total(),
+        ];
     }
 }
