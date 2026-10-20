@@ -1,8 +1,8 @@
 @props([
     // SEO — every public website page MUST pass a unique title and description.
     'title' => 'Globe One Transport',
-    'description' => 'Globe One Transport — voyagez en bus entre Saint-Louis (UGB) et Dakar. Trajets directs, fiables et confortables, réservation en ligne.',
-    'keywords' => 'caravane ugb, Globe One Transport, caravane dakar ugb, réservation caravane ugb dakar, campus ugb, transport, Dakar, UGB, réservation, voyage, étudiants, Saint-Louis Dakar',
+    'description' => 'Globe One Transport — Caravanes UGB-DAKAR, DAKAR-UGB.',
+    'keywords' => 'caravanes ugb, Globe One Transport, caravane dakar ugb, réservation caravane ugb dakar, lien globe one, e-transport, UGB, réservation caravane, caravanes étudiants ugb',
     'canonical' => null,
     'robots' => 'index, follow',
     'ogType' => 'website',
