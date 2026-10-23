@@ -14,6 +14,9 @@
     $canModify ??= true;
     $canCancel ??= true;
     $canTransfer ??= true;
+    $canTransfer = $canTransfer
+        && app(\App\Http\Controllers\BookingController::class)
+            ->isBookingTransferAllowedForCurrentUser((bool) ($booking['isPassed'] ?? false));
     $transactionId = data_get($booking, 'extra_info.transactionId');
     $groupId = data_get($booking, 'extra_info.group_id');
     $canBeRefunded = $booking['hasTicket'] && data_get($booking, 'paymentMethod') === 'wave';

@@ -45,31 +45,6 @@ enum PermissionName: string
     case EditUser = 'edit-user';
 
     /**
-     * Transferring a booking away from a departed trip loses the company money,
-     * so it needs the higher "past" privilege; an upcoming trip needs only the basic one.
-     */
-    public static function forBookingTransfer(bool $isDepartPassed): self
-    {
-        return $isDepartPassed ? self::TransferPastBooking : self::TransferBooking;
-    }
-
-    /**
-     * The "past" transfer permission is the higher privilege, so it also covers upcoming trips.
-     */
-    public static function isBookingTransferAllowedForCurrentUser(bool $isDepartPassed): bool
-    {
-        return self::forBookingTransfer($isDepartPassed)->allowedForCurrentUser()
-            || self::TransferPastBooking->allowedForCurrentUser();
-    }
-
-    public static function authorizeBookingTransferForCurrentUser(bool $isDepartPassed): void
-    {
-        if (! self::isBookingTransferAllowedForCurrentUser($isDepartPassed)) {
-            self::forBookingTransfer($isDepartPassed)->authorizeForCurrentUser();
-        }
-    }
-
-    /**
      * The French label seeded into the editable `permissions.label` column.
      */
     public function defaultLabel(): string

@@ -757,6 +757,54 @@ class BusBookingsPageTest extends TestCase
         $this->assertSame($bus->id, $booking->fresh()->bus_id);
     }
 
+    public function test_the_past_transfer_permission_allows_transferring_a_past_booking(): void
+    {
+        ['bus' => $bus, 'booking' => $booking] = $this->createBusWithOnePassenger();
+        $bus->depart->update(['date' => now()->subDay()]);
+        $targetBus = $this->createUpcomingDepartWithBus();
+
+        Livewire::actingAs($this->createUserWithPermissions([PermissionName::TransferPastBooking->value]))
+            ->test(BusBookings::class, ['bus' => $bus])
+            ->call('openBookingTransferModal', $booking->id)
+            ->call('transferBookingToBus', $targetBus->id)
+            ->assertSet('showTransferModal', false)
+            ->assertSet('transferErrorMessage', null);
+
+        $this->assertSame($targetBus->id, $booking->fresh()->bus_id);
+    }
+
+    public function test_the_transfer_button_is_hidden_without_any_transfer_permission(): void
+    {
+        ['bus' => $bus] = $this->createBusWithOnePassenger();
+
+        Livewire::actingAs($this->createUserWithPermissions([]))
+            ->test(BusBookings::class, ['bus' => $bus])
+            ->assertDontSeeHtml('aria-label="Transférer la réservation"');
+    }
+
+    public function test_the_transfer_button_is_shown_for_an_upcoming_booking_with_the_basic_transfer_permission(): void
+    {
+        ['bus' => $bus] = $this->createBusWithOnePassenger();
+
+        Livewire::actingAs($this->createUserWithPermissions([PermissionName::TransferBooking->value]))
+            ->test(BusBookings::class, ['bus' => $bus])
+            ->assertSeeHtml('aria-label="Transférer la réservation"');
+    }
+
+    public function test_the_transfer_button_is_hidden_for_a_past_booking_without_the_past_transfer_permission(): void
+    {
+        ['bus' => $bus] = $this->createBusWithOnePassenger();
+        $bus->depart->update(['date' => now()->subDay()]);
+
+        Livewire::actingAs($this->createUserWithPermissions([PermissionName::TransferBooking->value]))
+            ->test(BusBookings::class, ['bus' => $bus])
+            ->assertDontSeeHtml('aria-label="Transférer la réservation"');
+
+        Livewire::actingAs($this->createUserWithPermissions([PermissionName::TransferPastBooking->value]))
+            ->test(BusBookings::class, ['bus' => $bus])
+            ->assertSeeHtml('aria-label="Transférer la réservation"');
+    }
+
     public function test_the_edit_modal_prefills_the_booking_and_only_offers_stops_of_its_trajet(): void
     {
         ['bus' => $bus, 'booking' => $booking] = $this->createBusWithOnePassenger();

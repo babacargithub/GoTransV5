@@ -297,9 +297,34 @@ class BookingController extends Controller
 
     }
 
+    /**
+     * Transferring a booking away from a departed trip loses the company money,
+     * so it needs the higher "past" privilege; an upcoming trip needs only the basic one.
+     */
+    public function requiredBookingTransferPermission(bool $isDepartPassed): PermissionName
+    {
+        return $isDepartPassed ? PermissionName::TransferPastBooking : PermissionName::TransferBooking;
+    }
+
+    /**
+     * The "past" transfer permission is the higher privilege, so it also covers upcoming trips.
+     */
+    public function isBookingTransferAllowedForCurrentUser(bool $isDepartPassed): bool
+    {
+        return $this->requiredBookingTransferPermission($isDepartPassed)->allowedForCurrentUser()
+            || PermissionName::TransferPastBooking->allowedForCurrentUser();
+    }
+
+    public function authorizeBookingTransferForCurrentUser(bool $isDepartPassed): void
+    {
+        if (! $this->isBookingTransferAllowedForCurrentUser($isDepartPassed)) {
+            $this->requiredBookingTransferPermission($isDepartPassed)->authorizeForCurrentUser();
+        }
+    }
+
     public function transferBooking(Booking $booking, Bus $targetBus)
     {
-        PermissionName::authorizeBookingTransferForCurrentUser($booking->depart->isPassed());
+        $this->authorizeBookingTransferForCurrentUser($booking->depart->isPassed());
 
         if ($booking->bus->id == $targetBus->id) {
             return response()->json(['message' => 'Vous ne pouvez pas transférer une réservation sur le même bus'], 422);
@@ -310,11 +335,6 @@ class BookingController extends Controller
         $targetSeat = $targetBus->getAvailableSeats()->first();
         if ($targetSeat == null) {
             return response()->json(['message' => 'Impossible de trouver un siège disponible pour ce bus !'], 422);
-        }
-        if ($booking->depart->isPassed()) {
-            if (\request()->user()?->username !== 'pdg_34') {
-                return response()->json(['message' => 'Impossible de transférer une réservation depuis un départ déjà passé'], 422);
-            }
         }
 
         $sourceBusId = $booking->bus_id;

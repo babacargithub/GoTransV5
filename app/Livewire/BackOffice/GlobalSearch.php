@@ -217,6 +217,7 @@ class GlobalSearch extends Component
             'departLabel' => $booking->depart?->identifier(with_trajet_prefix: true),
             'createdAtLabel' => $this->frenchDateTime($booking->created_at),
             'busName' => $booking->bus?->name,
+            'isPassed' => $booking->depart?->isPassed() ?? true,
             'isCancelled' => $booking->trashed(),
             'cancelledBy' => $booking->deleted_by,
             'belongsToGroup' => $booking->isGroupBooking(),

@@ -453,8 +453,10 @@ trait ManagesBookingActions
 
         $isDepartPassed = $booking->depart->isPassed();
 
-        if (! PermissionName::isBookingTransferAllowedForCurrentUser($isDepartPassed)) {
-            $this->flashErrorMessage = PermissionName::forBookingTransfer($isDepartPassed)->unauthorizedMessage();
+        $bookingController = app(BookingController::class);
+
+        if (! $bookingController->isBookingTransferAllowedForCurrentUser($isDepartPassed)) {
+            $this->flashErrorMessage = $bookingController->requiredBookingTransferPermission($isDepartPassed)->unauthorizedMessage();
 
             return;
         }
