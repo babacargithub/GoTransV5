@@ -23,7 +23,7 @@
     <form wire:submit="save" class="space-y-6">
         <flux:field>
             <flux:label>Trajet</flux:label>
-            <flux:select wire:model="trajetId" placeholder="Choisir un trajet">
+            <flux:select wire:model.live="trajetId" placeholder="Choisir un trajet">
                 @foreach ($this->trajetOptions as $trajetOptionId => $trajetOptionName)
                     <flux:select.option :value="$trajetOptionId">{{ $trajetOptionName }}</flux:select.option>
                 @endforeach
@@ -33,13 +33,71 @@
 
         <flux:field>
             <flux:label>Horaire</flux:label>
-            <flux:select wire:model="horaireId" placeholder="Choisir un horaire">
+            <flux:select wire:model.live="horaireId" placeholder="Choisir un horaire">
                 @foreach ($this->horaireOptions as $horaireOptionId => $horaireOptionName)
                     <flux:select.option :value="$horaireOptionId">{{ $horaireOptionName }}</flux:select.option>
                 @endforeach
             </flux:select>
             <flux:error name="horaireId" />
         </flux:field>
+
+        <flux:field>
+            <flux:label>Heure de fin du départ</flux:label>
+            <flux:input type="time" wire:model="departureTime" />
+            <flux:description>Heure à laquelle le départ prend fin (pré-remplie depuis l'horaire, modifiable).</flux:description>
+            <flux:error name="departureTime" />
+        </flux:field>
+
+        <flux:field>
+            <flux:label>Itinéraire par défaut</flux:label>
+            <flux:select wire:model="itineraryId" placeholder="Aucun itinéraire">
+                @foreach ($this->itineraryOptions as $itineraryOptionId => $itineraryOptionName)
+                    <flux:select.option :value="$itineraryOptionId">{{ $itineraryOptionName }}</flux:select.option>
+                @endforeach
+            </flux:select>
+            <flux:description>Appliqué à tous les bus créés pour ces départs.</flux:description>
+            <flux:error name="itineraryId" />
+        </flux:field>
+
+        @if (count($busStopSchedules) === 0)
+            <flux:callout icon="information-circle" variant="secondary">
+                <flux:callout.text>
+                    @if ($trajetId === null || $horaireId === null)
+                        Choisissez un trajet <strong>et</strong> un horaire pour afficher et ajuster les rendez-vous.
+                    @else
+                        Aucun arrêt actif n'est configuré pour ce trajet : aucun rendez-vous à ajuster.
+                    @endif
+                </flux:callout.text>
+            </flux:callout>
+        @else
+            <div class="space-y-3">
+                <div>
+                    <flux:heading size="sm">Rendez-vous</flux:heading>
+                    <flux:text size="sm">Ajustez le lieu et l'heure de rendez-vous de chaque arrêt.</flux:text>
+                </div>
+
+                @foreach ($busStopSchedules as $scheduleIndex => $busStopSchedule)
+                    <div
+                        wire:key="schedule-{{ $busStopSchedule['pointDepId'] }}"
+                        class="grid items-end gap-3 rounded-lg border border-zinc-200 p-3 sm:grid-cols-[1fr_1fr_7rem_auto] dark:border-zinc-700"
+                    >
+                        <flux:heading class="sm:pb-2">{{ $busStopSchedule['pointDepName'] }}</flux:heading>
+
+                        <flux:field>
+                            <flux:input wire:model="busStopSchedules.{{ $scheduleIndex }}.rendezVousPoint" aria-label="Point de rendez-vous" />
+                            <flux:error name="busStopSchedules.{{ $scheduleIndex }}.rendezVousPoint" />
+                        </flux:field>
+
+                        <flux:field>
+                            <flux:input type="time" wire:model="busStopSchedules.{{ $scheduleIndex }}.rendezVousSchedule" aria-label="Heure de rendez-vous" />
+                            <flux:error name="busStopSchedules.{{ $scheduleIndex }}.rendezVousSchedule" />
+                        </flux:field>
+
+                        <flux:switch wire:model="busStopSchedules.{{ $scheduleIndex }}.isActive" label="Actif" class="sm:pb-2" />
+                    </div>
+                @endforeach
+            </div>
+        @endif
 
         <flux:field>
             <flux:label>Visibilité</flux:label>

@@ -68,6 +68,13 @@ class DepartController extends Controller
             'departs.*.bus.vehicule_id' => 'required|integer|exists:vehicules,id',
             'departs.*.bus.agent_numbers' => 'nullable|string',
             'departs.*.horaire_id' => 'required|integer|exists:horaires,id',
+            'departs.*.time' => 'nullable|date_format:H:i',
+            'departs.*.bus.itinerary_id' => 'nullable|integer|exists:itineraries,id',
+            'departs.*.bus_stop_schedules' => 'nullable|array',
+            'departs.*.bus_stop_schedules.*.point_dep_id' => 'required|integer|exists:point_deps,id',
+            'departs.*.bus_stop_schedules.*.arret_bus' => 'required|string',
+            'departs.*.bus_stop_schedules.*.heure_depart' => 'required|date_format:H:i',
+            'departs.*.bus_stop_schedules.*.disabled' => 'boolean',
         ]);
         $departs = [];
         foreach ($validated['departs'] as $depart) {
@@ -84,23 +91,30 @@ class DepartController extends Controller
             ]);
         }
         $busInformation = $validated['departs'][0]['bus'];
-        DB::transaction(function () use ($departs, $busInformation) {
+        $departureTimeOverride = $validated['departs'][0]['time'] ?? null;
+        $busStopScheduleOverrides = $validated['departs'][0]['bus_stop_schedules'] ?? null;
+        DB::transaction(function () use ($departs, $busInformation, $departureTimeOverride, $busStopScheduleOverrides) {
 
             foreach ($departs as $depart) {
                 $defaultBus = new Bus($busInformation);
                 /** @var $depart Depart */
                 // create seats for bus
                 $date = $depart->date;
-                $depart->date = $date->setTime($depart->horaire->bus_leave_time->hour, $depart->horaire->bus_leave_time->minute);
+                $depart->date = $departureTimeOverride !== null
+                    ? $date->setTimeFromTimeString($departureTimeOverride)
+                    : $date->setTime($depart->horaire->bus_leave_time->hour, $depart->horaire->bus_leave_time->minute);
                 $depart->created_by = User::requiredLoggedInUser()->username;
                 $depart->save();
                 $defaultBus->closed = false;
-                $defaultBus->itinerary_id = $depart->trajet->id == Trajet::DAKAR_UGB && $defaultBus->climatise ? 1 :
-                    null;
+                $defaultBus->itinerary_id = $busInformation['itinerary_id'] ?? (
+                    $depart->trajet->id == Trajet::DAKAR_UGB && $defaultBus->climatise ? 1 : null
+                );
                 $depart->buses()->save($defaultBus);
                 $busSeats = $this->generateBusSeats($defaultBus);
                 $defaultBus->seats()->createMany($busSeats->toArray());
-                $busStopSchedules = $this->generateDefaultBusStopSchedules($depart, $defaultBus, Horaire::findOrFail($depart->horaire_id));
+                $busStopSchedules = $busStopScheduleOverrides !== null
+                    ? $this->buildBusStopSchedulesFromOverrides($depart, $defaultBus, $busStopScheduleOverrides)
+                    : $this->generateDefaultBusStopSchedules($depart, $defaultBus, Horaire::findOrFail($depart->horaire_id));
                 $depart->heuresDeparts()->createMany($busStopSchedules->toArray());
 
             }
@@ -488,6 +502,21 @@ class DepartController extends Controller
             'point_deps' => $trajet->pointDeps()->get(['id', 'name']),
             'destinations' => $trajet->destinations()->get(['id', 'name']),
         ]);
+    }
+
+    /**
+     * @param  array<int, array{point_dep_id: int, arret_bus: string, heure_depart: string, disabled?: bool}>  $busStopScheduleOverrides
+     */
+    private function buildBusStopSchedulesFromOverrides(Depart $depart, Bus $bus, array $busStopScheduleOverrides)
+    {
+        return collect($busStopScheduleOverrides)->map(fn (array $override) => new HeureDepart([
+            'depart_id' => $depart->id,
+            'bus_id' => $bus->id,
+            'point_dep_id' => $override['point_dep_id'],
+            'heureDepart' => $override['heure_depart'],
+            'arretBus' => $override['arret_bus'],
+            'disabled' => $override['disabled'] ?? false,
+        ]));
     }
 
     private function generateDefaultBusStopSchedules(Depart $depart, Bus $bus, Horaire $horaire)

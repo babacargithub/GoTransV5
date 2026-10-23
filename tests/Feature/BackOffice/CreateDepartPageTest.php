@@ -5,6 +5,7 @@ namespace Tests\Feature\BackOffice;
 use App\Livewire\BackOffice\CreateDepart;
 use App\Models\Depart;
 use App\Models\Horaire;
+use App\Models\Itinerary;
 use App\Models\Trajet;
 use App\Models\Vehicule;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -131,6 +132,58 @@ class CreateDepartPageTest extends TestCase
 
         $this->get(route('back-office.departs.index'))
             ->assertSee('2 départs ont été créés.');
+    }
+
+    public function test_choosing_a_horaire_prefills_the_time_and_editable_schedules(): void
+    {
+        $trajet = $this->trajetWithStops();
+        $horaire = Horaire::query()->where('periode', Horaire::PERIODE_MATIN)->firstOrFail();
+
+        $component = Livewire::actingAs($this->createUserWithFullAccess())
+            ->test(CreateDepart::class)
+            ->set('trajetId', $trajet->id)
+            ->set('horaireId', $horaire->id)
+            ->assertSet('departureTime', $horaire->bus_leave_time->format('H:i'));
+
+        $this->assertNotEmpty($component->get('busStopSchedules'));
+    }
+
+    public function test_it_applies_the_chosen_time_itinerary_and_adjusted_schedules(): void
+    {
+        $trajet = $this->trajetWithStops();
+        $horaire = Horaire::query()->where('periode', Horaire::PERIODE_MATIN)->firstOrFail();
+        $vehicule = Vehicule::query()->where('default', true)->firstOrFail();
+        $itinerary = Itinerary::query()->create(['name' => 'Itinéraire test', 'trajet_id' => $trajet->id, 'point_deps' => []]);
+        $departureDate = Carbon::today()->addDays(4)->toDateString();
+
+        $component = Livewire::actingAs($this->createUserWithFullAccess())
+            ->test(CreateDepart::class)
+            ->set('trajetId', $trajet->id)
+            ->set('horaireId', $horaire->id)
+            ->set('vehiculeId', $vehicule->id)
+            ->set('busName', 'Bus Horaire')
+            ->set('departureTime', '09:45')
+            ->set('itineraryId', $itinerary->id)
+            ->set('busStopSchedules.0.rendezVousSchedule', '05:55')
+            ->set('busStopSchedules.0.rendezVousPoint', 'Nouveau point')
+            ->set('busStopSchedules.0.isActive', false)
+            ->set('departNameTemplate', 'Départ test horaire')
+            ->set('selectedDepartureDates', [$departureDate])
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $createdDepart = Depart::query()->where('name', 'Départ test horaire')->firstOrFail();
+        $this->assertSame('09:45', $createdDepart->date->format('H:i'));
+
+        $createdBus = $createdDepart->buses()->firstOrFail();
+        $this->assertSame($itinerary->id, (int) $createdBus->itinerary_id);
+
+        $adjustedSchedule = $createdBus->heuresDeparts()
+            ->where('point_dep_id', $component->get('busStopSchedules')[0]['pointDepId'])
+            ->firstOrFail();
+        $this->assertSame('05:55', $adjustedSchedule->heureDepart->format('H:i'));
+        $this->assertSame('Nouveau point', $adjustedSchedule->arretBus);
+        $this->assertTrue((bool) $adjustedSchedule->disabled);
     }
 
     public function test_it_rejects_a_date_outside_the_scheduling_window(): void

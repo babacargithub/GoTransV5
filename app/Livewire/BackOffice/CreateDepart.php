@@ -4,6 +4,9 @@ namespace App\Livewire\BackOffice;
 
 use App\Http\Controllers\DepartController;
 use App\Models\Depart;
+use App\Models\Horaire;
+use App\Models\Itinerary;
+use App\Models\PointDep;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
@@ -34,6 +37,15 @@ class CreateDepart extends Component
     public ?int $trajetId = null;
 
     public ?int $horaireId = null;
+
+    public string $departureTime = '';
+
+    public ?int $itineraryId = null;
+
+    /**
+     * @var array<int, array{pointDepId: int, pointDepName: string, rendezVousPoint: string, rendezVousSchedule: string, isActive: bool}>
+     */
+    public array $busStopSchedules = [];
 
     public int $visibility = Depart::VISIBILITE_ALL_CUSTOMERS;
 
@@ -66,6 +78,11 @@ class CreateDepart extends Component
         return [
             'trajetId' => ['required', 'integer', Rule::exists('trajets', 'id')],
             'horaireId' => ['required', 'integer', Rule::exists('horaires', 'id')],
+            'departureTime' => ['required', 'date_format:H:i'],
+            'itineraryId' => ['nullable', 'integer', Rule::exists('itineraries', 'id')],
+            'busStopSchedules' => ['array'],
+            'busStopSchedules.*.rendezVousPoint' => ['required', 'string', 'max:255'],
+            'busStopSchedules.*.rendezVousSchedule' => ['required', 'date_format:H:i'],
             'visibility' => ['required', 'integer', Rule::in(array_keys($this->visibilityOptions))],
             'busTypeToCreate' => ['required', Rule::in(array_keys($this->busTypeOptions))],
             'vehiculeId' => ['required', 'integer', Rule::exists('vehicules', 'id')],
@@ -87,6 +104,10 @@ class CreateDepart extends Component
         return [
             'trajetId' => 'trajet',
             'horaireId' => 'horaire',
+            'departureTime' => 'heure de fin du départ',
+            'itineraryId' => 'itinéraire',
+            'busStopSchedules.*.rendezVousPoint' => 'point de rendez-vous',
+            'busStopSchedules.*.rendezVousSchedule' => 'heure de rendez-vous',
             'visibility' => 'visibilité',
             'busTypeToCreate' => 'type de bus',
             'vehiculeId' => 'véhicule transport',
@@ -168,6 +189,26 @@ class CreateDepart extends Component
     }
 
     /**
+     * Itinerary options for the selected trajet, as [id => name].
+     *
+     * @return array<int, string>
+     */
+    #[Computed]
+    public function itineraryOptions(): array
+    {
+        if ($this->trajetId === null) {
+            return [];
+        }
+
+        return Itinerary::query()
+            ->where('trajet_id', $this->trajetId)
+            ->where('disabled', false)
+            ->orderBy('name')
+            ->pluck('name', 'id')
+            ->all();
+    }
+
+    /**
      * Visibilité dropdown options keyed by the Depart::VISIBILITE_* value.
      *
      * @return array<int, string>
@@ -235,6 +276,66 @@ class CreateDepart extends Component
         return $datesByMonth;
     }
 
+    public function updatedTrajetId(): void
+    {
+        $this->itineraryId = null;
+        $this->loadDefaultBusStopSchedules();
+    }
+
+    /**
+     * Picking an horaire pre-fills the departure time from its bus leave time and
+     * recomputes the default rendez-vous schedules, which the operator can then adjust.
+     */
+    public function updatedHoraireId(): void
+    {
+        $selectedHoraire = Horaire::query()->find($this->horaireId);
+
+        if ($selectedHoraire?->bus_leave_time !== null) {
+            $this->departureTime = $selectedHoraire->bus_leave_time->format('H:i');
+        }
+
+        $this->loadDefaultBusStopSchedules();
+    }
+
+    /**
+     * Rebuilds the editable rendez-vous rows with the same defaults the legacy store()
+     * would generate for the chosen trajet + horaire.
+     */
+    private function loadDefaultBusStopSchedules(): void
+    {
+        $this->busStopSchedules = [];
+
+        $selectedHoraire = Horaire::query()->find($this->horaireId);
+
+        if ($this->trajetId === null || $selectedHoraire === null) {
+            return;
+        }
+
+        $departController = app(DepartController::class);
+
+        $pointDeps = PointDep::query()
+            ->where('trajet_id', $this->trajetId)
+            ->where('disabled', false)
+            ->orderBy('position')
+            ->get();
+
+        try {
+            $this->busStopSchedules = $pointDeps
+                ->map(fn (PointDep $pointDep): array => [
+                    'pointDepId' => $pointDep->id,
+                    'pointDepName' => $pointDep->name,
+                    'rendezVousPoint' => (string) $pointDep->arret_bus,
+                    'rendezVousSchedule' => $departController
+                        ->determineHeureDepartForPointDepartBasedOnHoraire($selectedHoraire, $pointDep)
+                        ->format('H:i'),
+                    'isActive' => true,
+                ])
+                ->all();
+        } catch (\Throwable) {
+            $this->busStopSchedules = [];
+        }
+    }
+
     /**
      * Selecting a véhicule pre-fills the seat count the same way the legacy modal does,
      * so the operator only overrides it when it differs.
@@ -277,12 +378,22 @@ class CreateDepart extends Component
                 'type_of_bus_to_create' => $this->busTypeToCreate,
                 'visibilite' => $this->visibility,
                 'horaire_id' => $this->horaireId,
+                'time' => $this->departureTime,
+                'bus_stop_schedules' => collect($this->busStopSchedules)
+                    ->map(fn (array $busStopSchedule): array => [
+                        'point_dep_id' => $busStopSchedule['pointDepId'],
+                        'arret_bus' => $busStopSchedule['rendezVousPoint'],
+                        'heure_depart' => $busStopSchedule['rendezVousSchedule'],
+                        'disabled' => ! $busStopSchedule['isActive'],
+                    ])
+                    ->all(),
                 'bus' => [
                     'name' => $this->busName,
                     'ticket_price' => $this->ticketPrice,
                     'gp_ticket_price' => $this->grandPublicTicketPrice,
                     'nombre_place' => $this->numberOfSeats,
                     'vehicule_id' => $this->vehiculeId,
+                    'itinerary_id' => $this->itineraryId,
                 ],
             ])
             ->all();
