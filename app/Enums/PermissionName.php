@@ -43,6 +43,12 @@ enum PermissionName: string
     case ManageAccounts = 'manage-accounts';
     case CreateUser = 'create-user';
     case EditUser = 'edit-user';
+    case ViewAmbassadors = 'view-ambassadors';
+    case CreateAmbassador = 'create-ambassador';
+    case EditAmbassador = 'edit-ambassador';
+    case ApproveAmbassador = 'approve-ambassador';
+    case SuspendAmbassador = 'suspend-ambassador';
+    case DeleteAmbassador = 'delete-ambassador';
 
     /**
      * The French label seeded into the editable `permissions.label` column.
@@ -76,6 +82,12 @@ enum PermissionName: string
             self::ManageAccounts => 'Gérer les comptes',
             self::CreateUser => 'Créer un utilisateur',
             self::EditUser => 'Modifier les permissions et rôles d\'un utilisateur',
+            self::ViewAmbassadors => 'Consulter les ambassadeurs',
+            self::CreateAmbassador => 'Créer un ambassadeur',
+            self::EditAmbassador => 'Modifier un ambassadeur',
+            self::ApproveAmbassador => 'Valider ou refuser un ambassadeur',
+            self::SuspendAmbassador => 'Suspendre ou réactiver un ambassadeur',
+            self::DeleteAmbassador => 'Supprimer un ambassadeur',
         };
     }
 

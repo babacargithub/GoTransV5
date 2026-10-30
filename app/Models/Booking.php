@@ -45,12 +45,10 @@ class Booking extends Model
         'booking_type',
         'is_main_booking',
         'uuid',
-        'referer_id',
+        'ambassador_id',
         'booked_for_customer',
         'round_trip_id',
         'trip_leg',
-
-        'referer_id',
     ];
 
     /**
@@ -65,6 +63,11 @@ class Booking extends Model
     }
 
     // create relations
+    public function ambassador(): BelongsTo
+    {
+        return $this->belongsTo(Ambassador::class);
+    }
+
     public function bus(): BelongsTo
     {
         return $this->belongsTo(Bus::class);

@@ -56,6 +56,10 @@
                 </flux:navmenu>
             </flux:dropdown>
 
+            @if (\App\Enums\PermissionName::ViewAmbassadors->allowedForCurrentUser())
+                <flux:navbar.item icon="megaphone" :href="route('back-office.ambassadors.index')" :current="request()->routeIs('back-office.ambassadors.*')">Ambassadeurs</flux:navbar.item>
+            @endif
+
             @if (\App\Enums\PermissionName::FullAccess->allowedForCurrentUser())
                 <flux:dropdown>
                     <flux:navbar.item icon="cog-6-tooth" icon:trailing="chevron-down">Admin</flux:navbar.item>
@@ -106,6 +110,10 @@
                     <flux:menu.item icon="map" :href="route('back-office.itineraires.index')">Itinéraires</flux:menu.item>
                     <flux:menu.item icon="clock" :href="route('back-office.horaires.index')">Horaires</flux:menu.item>
                 </flux:menu.group>
+
+                @if (\App\Enums\PermissionName::ViewAmbassadors->allowedForCurrentUser())
+                    <flux:menu.item icon="megaphone" :href="route('back-office.ambassadors.index')">Ambassadeurs</flux:menu.item>
+                @endif
 
                 @if (\App\Enums\PermissionName::FullAccess->allowedForCurrentUser())
                     <flux:menu.group heading="Admin">

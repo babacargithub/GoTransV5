@@ -112,6 +112,42 @@
             </flux:field>
         </div>
 
+        <flux:separator variant="subtle" />
+
+        <div class="space-y-6">
+            <flux:heading size="lg">Programme ambassadeurs</flux:heading>
+
+            <div class="grid gap-6 sm:grid-cols-2">
+                <flux:field>
+                    <flux:label>Prime d'acquisition (FCFA)</flux:label>
+                    <flux:input type="number" wire:model="ambassadorAcquisitionAmount" placeholder="500" />
+                    <flux:description>Versée pour chaque nouveau client amené.</flux:description>
+                    <flux:error name="ambassadorAcquisitionAmount" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>Montant minimum de paiement (FCFA)</flux:label>
+                    <flux:input type="number" wire:model="ambassadorMinimumPayoutAmount" placeholder="1000" />
+                    <flux:description>Solde approuvé minimum pour un paiement Wave.</flux:description>
+                    <flux:error name="ambassadorMinimumPayoutAmount" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>Bonus de parrainage (FCFA)</flux:label>
+                    <flux:input type="number" wire:model="ambassadorSponsorshipBonusAmount" placeholder="2000" />
+                    <flux:description>Versé une fois au parrain quand son filleul atteint le seuil.</flux:description>
+                    <flux:error name="ambassadorSponsorshipBonusAmount" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>Seuil de parrainage (clients)</flux:label>
+                    <flux:input type="number" wire:model="ambassadorSponsorshipThreshold" placeholder="15" />
+                    <flux:description>Clients acquis par le filleul pour déclencher le bonus.</flux:description>
+                    <flux:error name="ambassadorSponsorshipThreshold" />
+                </flux:field>
+            </div>
+        </div>
+
         <div class="flex items-center justify-end gap-2">
             <flux:button type="submit" variant="primary" wire:loading.attr="disabled" wire:target="save">
                 Enregistrer les paramètres

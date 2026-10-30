@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Auth;
 
+use App\Models\Ambassador;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -43,6 +44,17 @@ class Login extends Component
             ]);
         }
 
+        // Ambassadors only sign in on their own domain, and staff never do: same error as a bad password.
+        $isAmbassadorDomain = request()->getHost() === config('app.ambassador_domain');
+
+        if ($user->hasRole(Ambassador::ACCOUNT_ROLE_NAME) !== $isAmbassadorDomain) {
+            RateLimiter::hit($throttleKey);
+
+            throw ValidationException::withMessages([
+                'username' => __('auth.failed'),
+            ]);
+        }
+
         RateLimiter::clear($throttleKey);
 
         if ($user->two_factor_secret && $user->two_factor_confirmed_at) {
@@ -59,7 +71,10 @@ class Login extends Component
         Auth::login($user, $this->remember);
         session()->regenerate();
 
-        $this->redirectIntended(default: route('back-office.departs.index'), navigate: true);
+        $this->redirectIntended(
+            default: $isAmbassadorDomain ? route('ambassador.home') : route('back-office.departs.index'),
+            navigate: true,
+        );
     }
 
     public function render()

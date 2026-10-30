@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -10,30 +11,39 @@ class Customer extends Model
 {
     //
     use SoftDeletes;
-    protected $fillable =[
-        "nombre_voyage",
-    "prenom",
-    "nom",
-    "phone_number",
-    "adresse",
-    "sexe",
-    "disabled",
-    "active",
-    "email",
-    "deleted",
-        "customer_category_id",
-    "last_active"];
+
+    protected $fillable = [
+        'nombre_voyage',
+        'prenom',
+        'nom',
+        'phone_number',
+        'adresse',
+        'sexe',
+        'disabled',
+        'active',
+        'email',
+        'deleted',
+        'customer_category_id',
+        'ambassador_id',
+        'last_active'];
+
     // get full name
     public function getFullNameAttribute(): string
     {
-        return $this->prenom . ' ' . $this->nom;
+        return $this->prenom.' '.$this->nom;
 
     }
+
     // get short name
     public function getShortNameAttribute(): string
     {
-       // first letter of prenom and a point and the nom
-        return strtoupper(substr($this->prenom,0,1)) . '. ' . strtoupper($this->nom);
+        // first letter of prenom and a point and the nom
+        return strtoupper(substr($this->prenom, 0, 1)).'. '.strtoupper($this->nom);
+    }
+
+    public function ambassador(): BelongsTo
+    {
+        return $this->belongsTo(Ambassador::class);
     }
 
     public function bookings(): HasMany
@@ -56,10 +66,11 @@ class Customer extends Model
                     ->limit(1);
             })->first();
     }
+
     public function updateLastActivity(): self
     {
         $this->last_active = now();
+
         return $this;
     }
 }
-

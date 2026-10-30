@@ -190,8 +190,6 @@ class MobileAppController extends Controller
             'nom_complet' => 'nullable|string',
             'phone_number' => ['required', 'string', new PhoneNumber],
             'payment_method' => 'required|string',
-            // TODO the front end is still sending referer instead of referer_id3
-            'referer_id' => 'nullable|numeric',
             'booked_with_platform' => 'string',
 
         ]);
@@ -309,7 +307,6 @@ class MobileAppController extends Controller
         }
 
         $booking = new Booking($validated);
-        $booking->referer_id = $validated['referer_id'] ?? 0;
         $booking->comment = \is_request_for_gp_customers() ? 'for_gp' : null;
         $booking->bus_id = $bus->id;
         $booking->customer()->associate($customer);

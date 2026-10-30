@@ -67,6 +67,7 @@ return [
     'concours_domain' => env('DOMAIN_CONCOURS', 'concourssefsugb.app'),
     'gp_domain' => env('DOMAIN_GP', 'globaltransports.app'),
     'public_website_domain' => env('DOMAIN_PUBLIC_WEBSITE', 'globeonetransport.app'),
+    'ambassador_domain' => env('DOMAIN_AMBASSADOR', 'ambassadeurs.globeonetransport.app'),
 
     /*
      * Full-HTML response cache for the read-only public website pages (caravane list, home).

@@ -46,6 +46,27 @@ class AppParamsPage extends Component
 
     public string $warningMessageBeforeBooking = '';
 
+    public ?int $ambassadorAcquisitionAmount = null;
+
+    public ?int $ambassadorSponsorshipBonusAmount = null;
+
+    public ?int $ambassadorSponsorshipThreshold = null;
+
+    public ?int $ambassadorMinimumPayoutAmount = null;
+
+    /**
+     * Component properties holding integers (everything else is a string).
+     *
+     * @var list<string>
+     */
+    private array $integerPropertyNames = [
+        'discountPrice',
+        'ambassadorAcquisitionAmount',
+        'ambassadorSponsorshipBonusAmount',
+        'ambassadorSponsorshipThreshold',
+        'ambassadorMinimumPayoutAmount',
+    ];
+
     /**
      * The keys this page owns, mapped from the `data` JSON key to the component
      * property. Everything not listed here is left untouched on save.
@@ -66,6 +87,10 @@ class AppParamsPage extends Component
         'discount_price' => 'discountPrice',
         'discount_condition' => 'discountCondition',
         'warning_message_before_booking' => 'warningMessageBeforeBooking',
+        'ambassador_acquisition_amount' => 'ambassadorAcquisitionAmount',
+        'ambassador_sponsorship_bonus_amount' => 'ambassadorSponsorshipBonusAmount',
+        'ambassador_sponsorship_threshold' => 'ambassadorSponsorshipThreshold',
+        'ambassador_minimum_payout_amount' => 'ambassadorMinimumPayoutAmount',
     ];
 
     public function mount(): void
@@ -75,7 +100,7 @@ class AppParamsPage extends Component
         foreach ($this->editableParamKeys as $dataKey => $propertyName) {
             $value = $data[$dataKey] ?? null;
 
-            $this->{$propertyName} = $propertyName === 'discountPrice'
+            $this->{$propertyName} = in_array($propertyName, $this->integerPropertyNames, true)
                 ? ($value !== null ? (int) $value : null)
                 : (string) ($value ?? '');
         }
@@ -101,6 +126,10 @@ class AppParamsPage extends Component
             'discountPrice' => ['nullable', 'integer', 'min:0'],
             'discountCondition' => ['nullable', 'string', 'max:255'],
             'warningMessageBeforeBooking' => ['nullable', 'string', 'max:2000'],
+            'ambassadorAcquisitionAmount' => ['nullable', 'integer', 'min:0'],
+            'ambassadorSponsorshipBonusAmount' => ['nullable', 'integer', 'min:0'],
+            'ambassadorSponsorshipThreshold' => ['nullable', 'integer', 'min:1'],
+            'ambassadorMinimumPayoutAmount' => ['nullable', 'integer', 'min:0'],
         ], attributes: [
             'appName' => "nom de l'application",
             'appDescription' => "description de l'application",
@@ -115,6 +144,10 @@ class AppParamsPage extends Component
             'discountPrice' => 'montant de la réduction',
             'discountCondition' => 'condition de la réduction',
             'warningMessageBeforeBooking' => "message d'avertissement avant réservation",
+            'ambassadorAcquisitionAmount' => "prime d'acquisition",
+            'ambassadorSponsorshipBonusAmount' => 'bonus de parrainage',
+            'ambassadorSponsorshipThreshold' => 'seuil de parrainage',
+            'ambassadorMinimumPayoutAmount' => 'montant minimum de paiement',
         ]);
 
         $editedParams = [];

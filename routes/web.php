@@ -9,8 +9,12 @@ use App\Http\Controllers\SeoFilesController;
 use App\Http\Controllers\TicketController;
 use App\Http\Middleware\CachePublicHtmlResponse;
 use App\Http\Middleware\EncryptCookies;
+use App\Http\Middleware\EnsureUserIsAmbassador;
+use App\Http\Middleware\RejectAmbassadorAccounts;
 use App\Http\Middleware\VerifyCsrfToken;
+use App\Livewire\Ambassador\Home as AmbassadorHome;
 use App\Livewire\BackOffice\AddBusToDepart;
+use App\Livewire\BackOffice\AmbassadorList;
 use App\Livewire\BackOffice\AppParamsPage;
 use App\Livewire\BackOffice\BusBookings;
 use App\Livewire\BackOffice\CaisseBalancesPage;
@@ -61,6 +65,16 @@ Route::domain(config('app.gp_domain'))->group(function () {
         ]);
     })->name('gp_booking');
 });
+
+/*
+ * Ambassador space: ambassadors log in (shared /login) on their own domain and only see their pages.
+ */
+Route::domain(config('app.ambassador_domain'))
+    ->middleware(['auth', EnsureUserIsAmbassador::class])
+    ->name('ambassador.')
+    ->group(function () {
+        Route::get('/', AmbassadorHome::class)->name('home');
+    });
 
 /*
  * Public website (customer-facing). Its files live under resources/views/website/
@@ -154,7 +168,7 @@ Route::middleware(['auth:sanctum', 'verified'])->group(function () {
  * Back office (Livewire/Flux rewrite). Legacy Vue admin keeps hitting the JSON API;
  * these routes reuse the same controllers and render the data into Flux pages instead.
  */
-Route::middleware('auth')->prefix('back-office')->name('back-office.')->group(function () {
+Route::middleware(['auth', RejectAmbassadorAccounts::class])->prefix('back-office')->name('back-office.')->group(function () {
     Route::get('departs', DepartList::class)->name('departs.index');
     Route::get('departs/create', CreateDepart::class)->name('departs.create');
     Route::get('departs/{depart}/edit', EditDepart::class)->name('departs.edit');
@@ -168,6 +182,7 @@ Route::middleware('auth')->prefix('back-office')->name('back-office.')->group(fu
     Route::get('itineraires', ItineraireList::class)->name('itineraires.index');
     Route::get('horaires', HoraireList::class)->name('horaires.index');
     Route::get('trajets', TrajetList::class)->name('trajets.index');
+    Route::get('ambassadeurs', AmbassadorList::class)->name('ambassadors.index');
     Route::get('employes', EmployeList::class)->name('employes.index');
     Route::get('users', UserAccessManagement::class)->name('users.index');
     Route::get('vehicules', VehiculeList::class)->name('vehicules.index');
