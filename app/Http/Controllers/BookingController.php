@@ -126,6 +126,7 @@ class BookingController extends Controller
                     $booking->seat()->associate($seat);
                     $booking->save();
                 });
+                app(BookingManager::class)->recordAmbassadorAcquisitionEarning($booking);
             } catch (\RuntimeException $e) {
                 $booking->delete();
 
@@ -266,6 +267,7 @@ class BookingController extends Controller
                 $booking->paye = true;
                 $booking->save();
             });
+            app(BookingManager::class)->recordAmbassadorAcquisitionEarning($booking);
             app(NotificationService::class)->notifyCustomerOfTicketPayment($booking, true);
             $bookingManager = app(BookingManager::class);
             $bookingManager->checkIfBusIsFullAndNotifyManagerIfYes($booking);
@@ -374,6 +376,7 @@ class BookingController extends Controller
             ]);
         });
         $booking->refresh();
+        app(BookingManager::class)->rescheduleAmbassadorEarningsOfTransferredBooking($booking);
         app(NotificationService::class)->notifyCustomerOfBookingTransfer($booking, $targetBus, $targetSeat);
         $bookingManager = app(BookingManager::class);
         $bookingManager->checkIfBusIsFullAndNotifyManagerIfYes($booking);
@@ -470,5 +473,6 @@ class BookingController extends Controller
             return response()->noContent();
 
         });
+        app(BookingManager::class)->cancelAmbassadorEarningsOfBooking($booking);
     }
 }

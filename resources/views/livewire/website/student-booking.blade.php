@@ -6,7 +6,9 @@
     $ticketPrice = $this->ticketPrice();
 @endphp
 
-<div class="max-w-2xl mx-auto px-4 py-10 text-brand-navy">
+<div class="max-w-2xl mx-auto px-4 py-10 text-brand-navy"
+     x-data
+     x-init="if (! $wire.ambassadorCode && window.rememberedAmbassadorCode?.()) { $wire.set('ambassadorCode', window.rememberedAmbassadorCode(), false) }">
     <nav aria-label="Fil d'Ariane" class="mb-6 text-sm">
         <a href="{{ route('website.home') }}" class="underline">Caravanes</a>
         <span aria-hidden="true"> / </span>

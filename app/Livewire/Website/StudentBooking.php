@@ -43,6 +43,9 @@ class StudentBooking extends Component
 
     public ?int $passengersCount = null;
 
+    /** Code of the ambassador who shared the site link (`?ref=`), lower-case; resolved server-side when booking. */
+    public ?string $ambassadorCode = null;
+
     /**
      * One row per passenger.
      *
@@ -88,6 +91,23 @@ class StudentBooking extends Component
     {
         $this->depart = $depart;
         $this->busId = request()->integer('bus_id') ?: null;
+        $this->ambassadorCode = $this->normalizedAmbassadorCode(request()->query('ref'));
+    }
+
+    /**
+     * Livewire sync of the code remembered by the browser (see resources/js/app.js) when the visitor
+     * landed on another page first. Anything that does not look like a code is dropped.
+     */
+    public function updatedAmbassadorCode(mixed $value): void
+    {
+        $this->ambassadorCode = $this->normalizedAmbassadorCode($value);
+    }
+
+    private function normalizedAmbassadorCode(mixed $enteredCode): ?string
+    {
+        $normalizedCode = Str::lower(trim((string) $enteredCode));
+
+        return preg_match('/^[a-z0-9_-]{1,50}$/', $normalizedCode) === 1 ? $normalizedCode : null;
     }
 
     /**
@@ -606,6 +626,7 @@ class StudentBooking extends Component
             })->all(),
             'payment_method' => $this->paymentMethod,
             'booked_with_platform' => 'website',
+            'ambassador_code' => $this->ambassadorCode,
         ];
 
         // The backend request auto-picks a bus when none is given, but its normalizeBookings()

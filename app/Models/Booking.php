@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AmbassadorEarningType;
 use App\Enums\BookingType;
 use App\Observers\BookingObserver;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
@@ -9,6 +10,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Collection;
 
@@ -66,6 +68,14 @@ class Booking extends Model
     public function ambassador(): BelongsTo
     {
         return $this->belongsTo(Ambassador::class);
+    }
+
+    /**
+     * The commission the booking's ambassador earned for bringing in its customer, if this booking triggered it.
+     */
+    public function ambassadorAcquisitionEarning(): HasOne
+    {
+        return $this->hasOne(AmbassadorEarning::class)->where('type', AmbassadorEarningType::Acquisition);
     }
 
     public function bus(): BelongsTo

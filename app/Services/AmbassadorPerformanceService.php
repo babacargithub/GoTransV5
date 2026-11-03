@@ -6,6 +6,7 @@ use App\Data\Ambassador\AmbassadorBalanceDTO;
 use App\Enums\AmbassadorEarningStatus;
 use App\Models\Ambassador;
 use App\Models\AmbassadorEarning;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 /**
  * Read-only queries about an ambassador's earnings and performance. It never writes anything.
@@ -46,5 +47,24 @@ class AmbassadorPerformanceService
     public function countSponsoredAmbassadors(Ambassador $ambassador): int
     {
         return $ambassador->sponsoredAmbassadors()->count();
+    }
+
+    /**
+     * Bookings made with the ambassador's code, newest first, with everything the ambassador space
+     * lists for each one (customer, départ, bus, seat, schedule and the commission it earned).
+     */
+    public function paginateReferredBookings(Ambassador $ambassador, int $perPage = 10): LengthAwarePaginator
+    {
+        return $ambassador->bookings()
+            ->with([
+                'customer',
+                'depart.trajet',
+                'depart.heuresDeparts',
+                'bus.heuresDeparts',
+                'seat.seat',
+                'ambassadorAcquisitionEarning',
+            ])
+            ->latest()
+            ->paginate($perPage);
     }
 }

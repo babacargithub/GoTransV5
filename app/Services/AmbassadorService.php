@@ -206,6 +206,22 @@ class AmbassadorService
     }
 
     /**
+     * The ambassador whose code was entered (case-insensitive), only if that code may currently attribute
+     * new customers. Unknown, suspended or out-of-contract codes simply resolve to null.
+     */
+    public function findAcquiringAmbassadorByCode(?string $enteredCode): ?Ambassador
+    {
+        if (blank($enteredCode)) {
+            return null;
+        }
+
+        return Ambassador::query()
+            ->acquiringCustomers()
+            ->withCode($enteredCode)
+            ->first();
+    }
+
+    /**
      * A 3-character upper-case code (kept short for URLs, no 0/O/1/I) that no other ambassador uses.
      */
     public function generateUniqueCode(): string

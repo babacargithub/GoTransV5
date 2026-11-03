@@ -12,6 +12,7 @@ use App\Models\Seat;
 use App\Models\Ticket;
 use App\Models\TicketPayment;
 use App\Models\User;
+use App\Services\AmbassadorEarningService;
 use App\Services\NotificationService;
 use DB;
 use Exception;
@@ -284,7 +285,40 @@ class BookingManager
         // no staff user initiated this deposit, so user_id stays null.
         RecordTicketPaymentInCaisse::dispatch($ticket->id);
 
+        $this->recordAmbassadorAcquisitionEarning($booking);
+
         return $booking;
+    }
+
+    /**
+     * Ambassador earnings must never fail or delay a ticket sale, a cancellation or a transfer: a problem
+     * here is reported for manual follow-up and the customer-facing operation carries on.
+     */
+    public function recordAmbassadorAcquisitionEarning(Booking $paidBooking): void
+    {
+        try {
+            app(AmbassadorEarningService::class)->recordAcquisitionEarning($paidBooking);
+        } catch (\Throwable $exception) {
+            report($exception);
+        }
+    }
+
+    public function cancelAmbassadorEarningsOfBooking(Booking $cancelledBooking): void
+    {
+        try {
+            app(AmbassadorEarningService::class)->cancelEarningsOfBooking($cancelledBooking);
+        } catch (\Throwable $exception) {
+            report($exception);
+        }
+    }
+
+    public function rescheduleAmbassadorEarningsOfTransferredBooking(Booking $transferredBooking): void
+    {
+        try {
+            app(AmbassadorEarningService::class)->rescheduleEarningsOfTransferredBooking($transferredBooking);
+        } catch (\Throwable $exception) {
+            report($exception);
+        }
     }
 
     /**

@@ -4,11 +4,13 @@ namespace App\Http\Requests;
 
 use App\Enums\BookingType;
 use App\Manager\BookingManager;
+use App\Models\Ambassador;
 use App\Models\Booking;
 use App\Models\Bus;
 use App\Models\Customer;
 use App\Models\Depart;
 use App\Rules\PhoneNumber;
+use App\Services\AmbassadorService;
 use App\Services\WaitingCustomerService;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -37,6 +39,10 @@ class MobileMultipleBookingRequest extends FormRequest
 
     protected $error_payload = [];
 
+    private ?Ambassador $referringAmbassador = null;
+
+    private bool $referringAmbassadorWasResolved = false;
+
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -63,6 +69,7 @@ class MobileMultipleBookingRequest extends FormRequest
             'payment_method' => 'required|string',
             'om_number' => 'nullable|integer',
             'group_owner_phone_number' => 'nullable|integer',
+            'ambassador_code' => 'nullable|string|max:50',
         ];
     }
 
@@ -253,6 +260,7 @@ class MobileMultipleBookingRequest extends FormRequest
             $booking->depart_id = $depart->id;
             $booking->bus_id = $this->validated()['bus_id'];
             $booking->paye = false;
+            $booking->ambassador_id = $this->referringAmbassador()?->id;
             $booking->group_id = $group_id;
             $booking->booking_type = $isGroupOfPassengers ? BookingType::Group : BookingType::Single;
             $booking->is_main_booking = $isGroupOfPassengers && $passengerIndex === 0;
@@ -307,10 +315,41 @@ class MobileMultipleBookingRequest extends FormRequest
                     'prenom' => $customersInputData['bookings'][$index]['first_name'],
                     'nom' => $customersInputData['bookings'][$index]['last_name'],
                     'phone_number' => $customerInput['phone_number'],
+                    'ambassador_id' => $this->ambassadorAcquiringCustomerWithPhoneNumber($customerInput['phone_number'])?->id,
                     'last_active' => now(),
                 ]);
             }
 
         }
+    }
+
+    /**
+     * The ambassador whose code came with the request, if it can currently attribute customers.
+     * An unknown or expired code never blocks a booking, it is just ignored.
+     */
+    private function referringAmbassador(): ?Ambassador
+    {
+        if (! $this->referringAmbassadorWasResolved) {
+            $this->referringAmbassador = app(AmbassadorService::class)
+                ->findAcquiringAmbassadorByCode($this->input('ambassador_code'));
+            $this->referringAmbassadorWasResolved = true;
+        }
+
+        return $this->referringAmbassador;
+    }
+
+    /**
+     * The referring ambassador for a brand-new customer, unless they are booking for themselves.
+     */
+    private function ambassadorAcquiringCustomerWithPhoneNumber(string|int $customerPhoneNumber): ?Ambassador
+    {
+        $referringAmbassador = $this->referringAmbassador();
+
+        if ($referringAmbassador === null
+            || substr((string) $referringAmbassador->phone_number, -9) === substr((string) $customerPhoneNumber, -9)) {
+            return null;
+        }
+
+        return $referringAmbassador;
     }
 }
