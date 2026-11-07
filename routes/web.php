@@ -15,6 +15,8 @@ use App\Livewire\BackOffice\AppParamsPage;
 use App\Livewire\BackOffice\BusBookings;
 use App\Livewire\BackOffice\CaisseBalancesPage;
 use App\Livewire\BackOffice\CreateDepart;
+use App\Livewire\BackOffice\DepartCostReportList;
+use App\Livewire\BackOffice\DepartCostReportPage;
 use App\Livewire\BackOffice\DepartList;
 use App\Livewire\BackOffice\DepartScheduleNotifications;
 use App\Livewire\BackOffice\EditBus;
@@ -158,6 +160,7 @@ Route::middleware('auth')->prefix('back-office')->name('back-office.')->group(fu
     Route::get('departs', DepartList::class)->name('departs.index');
     Route::get('departs/create', CreateDepart::class)->name('departs.create');
     Route::get('departs/{depart}/edit', EditDepart::class)->name('departs.edit');
+    Route::get('departs/{depart}/cost-report', DepartCostReportPage::class)->name('departs.cost-report');
     Route::get('departs/{depart}/add-bus', AddBusToDepart::class)->name('departs.add-bus');
     Route::get('departs/{depart}/schedule-notifications', DepartScheduleNotifications::class)
         ->name('departs.schedule-notifications');
@@ -174,6 +177,7 @@ Route::middleware('auth')->prefix('back-office')->name('back-office.')->group(fu
     Route::get('parametres', AppParamsPage::class)->name('parametres.index');
 
     Route::get('caisses', CaisseBalancesPage::class)->name('caisses.index');
+    Route::get('cost-reports', DepartCostReportList::class)->name('cost-reports.index');
     Route::get('paiements-om', OrangeMoneyPage::class)->name('paiements-om.index');
     Route::get('paiements-wave', WavePaymentsPage::class)->name('paiements-wave.index');
 

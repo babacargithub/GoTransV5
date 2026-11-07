@@ -79,8 +79,10 @@
                                 <flux:menu.item
                                     icon="document-chart-bar"
                                     class="py-2 [&_[data-flux-menu-item-icon]]:!text-sky-500"
+                                    :href="route('back-office.departs.cost-report', $depart['id'])"
+                                    wire:navigate
                                 >
-                                    Voir le bilan
+                                    {{ in_array((int) $depart['id'], $this->departIdsWithCostReport, true) ? 'Voir le bilan' : 'Enregistrer le bilan' }}
                                 </flux:menu.item>
                                 <flux:menu.item
                                     icon="chart-pie"

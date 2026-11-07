@@ -43,6 +43,7 @@ enum PermissionName: string
     case ManageAccounts = 'manage-accounts';
     case CreateUser = 'create-user';
     case EditUser = 'edit-user';
+    case ManageDepartCostReport = 'manage-depart-cost-report';
 
     /**
      * The French label seeded into the editable `permissions.label` column.
@@ -76,6 +77,7 @@ enum PermissionName: string
             self::ManageAccounts => 'Gérer les comptes',
             self::CreateUser => 'Créer un utilisateur',
             self::EditUser => 'Modifier les permissions et rôles d\'un utilisateur',
+            self::ManageDepartCostReport => 'Enregistrer et modifier le bilan d\'un départ',
         };
     }
 

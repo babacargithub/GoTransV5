@@ -27,12 +27,13 @@
                     <flux:navbar.item
                         icon="banknotes"
                         icon:trailing="chevron-down"
-                        :current="request()->routeIs('back-office.caisses.*', 'back-office.paiements-om.*', 'back-office.paiements-wave.*')"
+                        :current="request()->routeIs('back-office.caisses.*', 'back-office.cost-reports.*', 'back-office.paiements-om.*', 'back-office.paiements-wave.*')"
                     >
                         Finances
                     </flux:navbar.item>
                     <flux:navmenu>
                         <flux:navmenu.item icon="wallet" :href="route('back-office.caisses.index')" :current="request()->routeIs('back-office.caisses.*')">Caisses</flux:navmenu.item>
+                        <flux:navmenu.item icon="document-chart-bar" :href="route('back-office.cost-reports.index')" :current="request()->routeIs('back-office.cost-reports.*')">Bilans</flux:navmenu.item>
                         <flux:navmenu.item icon="device-phone-mobile" :href="route('back-office.paiements-om.index')" :current="request()->routeIs('back-office.paiements-om.*')">Paiements OM</flux:navmenu.item>
                         <flux:navmenu.item icon="device-phone-mobile" :href="route('back-office.paiements-wave.index')" :current="request()->routeIs('back-office.paiements-wave.*')">Paiements Wave</flux:navmenu.item>
                     </flux:navmenu>
@@ -94,6 +95,7 @@
                 @if (\App\Enums\PermissionName::FullAccess->allowedForCurrentUser())
                     <flux:menu.group heading="Finances">
                         <flux:menu.item icon="wallet" :href="route('back-office.caisses.index')">Caisses</flux:menu.item>
+                        <flux:menu.item icon="document-chart-bar" :href="route('back-office.cost-reports.index')">Bilans</flux:menu.item>
                         <flux:menu.item icon="device-phone-mobile" :href="route('back-office.paiements-om.index')">Paiements OM</flux:menu.item>
                         <flux:menu.item icon="device-phone-mobile" :href="route('back-office.paiements-wave.index')">Paiements Wave</flux:menu.item>
                     </flux:menu.group>

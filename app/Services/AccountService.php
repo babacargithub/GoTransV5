@@ -472,6 +472,100 @@ class AccountService
         });
     }
 
+    /**
+     * Process one "sortie de caisse" funded by several caisses and booked against several
+     * accounts, with an explicit amount for each (unlike processSortieDeCaisse(), which
+     * debits accounts sequentially). Money-out, so every precondition is re-checked on rows
+     * locked inside the transaction and any violation throws, rolling everything back.
+     *
+     * One WITHDRAW per caisse and one DEBIT per account are written, so
+     * SUM(caisse amounts) must equal SUM(account amounts).
+     *
+     * @param  array<int, int>  $amountByCaisseId  caisse id => amount to withdraw
+     * @param  array<int, int>  $amountByAccountId  account id => amount to debit
+     *
+     * @throws InvalidArgumentException on empty/non-positive amounts or mismatching totals
+     * @throws InsufficientAccountBalanceException if a caisse or an account cannot cover its amount
+     * @throws InvariantException if the global caisse/account invariant would break
+     */
+    public function processMultiSourceSortieDeCaisse(
+        array $amountByCaisseId,
+        array $amountByAccountId,
+        string $label,
+        string $referenceType,
+        ?int $referenceId,
+        ?int $userId = null,
+        ?AccountTransactionCategory $categoryOverride = null,
+    ): void {
+        if ($amountByCaisseId === [] || $amountByAccountId === []) {
+            throw new InvalidArgumentException('Au moins une caisse et un compte à débiter sont requis.');
+        }
+
+        foreach ([...$amountByCaisseId, ...$amountByAccountId] as $amount) {
+            if (! is_int($amount) || $amount <= 0) {
+                throw new InvalidArgumentException('Chaque montant à débiter doit être un entier strictement positif.');
+            }
+        }
+
+        $totalFromCaisses = array_sum($amountByCaisseId);
+        $totalFromAccounts = array_sum($amountByAccountId);
+
+        if ($totalFromCaisses !== $totalFromAccounts) {
+            throw new InvalidArgumentException(
+                "Le total des caisses ({$totalFromCaisses} F) doit être égal au total des comptes ({$totalFromAccounts} F)."
+            );
+        }
+
+        $userId ??= auth()->id();
+
+        DB::transaction(function () use ($amountByCaisseId, $amountByAccountId, $label, $referenceType, $referenceId, $userId, $categoryOverride): void {
+            $caissesById = Caisse::whereIn('id', array_keys($amountByCaisseId))->lockForUpdate()->get()->keyBy('id');
+            $accountsById = Account::whereIn('id', array_keys($amountByAccountId))->lockForUpdate()->get()->keyBy('id');
+
+            if ($caissesById->count() !== count($amountByCaisseId) || $accountsById->count() !== count($amountByAccountId)) {
+                throw new InvalidArgumentException('Une caisse ou un compte sélectionné est introuvable.');
+            }
+
+            foreach ($amountByCaisseId as $caisseId => $amount) {
+                $caisse = $caissesById->get($caisseId);
+
+                if ($caisse->closed || $caisse->isLockedForToday()) {
+                    throw new InvalidArgumentException("La caisse «{$caisse->name}» est fermée ou clôturée pour aujourd'hui.");
+                }
+
+                if ($caisse->balance < $amount) {
+                    throw new InsufficientAccountBalanceException(
+                        "Solde insuffisant pour la caisse «{$caisse->name}». Disponible : {$caisse->balance} F — Requis : {$amount} F."
+                    );
+                }
+            }
+
+            foreach ($amountByAccountId as $accountId => $amount) {
+                $account = $accountsById->get($accountId);
+
+                if (! $account->is_active) {
+                    throw new InvalidArgumentException("Le compte «{$account->name}» est désactivé.");
+                }
+
+                $this->debit($account, $amount, $label, $referenceType, $referenceId, $userId, $categoryOverride);
+            }
+
+            foreach ($amountByCaisseId as $caisseId => $amount) {
+                $caisse = $caissesById->get($caisseId);
+
+                $caisse->transactions()->create([
+                    'amount' => $amount,
+                    'transaction_type' => CaisseTransactionType::Withdraw,
+                    'label' => $label,
+                    'user_id' => $userId,
+                ]);
+                $caisse->updateBalanceFromLedger();
+            }
+
+            $this->assertGlobalInvariantHolds();
+        });
+    }
+
     // ── Invariant verification ───────────────────────────────────────────────
 
     public function computeTotalAccountBalance(): int
