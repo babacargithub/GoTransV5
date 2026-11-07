@@ -13,10 +13,9 @@ use App\Manager\BookingManager;
 use App\Manager\TicketManager;
 use App\Models\Booking;
 use App\Models\Depart;
+use App\Services\WaveService;
 use Exception;
-use Http;
 use Illuminate\Http\Client\ConnectionException;
-use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use InvalidArgumentException;
@@ -26,28 +25,22 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class WavePaiementController extends Controller
 {
-    private const WAVE_SIGNATURE_TOLERANCE_IN_SECONDS = 300;
-
-    public string $waveUrl = 'https://api.wave.com/v1/checkout/sessions';
-
     public static function headers()
     {
-
-        return [
-            'Authorization' => 'Bearer '.config('app.wave_key'),
-            'Content-Type' => 'application/json',
-            'Accept' => 'application/json',
-        ];
+        return app(WaveService::class)->headers();
     }
 
     private BookingManager $bookingManager;
 
     private LoggerInterface $logger;
 
-    public function __construct(BookingManager $bookingManager, LoggerInterface $logger)
+    private WaveService $waveService;
+
+    public function __construct(BookingManager $bookingManager, LoggerInterface $logger, WaveService $waveService)
     {
         $this->bookingManager = $bookingManager;
         $this->logger = $logger;
+        $this->waveService = $waveService;
     }
 
     public function wavePaymentSuccessCallBack(Request $request): Response
@@ -141,29 +134,7 @@ class WavePaiementController extends Controller
      */
     public function getWavePaymentUrlForBooking(Booking $booking, TicketManager $ticketManager): PaymentResponseResource
     {
-        try {
-            $requestBody = [
-                'amount' => ''.$ticketManager->calculateTicketPriceForBooking($booking, 'wave'),
-                'currency' => 'XOF',
-                'client_reference' => [
-                    'type' => 'booking',
-                    'id' => $booking->id,
-                    'phone_number' => $booking->customer->phone_number,
-                    'client' => $booking->customer->full_name,
-                ],
-                'error_url' => self::getEndpointForRedirect().'/#/paiement/error/'.$booking->id,
-                'success_url' => self::getEndpointForRedirect().'/#/paiement/success/'.
-            $booking->id,
-
-            ];
-
-            return $this->getPaymentUrl($requestBody);
-
-        } catch (RequestException $e) {
-            $this->logger->error($e->getMessage());
-
-            return new PaymentResponseResource($e->response, paymentMethod: 'wave');
-        }
+        return $this->waveService->createCheckoutSessionForBooking($booking, $ticketManager);
     }
 
     /**
@@ -172,38 +143,12 @@ class WavePaiementController extends Controller
      */
     public function getPaymentUrl(array $data): PaymentResponseResource
     {
-        if (! isset($data['amount']) || ! isset($data['client_reference']) || ! is_array($data['client_reference']) ||
-            ! isset($data['error_url']) || ! isset($data['success_url'])) {
-            throw new InvalidArgumentException('Invalid data for wave paiement');
-        }
-        $headers = $this->getWaveHeaders();
-        $requestBody = [
-            'amount' => ''.$data['amount'],
-            'currency' => 'XOF',
-            'client_reference' => json_encode($data['client_reference']),
-            'error_url' => $data['error_url'],
-            'success_url' => $data['success_url'],
-        ];
-        $response = Http::withHeaders($headers)
-            ->asJson()
-            ->post($this->waveUrl, $requestBody);
-        try {
-            $response->throw();
-
-            return new PaymentResponseResource($response, paymentMethod: 'wave');
-        } catch (RequestException $e) {
-            $this->logger->error($e->getMessage());
-
-            return new PaymentResponseResource($e->response, paymentMethod: 'wave');
-        }
-
-        //
-
+        return $this->waveService->createCheckoutSession($data);
     }
 
     protected function getWaveHeaders(): array
     {
-        return self::headers();
+        return $this->waveService->headers();
     }
 
     /**
@@ -211,67 +156,7 @@ class WavePaiementController extends Controller
      */
     public function verifyWaveSignature(Request $request): array
     {
-        $rawBody = $request->getContent();
-        $rejectionReason = $this->findWaveSignatureRejectionReason($request, $rawBody);
-
-        if ($rejectionReason !== null) {
-            $this->logger->error('Wave signature rejected: '.$rejectionReason);
-        }
-
-        return [$rawBody, $rejectionReason === null];
-    }
-
-    /**
-     * Header format documented by Wave: "Wave-Signature: t=<unix timestamp>,v1=<hmac>[,v1=<hmac>...]"
-     * where each hmac is HMAC-SHA256(secret, timestamp . rawBody). Several v1 values appear during secret rotation.
-     *
-     * @return string|null Why the request is rejected, or null when the signature is valid.
-     */
-    private function findWaveSignatureRejectionReason(Request $request, string $rawBody): ?string
-    {
-        $webhookSecret = (string) config('app.wave_webhook_secret');
-        if ($webhookSecret === '') {
-            // An empty key would let anyone forge a valid HMAC.
-            return "config('app.wave_webhook_secret') is empty (check WAVE_WEBHOOK_SECRET and refresh the config cache / PHP-FPM)";
-        }
-
-        $signatureHeader = (string) $request->header('Wave-Signature');
-        if ($signatureHeader === '') {
-            return 'Wave-Signature header is missing (the Wave webhook is probably configured with a shared secret '
-                .'instead of a signing secret)';
-        }
-
-        $timestamp = null;
-        $receivedSignatures = [];
-        foreach (explode(',', $signatureHeader) as $headerPart) {
-            [$partName, $partValue] = array_pad(explode('=', trim($headerPart), 2), 2, '');
-            if ($partName === 't') {
-                $timestamp = $partValue;
-            } elseif ($partName === 'v1' && $partValue !== '') {
-                $receivedSignatures[] = $partValue;
-            }
-        }
-
-        if ($timestamp === null || ! ctype_digit($timestamp) || $receivedSignatures === []) {
-            return 'Wave-Signature header is malformed (expected t=<timestamp>,v1=<signature>)';
-        }
-
-        $secondsSinceWaveSentRequest = abs(now()->getTimestamp() - (int) $timestamp);
-        if ($secondsSinceWaveSentRequest > self::WAVE_SIGNATURE_TOLERANCE_IN_SECONDS) {
-            return 'timestamp is '.$secondsSinceWaveSentRequest.'s away from server time, more than the '
-                .self::WAVE_SIGNATURE_TOLERANCE_IN_SECONDS.'s tolerance (replayed request or server clock drift)';
-        }
-
-        $expectedSignature = hash_hmac('sha256', $timestamp.$rawBody, $webhookSecret);
-        foreach ($receivedSignatures as $receivedSignature) {
-            if (hash_equals($expectedSignature, $receivedSignature)) {
-                return null;
-            }
-        }
-
-        return 'no v1 signature matches the HMAC computed from the configured secret (secret length '
-            .strlen($webhookSecret).', body length '.strlen($rawBody).'); the secret differs from the one '
-            .'in the Wave dashboard, or a proxy altered the body';
+        return $this->waveService->verifyWebhookSignature($request);
     }
 
     /**
@@ -279,96 +164,30 @@ class WavePaiementController extends Controller
      */
     public function getLatestWaveTransactions()
     {
-        $url = 'https://api.wave.com/v1/transactions';
-        $headers = $this->getWaveHeaders();
-        $response = Http::withHeaders($headers)
-            ->asJson()
-            ->get($url);
-
-        $response = $response->json();
-        if (isset($response['items'])) {
-            return $response['items'];
-        }
-
-        return [];
+        return $this->waveService->getLatestTransactions();
     }
 
-    /**
-     * The Wave transaction id (the reference listed in the Wave app) of a checkout session, or null when Wave
-     * cannot be reached or does not return one.
-     */
     public static function findTransactionIdOfCheckoutSession(string $checkoutSessionId): ?string
     {
-        try {
-            $response = Http::withHeaders(self::headers())
-                ->asJson()
-                ->get('https://api.wave.com/v1/checkout/sessions/'.$checkoutSessionId);
-        } catch (ConnectionException) {
-            return null;
-        }
-
-        return $response->successful() ? $response->json('transaction_id') : null;
+        return app(WaveService::class)->findTransactionIdOfCheckoutSession($checkoutSessionId);
     }
 
     public static function getEndpointForRedirect()
     {
-        return is_request_for_gp_customers() ? 'https://globaltransports.app' : 'https://globeone.site';
-
+        return app(WaveService::class)->getRedirectEndpoint();
     }
 
     public static function refundTransaction($checkout_id): Response
     {
-        // if checkout_id doest not start with cos it means it is a transaction id and we need to get the checkout id
-        // first by issuing a request to the wave api via https://api.wave
-        // .com/v1/checkout/sessions?transaction_id=FAH.4827.1734 and then retrieving the checkout id before making a second
-        // request to refund the transaction
-        $data = null;
-        $headers = self::headers();
-        if (! str_starts_with($checkout_id, 'cos')) {
-            $urlSession = 'https://api.wave.com/v1/checkout/sessions?transaction_id='.$checkout_id;
-            try {
-                $response = Http::withHeaders($headers)
-                    ->asJson()
-                    ->get($urlSession);
-                $response->throw();
-                $data = $response->json();
-                $checkout_id = $data['id'];
+        $refundFailureReason = app(WaveService::class)->refundTransaction((string) $checkout_id);
 
-            } catch (RequestException $e) {
-                return (new Response($e->getMessage()))->setStatusCode(ResponseAlias::HTTP_BAD_REQUEST);
-            }
-        }
-
-        $url = 'https://api.wave.com/v1/checkout/sessions/'.$checkout_id.'/refund';
-        try {
-            $response = Http::withHeaders($headers)
-                ->asJson()
-                ->send('POST', $url);
-            $response->throw();
-
-            return (new Response)->setStatusCode(ResponseAlias::HTTP_OK);
-        } catch (RequestException $e) {
-            return (new Response($e->getMessage()))->setStatusCode(ResponseAlias::HTTP_BAD_REQUEST);
-        } catch (Exception $e) {
-            return (new Response($e->getMessage()))->setStatusCode(ResponseAlias::HTTP_BAD_REQUEST);
-        }
+        return $refundFailureReason === null
+            ? (new Response)->setStatusCode(ResponseAlias::HTTP_OK)
+            : (new Response($refundFailureReason))->setStatusCode(ResponseAlias::HTTP_BAD_REQUEST);
     }
 
     public function getBalance(): int
     {
-
-        $url = 'https://api.wave.com/v1/balance';
-        $headers = $this->getWaveHeaders();
-        $response = Http::withHeaders($headers)
-            ->asJson()
-            ->get($url);
-        $response->throw();
-        $response = $response->json();
-        if (isset($response['amount'])) {
-            return $response['amount'];
-        }
-
-        return 0;
-
+        return $this->waveService->getBalance();
     }
 }

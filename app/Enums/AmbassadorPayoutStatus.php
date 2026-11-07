@@ -3,21 +3,20 @@
 namespace App\Enums;
 
 /**
- * Status of a Wave payout requested for an ambassador.
+ * Status of a Wave payout requested for an ambassador. A payout Wave has accepted but not yet settled
+ * stays Pending (it then holds a provider_payout_id).
  */
 enum AmbassadorPayoutStatus: string
 {
-    case Pending = 'pending';
-    case Processing = 'processing';
-    case Succeeded = 'succeeded';
-    case Failed = 'failed';
+    case Pending = 'PENDING';
+    case Success = 'SUCCESS';
+    case Failed = 'FAILED';
 
     public function label(): string
     {
         return match ($this) {
-            self::Pending => 'À envoyer',
-            self::Processing => 'En cours',
-            self::Succeeded => 'Payé',
+            self::Pending => 'En cours',
+            self::Success => 'Payé',
             self::Failed => 'Échoué',
         };
     }
@@ -26,8 +25,7 @@ enum AmbassadorPayoutStatus: string
     {
         return match ($this) {
             self::Pending => 'amber',
-            self::Processing => 'blue',
-            self::Succeeded => 'green',
+            self::Success => 'green',
             self::Failed => 'red',
         };
     }

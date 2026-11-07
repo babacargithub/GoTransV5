@@ -30,7 +30,7 @@ class AmbassadorPayoutFactory extends Factory
     public function succeeded(): static
     {
         return $this->state(fn (): array => [
-            'status' => AmbassadorPayoutStatus::Succeeded,
+            'status' => AmbassadorPayoutStatus::Success,
             'provider_payout_id' => 'wave_'.Str::random(12),
             'paid_at' => now(),
         ]);

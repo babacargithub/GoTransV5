@@ -21,7 +21,7 @@ return new class extends Migration
             // Number the money was sent to, copied at request time so later edits do not rewrite history.
             $table->unsignedBigInteger('wave_phone_number');
 
-            $table->string('status', 20)->default('pending')->index();
+            $table->enum('status', ['PENDING', 'SUCCESS', 'FAILED'])->default('PENDING')->index();
 
             // Sent to Wave so that retrying a request can never pay twice.
             $table->uuid('idempotency_key')->unique();
