@@ -76,8 +76,8 @@ class DepartCostReportPage extends Component
 
         $this->fillFormFromSavedCostReport();
 
-        // A départ with no bilan yet opens straight on the form for those allowed to fill it.
-        $this->isEditing = $this->savedCostReport === null && PermissionName::ManageDepartCostReport->allowedForCurrentUser();
+        // A départ with no bilan yet opens straight on the form: recording a bilan needs no permission.
+        $this->isEditing = $this->savedCostReport === null;
     }
 
     #[Computed]
@@ -323,10 +323,6 @@ class DepartCostReportPage extends Component
 
     public function startEditing(): void
     {
-        if (! $this->ensurePermittedOrFlash()) {
-            return;
-        }
-
         $this->fillFormFromSavedCostReport();
         $this->isEditing = true;
     }
@@ -342,10 +338,6 @@ class DepartCostReportPage extends Component
     {
         $this->flashStatusMessage = null;
         $this->flashErrorMessage = null;
-
-        if (! $this->ensurePermittedOrFlash()) {
-            return;
-        }
 
         $this->validate();
 
@@ -455,17 +447,6 @@ class DepartCostReportPage extends Component
         }
 
         $this->flashErrorMessage = PermissionName::FullAccess->unauthorizedMessage();
-
-        return false;
-    }
-
-    private function ensurePermittedOrFlash(): bool
-    {
-        if (PermissionName::ManageDepartCostReport->allowedForCurrentUser()) {
-            return true;
-        }
-
-        $this->flashErrorMessage = PermissionName::ManageDepartCostReport->unauthorizedMessage();
 
         return false;
     }

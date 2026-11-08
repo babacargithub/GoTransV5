@@ -270,24 +270,32 @@ class DepartCostReportPageTest extends TestCase
         $this->assertSame(120000, $rental->rental_fee);
     }
 
-    public function test_a_user_without_the_permission_cannot_edit_or_save_the_cost_report(): void
+    public function test_a_user_without_any_special_permission_can_record_and_edit_the_cost_report(): void
     {
         $depart = $this->createDepartWithBuses();
         $bus = $depart->buses->firstOrFail();
-        $depart->costReport()->create();
-        $userWithoutPermission = $this->createUserWithPermissions([PermissionName::CreateDeparts->value]);
+        $userWithoutSpecialPermission = $this->createUserWithPermissions([PermissionName::CreateDeparts->value]);
 
-        Livewire::actingAs($userWithoutPermission)
+        $component = Livewire::actingAs($userWithoutSpecialPermission)
             ->test(DepartCostReportPage::class, ['depart' => $depart])
-            ->assertDontSee('Modifier')
-            ->call('startEditing')
+            ->assertSet('isEditing', true)
+            ->assertDontSee("n'a pas encore été enregistré")
+            ->set("busRentalRows.{$bus->id}.busOwnerName", 'Moussa')
+            ->set("busRentalRows.{$bus->id}.rentalFee", '90000')
+            ->call('save')
+            ->assertHasNoErrors()
             ->assertSet('isEditing', false)
-            ->set("busRentalRows.{$bus->id}.busOwnerName", 'Intrus')
-            ->set("busRentalRows.{$bus->id}.rentalFee", '1')
+            ->assertSee('Modifier');
+
+        $this->assertSame(90000, $depart->costReport()->first()->busRentals()->first()->rental_fee);
+
+        $component->call('startEditing')
+            ->assertSet('isEditing', true)
+            ->set("busRentalRows.{$bus->id}.rentalFee", '95000')
             ->call('save')
             ->assertSet('isEditing', false);
 
-        $this->assertSame(0, DepartCostReport::query()->where('depart_id', $depart->id)->first()->busRentals()->count());
+        $this->assertSame(95000, $depart->costReport()->first()->busRentals()->first()->rental_fee);
     }
 
     public function test_the_cash_out_button_is_only_visible_to_full_access_users_once_the_cost_report_is_saved(): void

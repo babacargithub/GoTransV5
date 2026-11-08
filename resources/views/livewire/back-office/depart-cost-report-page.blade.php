@@ -29,9 +29,7 @@
                 @can(\App\Enums\PermissionName::FullAccess->value)
                     <flux:button wire:click="openCashOutModal" icon="banknotes" variant="primary">Enregistrer en caisse</flux:button>
                 @endcan
-                @can(\App\Enums\PermissionName::ManageDepartCostReport->value)
-                    <flux:button wire:click="startEditing" icon="pencil-square" variant="filled">Modifier</flux:button>
-                @endcan
+                <flux:button wire:click="startEditing" icon="pencil-square" variant="filled">Modifier</flux:button>
             </div>
         @endif
     </div>
