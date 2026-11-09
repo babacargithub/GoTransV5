@@ -77,9 +77,11 @@
             <livewire:back-office.global-search />
         </div>
 
-        <div class="me-2">
-            <livewire:back-office.total-caisse-balance />
-        </div>
+        @if (\App\Enums\PermissionName::FullAccess->allowedForCurrentUser())
+            <div class="me-2">
+                <livewire:back-office.total-caisse-balance />
+            </div>
+        @endif
 
         <form method="POST" action="{{ route('logout') }}" class="max-lg:hidden">
             @csrf

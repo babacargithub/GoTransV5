@@ -30,4 +30,18 @@ class LayoutNavigationVisibilityTest extends TestCase
         $response->assertDontSee('Finances');
         $response->assertDontSee('Admin');
     }
+
+    public function test_total_caisse_balance_is_visible_only_to_a_full_access_user(): void
+    {
+        $fullAccessUser = $this->createUserWithFullAccess();
+        $limitedUser = $this->createUserWithPermissions([]);
+
+        $this->actingAs($fullAccessUser)
+            ->get(route('back-office.departs.index'))
+            ->assertSeeLivewire('back-office.total-caisse-balance');
+
+        $this->actingAs($limitedUser)
+            ->get(route('back-office.departs.index'))
+            ->assertDontSeeLivewire('back-office.total-caisse-balance');
+    }
 }
