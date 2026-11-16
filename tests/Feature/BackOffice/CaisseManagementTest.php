@@ -5,11 +5,13 @@ namespace Tests\Feature\BackOffice;
 use App\Enums\AccountTransactionCategory;
 use App\Enums\AccountType;
 use App\Enums\CaisseCode;
+use App\Enums\ExpenseTypeCode;
 use App\Enums\PermissionName;
 use App\Livewire\BackOffice\CaisseBalancesPage;
 use App\Models\Account;
 use App\Models\AccountTransaction;
 use App\Models\Caisse;
+use App\Models\ExpenseType;
 use App\Services\AccountService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Http;
@@ -163,15 +165,50 @@ class CaisseManagementTest extends TestCase
             ->set('sortieAmount', 20_000)
             ->set('sortieLabel', 'Location de bus')
             ->set('sortieCategory', AccountTransactionCategory::Expense->value)
+            ->set('sortieExpenseTypeId', ExpenseType::idForCode(ExpenseTypeCode::LocationDeBus))
             ->set('sortieAccountIds', [$account->id])
             ->call('saveSortieDeCaisse')
             ->assertHasNoErrors();
 
         $debit = AccountTransaction::where('account_id', $account->id)->where('transaction_type', 'DEBIT')->first();
         $this->assertSame(AccountTransactionCategory::Expense, $debit->category);
+        $this->assertSame(ExpenseType::idForCode(ExpenseTypeCode::LocationDeBus), $debit->expense_type_id);
     }
 
-    public function test_sortie_de_caisse_shortcut_fills_the_libelle_and_forces_the_category(): void
+    public function test_sortie_de_caisse_expense_requires_an_expense_type(): void
+    {
+        $user = $this->createUserWithFullAccess();
+        $caisse = Caisse::findByCode(CaisseCode::Principale);
+        $account = Account::create(['name' => 'Compte Cash (test type)', 'account_type' => AccountType::Management, 'balance' => 0, 'is_active' => true]);
+        app(AccountService::class)->processEntreeDeCaisse($caisse, $account, 50_000, 'Fonds initial');
+
+        Livewire::actingAs($user)
+            ->test(CaisseBalancesPage::class)
+            ->set('activeTab', 'caisses')
+            ->call('openSortieDeCaisse', $caisse->id)
+            ->set('sortieAmount', 20_000)
+            ->set('sortieLabel', 'Sans type')
+            ->set('sortieAccountIds', [$account->id])
+            ->call('saveSortieDeCaisse')
+            ->assertHasErrors(['sortieExpenseTypeId']);
+
+        $this->assertSame(0, AccountTransaction::where('account_id', $account->id)->where('transaction_type', 'DEBIT')->count());
+    }
+
+    public function test_picking_an_expense_type_prefills_the_empty_libelle(): void
+    {
+        $user = $this->createUserWithFullAccess();
+        $caisse = Caisse::findByCode(CaisseCode::Principale);
+
+        Livewire::actingAs($user)
+            ->test(CaisseBalancesPage::class)
+            ->set('activeTab', 'caisses')
+            ->call('openSortieDeCaisse', $caisse->id)
+            ->set('sortieExpenseTypeId', ExpenseType::idForCode(ExpenseTypeCode::LocationDeBus))
+            ->assertSet('sortieLabel', 'Location de bus');
+    }
+
+    public function test_a_new_expense_type_can_be_created_from_the_sortie_form_and_is_selected(): void
     {
         $user = $this->createUserWithFullAccess();
         $caisse = Caisse::findByCode(CaisseCode::Principale);
@@ -180,16 +217,24 @@ class CaisseManagementTest extends TestCase
             ->test(CaisseBalancesPage::class)
             ->set('activeTab', 'caisses')
             ->call('openSortieDeCaisse', $caisse->id)
-            ->call('toggleSortieShortcut', 'LOCATION_DE_BUS');
+            ->set('newExpenseTypeName', 'Airtime (test)')
+            ->call('createExpenseType')
+            ->assertHasNoErrors();
 
-        $component->assertSet('sortieLabel', 'Location de bus')
-            ->assertSet('sortieCategory', AccountTransactionCategory::Expense->value)
-            ->assertSet('sortieShortcut', 'LOCATION_DE_BUS');
+        $airtimeType = ExpenseType::where('name', 'Airtime (test)')->firstOrFail();
+        $this->assertFalse($airtimeType->is_system);
+        $component->assertSet('sortieExpenseTypeId', $airtimeType->id)->assertSet('newExpenseTypeName', '');
+    }
 
-        // Toggling the same shortcut off clears both back to the default.
-        $component->call('toggleSortieShortcut', 'LOCATION_DE_BUS')
-            ->assertSet('sortieLabel', '')
-            ->assertSet('sortieShortcut', null);
+    public function test_an_expense_type_name_must_be_unique(): void
+    {
+        $user = $this->createUserWithFullAccess();
+
+        Livewire::actingAs($user)
+            ->test(CaisseBalancesPage::class)
+            ->set('newExpenseTypeName', 'Location de bus')
+            ->call('createExpenseType')
+            ->assertHasErrors(['newExpenseTypeName']);
     }
 
     public function test_entree_de_caisse_shortcut_fills_the_libelle_and_forces_the_category(): void

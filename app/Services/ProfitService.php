@@ -6,6 +6,7 @@ use App\Data\Profit\ProfitReportDTO;
 use App\Enums\AccountTransactionCategory;
 use App\Models\Account;
 use App\Models\AccountTransaction;
+use App\Models\ExpenseType;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 
@@ -36,13 +37,52 @@ class ProfitService
             profit: $totalRevenue - $totalExpenses,
             revenueByAccount: $revenueByAccount,
             expensesByAccount: $expensesByAccount,
+            expensesByType: $this->sumExpensesByType($dateFrom, $dateTo),
         );
     }
 
     /**
-     * @return array<int, array{accountId: int, name: string, amount: int}>
+     * Expenses grouped by expense type, biggest first. Expenses without a type
+     * (historical rows that could not be classified) are gathered in a single
+     * trailing "Non classé" row whose expenseTypeId is null.
+     *
+     * @return array<int, array{expenseTypeId: int|null, name: string, amount: int}>
      */
-    private function sumByCategory(AccountTransactionCategory $category, ?string $dateFrom, ?string $dateTo): array
+    private function sumExpensesByType(?string $dateFrom, ?string $dateTo): array
+    {
+        $amountsByExpenseTypeId = $this->categoryQuery(AccountTransactionCategory::Expense, $dateFrom, $dateTo)
+            ->selectRaw('expense_type_id, SUM(amount) as total')
+            ->groupBy('expense_type_id')
+            ->pluck('total', 'expense_type_id');
+
+        $expenseTypeNamesById = ExpenseType::query()
+            ->whereIn('id', $amountsByExpenseTypeId->keys()->filter())
+            ->pluck('name', 'id');
+
+        $classifiedRows = $amountsByExpenseTypeId
+            ->reject(fn ($total, $expenseTypeId): bool => $expenseTypeId === '' || $expenseTypeId === null)
+            ->map(fn ($total, $expenseTypeId): array => [
+                'expenseTypeId' => (int) $expenseTypeId,
+                'name' => $expenseTypeNamesById[$expenseTypeId],
+                'amount' => (int) $total,
+            ])
+            ->sortByDesc('amount')
+            ->values()
+            ->all();
+
+        $unclassifiedAmount = (int) ($amountsByExpenseTypeId[''] ?? 0);
+
+        if ($unclassifiedAmount > 0) {
+            $classifiedRows[] = ['expenseTypeId' => null, 'name' => 'Non classé', 'amount' => $unclassifiedAmount];
+        }
+
+        return $classifiedRows;
+    }
+
+    /**
+     * @return Builder<AccountTransaction>
+     */
+    private function categoryQuery(AccountTransactionCategory $category, ?string $dateFrom, ?string $dateTo): Builder
     {
         $query = AccountTransaction::query()->where('category', $category->value);
         $this->excludeTransactionsOfUpcomingDeparts($query);
@@ -55,7 +95,15 @@ class ProfitService
             $query->whereDate('created_at', '<=', $dateTo);
         }
 
-        $amountsByAccountId = $query
+        return $query;
+    }
+
+    /**
+     * @return array<int, array{accountId: int, name: string, amount: int}>
+     */
+    private function sumByCategory(AccountTransactionCategory $category, ?string $dateFrom, ?string $dateTo): array
+    {
+        $amountsByAccountId = $this->categoryQuery($category, $dateFrom, $dateTo)
             ->selectRaw('account_id, SUM(amount) as total')
             ->groupBy('account_id')
             ->pluck('total', 'account_id');

@@ -22,6 +22,7 @@ use App\Livewire\BackOffice\DepartScheduleNotifications;
 use App\Livewire\BackOffice\EditBus;
 use App\Livewire\BackOffice\EditDepart;
 use App\Livewire\BackOffice\EmployeList;
+use App\Livewire\BackOffice\ExpenseTypeList;
 use App\Livewire\BackOffice\HoraireList;
 use App\Livewire\BackOffice\ItineraireList;
 use App\Livewire\BackOffice\OrangeMoneyPage;
@@ -178,6 +179,7 @@ Route::middleware('auth')->prefix('back-office')->name('back-office.')->group(fu
 
     Route::get('caisses', CaisseBalancesPage::class)->name('caisses.index');
     Route::get('cost-reports', DepartCostReportList::class)->name('cost-reports.index');
+    Route::get('expense-types', ExpenseTypeList::class)->name('expense-types.index');
     Route::get('paiements-om', OrangeMoneyPage::class)->name('paiements-om.index');
     Route::get('paiements-wave', WavePaymentsPage::class)->name('paiements-wave.index');
 

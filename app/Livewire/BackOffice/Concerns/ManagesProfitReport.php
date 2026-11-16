@@ -28,7 +28,7 @@ trait ManagesProfitReport
     }
 
     /**
-     * @return array{totalRevenue: int, totalExpenses: int, profit: int, revenueByAccount: array<int, array{accountId: int, name: string, amount: int}>, expensesByAccount: array<int, array{accountId: int, name: string, amount: int}>}
+     * @return array{totalRevenue: int, totalExpenses: int, profit: int, revenueByAccount: array<int, array{accountId: int, name: string, amount: int}>, expensesByAccount: array<int, array{accountId: int, name: string, amount: int}>, expensesByType: array<int, array{expenseTypeId: int|null, name: string, amount: int}>}
      */
     #[Computed]
     public function profitReport(): array
@@ -44,6 +44,7 @@ trait ManagesProfitReport
             'profit' => $report->profit,
             'revenueByAccount' => $report->revenueByAccount,
             'expensesByAccount' => $report->expensesByAccount,
+            'expensesByType' => $report->expensesByType,
         ];
     }
 }

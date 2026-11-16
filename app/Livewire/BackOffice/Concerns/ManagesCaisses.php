@@ -8,6 +8,7 @@ use App\Enums\CommonCaisseOperation;
 use App\Enums\PermissionName;
 use App\Models\Account;
 use App\Models\Caisse;
+use App\Models\ExpenseType;
 use App\Services\AccountService;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
@@ -59,7 +60,9 @@ trait ManagesCaisses
     /** @var 'REVENUE'|'EXPENSE'|'INTERNAL' */
     public string $sortieCategory = 'EXPENSE';
 
-    public ?string $sortieShortcut = null;
+    public ?int $sortieExpenseTypeId = null;
+
+    public string $newExpenseTypeName = '';
 
     /** @var array<int, int> */
     public array $sortieAccountIds = [];
@@ -348,7 +351,8 @@ trait ManagesCaisses
         $this->sortieAmount = null;
         $this->sortieLabel = '';
         $this->sortieCategory = AccountTransactionCategory::Expense->value;
-        $this->sortieShortcut = null;
+        $this->sortieExpenseTypeId = null;
+        $this->newExpenseTypeName = '';
         $this->sortieAccountIds = [];
         $this->resetValidation();
         $this->showSortieModal = true;
@@ -361,24 +365,54 @@ trait ManagesCaisses
     }
 
     /**
-     * Toggle one of CommonCaisseOperation::forSortieDeCaisse()'s shortcuts:
-     * fills the libellé and forces the category, or clears both back to the
-     * default when the same shortcut is toggled off.
+     * Active expense types offered by the sortie de caisse form, alphabetically.
+     *
+     * @return array<int, array{id: int, name: string}>
      */
-    public function toggleSortieShortcut(string $operationValue): void
+    #[Computed]
+    public function expenseTypeOptions(): array
     {
-        if ($this->sortieShortcut === $operationValue) {
-            $this->sortieShortcut = null;
-            $this->sortieLabel = '';
-            $this->sortieCategory = AccountTransactionCategory::Expense->value;
+        return ExpenseType::query()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(fn (ExpenseType $expenseType): array => ['id' => $expenseType->id, 'name' => $expenseType->name])
+            ->all();
+    }
 
+    /**
+     * Picking an expense type pre-fills the libellé when it is still empty.
+     */
+    public function updatedSortieExpenseTypeId(): void
+    {
+        if ($this->sortieLabel !== '' || $this->sortieExpenseTypeId === null) {
             return;
         }
 
-        $operation = CommonCaisseOperation::from($operationValue);
-        $this->sortieShortcut = $operationValue;
-        $this->sortieLabel = $operation->label();
-        $this->sortieCategory = $operation->category()->value;
+        $this->sortieLabel = ExpenseType::find($this->sortieExpenseTypeId)?->name ?? '';
+    }
+
+    /**
+     * Create a new expense type from the sortie form and select it.
+     */
+    public function createExpenseType(): void
+    {
+        $this->resetFlashMessages();
+
+        if (! $this->ensurePermittedOrFlash(PermissionName::ManageCaisse)) {
+            return;
+        }
+
+        $validated = $this->validate([
+            'newExpenseTypeName' => ['required', 'string', 'max:255', 'unique:expense_types,name'],
+        ], attributes: ['newExpenseTypeName' => 'nom du type de dépense']);
+
+        $expenseType = ExpenseType::create(['name' => trim($validated['newExpenseTypeName'])]);
+
+        unset($this->expenseTypeOptions);
+        $this->sortieExpenseTypeId = $expenseType->id;
+        $this->newExpenseTypeName = '';
+        $this->updatedSortieExpenseTypeId();
     }
 
     public function saveSortieDeCaisse(AccountService $accountService): void
@@ -397,12 +431,14 @@ trait ManagesCaisses
             'sortieAmount' => ['required', 'integer', 'min:1'],
             'sortieLabel' => ['required', 'string', 'max:255'],
             'sortieCategory' => ['required', 'string', 'in:REVENUE,EXPENSE,INTERNAL'],
+            'sortieExpenseTypeId' => ['nullable', 'required_if:sortieCategory,EXPENSE', 'integer', 'exists:expense_types,id'],
             'sortieAccountIds' => ['required', 'array', 'min:1'],
             'sortieAccountIds.*' => ['integer', 'exists:accounts,id'],
         ], attributes: [
             'sortieAmount' => 'montant',
             'sortieLabel' => 'libellé',
             'sortieCategory' => 'nature de l\'opération',
+            'sortieExpenseTypeId' => 'type de dépense',
             'sortieAccountIds' => 'comptes à débiter',
         ]);
 
@@ -429,6 +465,9 @@ trait ManagesCaisses
                 $validated['sortieLabel'],
                 $validated['sortieAccountIds'],
                 categoryOverride: AccountTransactionCategory::from($validated['sortieCategory']),
+                expenseTypeId: $validated['sortieCategory'] === AccountTransactionCategory::Expense->value
+                    ? $validated['sortieExpenseTypeId']
+                    : null,
             );
             $this->closeSortieModal();
             unset($this->caisseRows);

@@ -3,9 +3,11 @@
 namespace Tests\Feature;
 
 use App\Data\Profit\ProfitReportDTO;
+use App\Enums\AccountTransactionCategory;
 use App\Enums\AccountType;
 use App\Models\Account;
 use App\Models\Caisse;
+use App\Models\ExpenseType;
 use App\Services\AccountService;
 use App\Services\ProfitService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -189,6 +191,29 @@ class ProfitServiceTest extends TestCase
 
         $this->assertSame(30_000, $this->amountForAccount($report, 'revenue', $ticketSales->id));
         $this->assertSame($baseline->totalRevenue + 30_000, $report->totalRevenue);
+    }
+
+    public function test_expenses_are_broken_down_by_type_with_unclassified_expenses_last(): void
+    {
+        $caisse = $this->makeCaisse();
+        $account = $this->makeAccount('Compte charges (test types)', AccountType::Management);
+        $this->accountService->processEntreeDeCaisse($caisse, $account, 100_000, 'Fonds');
+
+        $airtimeType = ExpenseType::factory()->create(['name' => 'Airtime (test)']);
+        $fuelType = ExpenseType::factory()->create(['name' => 'Carburant (test)']);
+        $baseline = $this->profitService->computeProfit();
+        $baselineUnclassifiedAmount = collect($baseline->expensesByType)->firstWhere('expenseTypeId', null)['amount'] ?? 0;
+
+        $this->accountService->processSortieDeCaisse($caisse, 10_000, 'Airtime', [$account->id], expenseTypeId: $airtimeType->id, categoryOverride: AccountTransactionCategory::Expense);
+        $this->accountService->processSortieDeCaisse($caisse, 30_000, 'Gasoil', [$account->id], expenseTypeId: $fuelType->id, categoryOverride: AccountTransactionCategory::Expense);
+        $this->accountService->processSortieDeCaisse($caisse, 5_000, 'Divers', [$account->id], categoryOverride: AccountTransactionCategory::Expense);
+
+        $expensesByType = collect($this->profitService->computeProfit()->expensesByType);
+
+        $this->assertSame(10_000, $expensesByType->firstWhere('expenseTypeId', $airtimeType->id)['amount']);
+        $this->assertSame(30_000, $expensesByType->firstWhere('expenseTypeId', $fuelType->id)['amount']);
+        $this->assertSame($baselineUnclassifiedAmount + 5_000, $expensesByType->firstWhere('expenseTypeId', null)['amount']);
+        $this->assertNull($expensesByType->last()['expenseTypeId']);
     }
 
     private function createTicketBookedOnDepartAt(Carbon $departDate): int

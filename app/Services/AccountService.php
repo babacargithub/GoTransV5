@@ -9,12 +9,14 @@ use App\Enums\AccountTransactionType;
 use App\Enums\AccountType;
 use App\Enums\CaisseCode;
 use App\Enums\CaisseTransactionType;
+use App\Enums\ExpenseTypeCode;
 use App\Exceptions\InsufficientAccountBalanceException;
 use App\Exceptions\InvariantException;
 use App\Models\Account;
 use App\Models\AccountTransaction;
 use App\Models\Caisse;
 use App\Models\CaisseTransaction;
+use App\Models\ExpenseType;
 use App\Models\Ticket;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -174,6 +176,7 @@ class AccountService
         ?int $referenceId = null,
         ?int $userId = null,
         ?AccountTransactionCategory $categoryOverride = null,
+        ?int $expenseTypeId = null,
     ): AccountTransaction {
         if ($amount <= 0) {
             throw new InvalidArgumentException(
@@ -194,6 +197,7 @@ class AccountService
             'amount' => $amount,
             'transaction_type' => AccountTransactionType::Debit,
             'category' => $categoryOverride ?? $this->determineCategory($account, AccountTransactionType::Debit, $referenceType),
+            'expense_type_id' => $expenseTypeId,
             'label' => $label,
             'reference_type' => $referenceType,
             'reference_id' => $referenceId,
@@ -333,6 +337,7 @@ class AccountService
         ?int $referenceId = null,
         ?int $userId = null,
         ?AccountTransactionCategory $categoryOverride = null,
+        ?int $expenseTypeId = null,
     ): array {
         if ($amount <= 0) {
             throw new InvalidArgumentException(
@@ -342,8 +347,8 @@ class AccountService
 
         $userId ??= auth()->id();
 
-        return DB::transaction(function () use ($caisse, $account, $amount, $caisseLabel, $accountLabel, $referenceType, $referenceId, $userId, $categoryOverride): array {
-            $accountTransaction = $this->debit($account, $amount, $accountLabel, $referenceType, $referenceId, $userId, $categoryOverride);
+        return DB::transaction(function () use ($caisse, $account, $amount, $caisseLabel, $accountLabel, $referenceType, $referenceId, $userId, $categoryOverride, $expenseTypeId): array {
+            $accountTransaction = $this->debit($account, $amount, $accountLabel, $referenceType, $referenceId, $userId, $categoryOverride, $expenseTypeId);
 
             $caisseTransaction = $caisse->transactions()->create([
                 'amount' => $amount,
@@ -428,6 +433,7 @@ class AccountService
         array $orderedAccountIds,
         ?int $userId = null,
         ?AccountTransactionCategory $categoryOverride = null,
+        ?int $expenseTypeId = null,
     ): void {
         if ($amount <= 0) {
             throw new InvalidArgumentException(
@@ -437,7 +443,7 @@ class AccountService
 
         $userId ??= auth()->id();
 
-        DB::transaction(function () use ($caisse, $amount, $label, $orderedAccountIds, $userId, $categoryOverride): void {
+        DB::transaction(function () use ($caisse, $amount, $label, $orderedAccountIds, $userId, $categoryOverride, $expenseTypeId): void {
             $caisse->transactions()->create([
                 'amount' => $amount,
                 'transaction_type' => CaisseTransactionType::Withdraw,
@@ -463,7 +469,7 @@ class AccountService
                 $amountToDebitFromThisAccount = min($account->balance, $remainingAmount);
 
                 if ($amountToDebitFromThisAccount > 0) {
-                    $this->debit($account, $amountToDebitFromThisAccount, $label, 'SORTIE_DE_CAISSE', null, $userId, $categoryOverride);
+                    $this->debit($account, $amountToDebitFromThisAccount, $label, 'SORTIE_DE_CAISSE', null, $userId, $categoryOverride, $expenseTypeId);
                     $remainingAmount -= $amountToDebitFromThisAccount;
                 }
             }
@@ -496,6 +502,7 @@ class AccountService
         ?int $referenceId,
         ?int $userId = null,
         ?AccountTransactionCategory $categoryOverride = null,
+        ?int $expenseTypeId = null,
     ): void {
         if ($amountByCaisseId === [] || $amountByAccountId === []) {
             throw new InvalidArgumentException('Au moins une caisse et un compte à débiter sont requis.');
@@ -518,7 +525,7 @@ class AccountService
 
         $userId ??= auth()->id();
 
-        DB::transaction(function () use ($amountByCaisseId, $amountByAccountId, $label, $referenceType, $referenceId, $userId, $categoryOverride): void {
+        DB::transaction(function () use ($amountByCaisseId, $amountByAccountId, $label, $referenceType, $referenceId, $userId, $categoryOverride, $expenseTypeId): void {
             $caissesById = Caisse::whereIn('id', array_keys($amountByCaisseId))->lockForUpdate()->get()->keyBy('id');
             $accountsById = Account::whereIn('id', array_keys($amountByAccountId))->lockForUpdate()->get()->keyBy('id');
 
@@ -547,7 +554,7 @@ class AccountService
                     throw new InvalidArgumentException("Le compte «{$account->name}» est désactivé.");
                 }
 
-                $this->debit($account, $amount, $label, $referenceType, $referenceId, $userId, $categoryOverride);
+                $this->debit($account, $amount, $label, $referenceType, $referenceId, $userId, $categoryOverride, $expenseTypeId);
             }
 
             foreach ($amountByCaisseId as $caisseId => $amount) {
@@ -692,6 +699,7 @@ class AccountService
             referenceId: $ticket->id,
             userId: $userId,
             categoryOverride: AccountTransactionCategory::Expense,
+            expenseTypeId: ExpenseType::idForCode(ExpenseTypeCode::RemboursementTicket),
         );
 
         return $result['account_transaction'];
