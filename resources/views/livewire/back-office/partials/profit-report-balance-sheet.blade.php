@@ -44,7 +44,15 @@
             <dl class="flex-1 divide-y divide-zinc-100 dark:divide-zinc-700">
                 @forelse ($this->profitReport['expensesByType'] as $expenseTypeRow)
                     <div class="flex justify-between gap-4 py-2 text-sm" wire:key="balance-expense-{{ $expenseTypeRow['expenseTypeId'] ?? 'unclassified' }}">
-                        <dt class="{{ $expenseTypeRow['expenseTypeId'] === null ? 'italic text-zinc-500' : '' }}">{{ $expenseTypeRow['name'] }}</dt>
+                        <dt>
+                            <a
+                                href="{{ $expenseTypeRow['expenseTypeId'] === null
+                                    ? route('back-office.expense-types.unclassified-operations', ['du' => $profitReportDateFrom, 'au' => $profitReportDateTo])
+                                    : route('back-office.expense-types.operations', ['expenseType' => $expenseTypeRow['expenseTypeId'], 'du' => $profitReportDateFrom, 'au' => $profitReportDateTo]) }}"
+                                wire:navigate
+                                class="hover:underline {{ $expenseTypeRow['expenseTypeId'] === null ? 'italic text-zinc-500 dark:text-zinc-400' : '' }}"
+                            >{{ $expenseTypeRow['name'] }}</a>
+                        </dt>
                         <dd class="whitespace-nowrap tabular-nums">
                             {{ $formatAmount($expenseTypeRow['amount']) }}
                             <span class="ms-2 inline-block w-14 text-end text-xs text-zinc-500 dark:text-zinc-400">{{ $percentageOf($expenseTypeRow['amount'], $totalExpenses) }}</span>

@@ -23,10 +23,12 @@ use App\Livewire\BackOffice\EditBus;
 use App\Livewire\BackOffice\EditDepart;
 use App\Livewire\BackOffice\EmployeList;
 use App\Livewire\BackOffice\ExpenseTypeList;
+use App\Livewire\BackOffice\ExpenseTypeOperations;
 use App\Livewire\BackOffice\HoraireList;
 use App\Livewire\BackOffice\ItineraireList;
 use App\Livewire\BackOffice\OrangeMoneyPage;
 use App\Livewire\BackOffice\PointDepList;
+use App\Livewire\BackOffice\ProfitReportPage;
 use App\Livewire\BackOffice\TrajetList;
 use App\Livewire\BackOffice\UserAccessManagement;
 use App\Livewire\BackOffice\VehiculeList;
@@ -179,7 +181,10 @@ Route::middleware('auth')->prefix('back-office')->name('back-office.')->group(fu
 
     Route::get('caisses', CaisseBalancesPage::class)->name('caisses.index');
     Route::get('cost-reports', DepartCostReportList::class)->name('cost-reports.index');
+    Route::get('revenus', ProfitReportPage::class)->name('revenus.index');
     Route::get('expense-types', ExpenseTypeList::class)->name('expense-types.index');
+    Route::get('expense-types/unclassified/operations', ExpenseTypeOperations::class)->name('expense-types.unclassified-operations');
+    Route::get('expense-types/{expenseType}/operations', ExpenseTypeOperations::class)->name('expense-types.operations');
     Route::get('paiements-om', OrangeMoneyPage::class)->name('paiements-om.index');
     Route::get('paiements-wave', WavePaymentsPage::class)->name('paiements-wave.index');
 

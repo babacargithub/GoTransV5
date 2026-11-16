@@ -18,7 +18,8 @@ return new class extends Migration
     private const LABEL_PREFIXES_BY_TYPE_CODE = [
         'LOCATION_DE_BUS' => ['Location de bus', 'Location bus'],
         'SALAIRE_PDG' => ['Salaire PDG'],
-        'CREDIT_ET_PASSE_INTERNET' => ['Crédit et passe internet'],
+        'REMBOURSEMENT_TICKET' => ['Compensation tickets'],
+        'CREDIT_ET_PASSE_INTERNET' => ['Crédit et passe internet', 'Renouvellement nom de domaine'],
         'SALAIRE_EMPLOYE' => ['Salaire employé'],
         'TRANSPORT_EMPLOYE' => ['Transport employé'],
         'PUBLICITE' => ['Publicité'],

@@ -8,6 +8,7 @@ use App\Models\Account;
 use App\Models\AccountTransaction;
 use App\Models\ExpenseType;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -77,6 +78,22 @@ class ProfitService
         }
 
         return $classifiedRows;
+    }
+
+    /**
+     * The expense operations counted in expensesByType() for one expense type (null = "Non classé"),
+     * newest first, so the listed amounts always add up to the report's figure.
+     *
+     * @return Collection<int, AccountTransaction>
+     */
+    public function expenseOperationsOfType(?int $expenseTypeId, ?string $dateFrom = null, ?string $dateTo = null): Collection
+    {
+        return $this->categoryQuery(AccountTransactionCategory::Expense, $dateFrom, $dateTo)
+            ->where('expense_type_id', $expenseTypeId)
+            ->with(['account', 'user'])
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->get();
     }
 
     /**

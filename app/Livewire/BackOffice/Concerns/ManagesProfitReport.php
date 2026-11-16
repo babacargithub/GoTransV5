@@ -4,22 +4,27 @@ namespace App\Livewire\BackOffice\Concerns;
 
 use App\Services\ProfitService;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Url;
 
 /**
- * "Revenus" tab of the back-office Finance page: revenue vs. expenses vs.
+ * "Revenus" back-office page (Finances): revenue vs. expenses vs.
  * net profit over a date range (default: current month), broken down by
  * account, straight off ProfitService::computeProfit().
  */
 trait ManagesProfitReport
 {
+    #[Url(as: 'du')]
     public string $profitReportDateFrom = '';
 
+    #[Url(as: 'au')]
     public string $profitReportDateTo = '';
 
     public function mountManagesProfitReport(): void
     {
-        $this->profitReportDateFrom = now()->startOfMonth()->toDateString();
-        $this->profitReportDateTo = now()->endOfMonth()->toDateString();
+        if ($this->profitReportDateFrom === '' && $this->profitReportDateTo === '') {
+            $this->profitReportDateFrom = now()->startOfMonth()->toDateString();
+            $this->profitReportDateTo = now()->endOfMonth()->toDateString();
+        }
     }
 
     public function applyProfitReportFilter(): void
