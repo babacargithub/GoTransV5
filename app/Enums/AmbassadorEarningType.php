@@ -13,8 +13,8 @@ enum AmbassadorEarningType: string
     public function label(): string
     {
         return match ($this) {
-            self::Acquisition => "Prime d'acquisition",
-            self::SponsorshipBonus => 'Prime de parrainage',
+            self::Acquisition => 'Commission pour nouveau client',
+            self::SponsorshipBonus => 'Bonus de parrainage',
         };
     }
 }

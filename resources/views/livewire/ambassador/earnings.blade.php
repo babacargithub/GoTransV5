@@ -1,10 +1,16 @@
 <div class="w-full space-y-6">
-    <flux:heading size="xl" level="1">Mes gains</flux:heading>
+    <div>
+        <flux:heading size="xl" level="1">Mes gains</flux:heading>
+        <flux:text class="mt-1">
+            L'argent que vous gagnez grâce à vos clients. « En attente » : le client n'a pas encore voyagé.
+            « Disponible » : vous pouvez être payé le 15 ou le dernier jour du mois.
+        </flux:text>
+    </div>
 
-    <flux:select wire:model.live="statusFilter" aria-label="Filtrer par statut">
-        <flux:select.option value="">Tous les statuts</flux:select.option>
+    <flux:select wire:model.live="statusFilter" aria-label="Filtrer mes gains">
+        <flux:select.option value="">Tous mes gains</flux:select.option>
         @foreach (\App\Enums\AmbassadorEarningStatus::cases() as $earningStatus)
-            <flux:select.option value="{{ $earningStatus->value }}">{{ $earningStatus->label() }}</flux:select.option>
+            <flux:select.option value="{{ $earningStatus->value }}">{{ $earningStatus->labelForAmbassador() }}</flux:select.option>
         @endforeach
     </flux:select>
 
@@ -18,19 +24,19 @@
                             <div class="text-sm text-zinc-600 dark:text-zinc-400">{{ $earning->label }}</div>
                         @endif
                     </div>
-                    <flux:badge :color="$earning->status->badgeColor()">{{ $earning->status->label() }}</flux:badge>
+                    <flux:badge :color="$earning->status->badgeColor()">{{ $earning->status->labelForAmbassador() }}</flux:badge>
                 </div>
                 <div class="mt-3 grid grid-cols-2 gap-2 text-sm">
                     <div>
-                        <div class="text-zinc-500">Montant</div>
+                        <div class="text-zinc-500">Votre gain</div>
                         <div class="font-medium">{{ number_format($earning->amount, 0, ',', ' ') }} FCFA</div>
                     </div>
                     <div>
                         <div class="text-zinc-500">
                             @if ($earning->approved_at)
-                                Approuvé le
+                                Disponible depuis le
                             @else
-                                Approbation prévue le
+                                Disponible à partir du
                             @endif
                         </div>
                         <div class="font-medium">{{ ($earning->approved_at ?? $earning->approvable_at)?->format('d/m/Y H:i') ?? '—' }}</div>

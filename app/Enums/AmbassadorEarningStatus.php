@@ -23,6 +23,19 @@ enum AmbassadorEarningStatus: string
         };
     }
 
+    /**
+     * The wording shown to the ambassador, who thinks in terms of money they can receive, not approval.
+     */
+    public function labelForAmbassador(): string
+    {
+        return match ($this) {
+            self::Pending => 'En attente',
+            self::Approved => 'Disponible',
+            self::Paid => 'Payé',
+            self::Cancelled => 'Annulé',
+        };
+    }
+
     public function badgeColor(): string
     {
         return match ($this) {

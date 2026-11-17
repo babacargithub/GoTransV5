@@ -58,9 +58,9 @@ class AmbassadorPagesTest extends TestCase
         AmbassadorEarning::factory()->create(['amount' => 987654]);
 
         Livewire::actingAs($user)->test(EarningsPage::class)
-            ->assertSee('Prime de parrainage')
+            ->assertSee('Bonus de parrainage')
             ->assertSee('1 234 FCFA')
-            ->assertSee('Approuvé')
+            ->assertSee('Disponible')
             ->assertDontSee('987 654');
     }
 
