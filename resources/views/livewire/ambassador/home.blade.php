@@ -50,6 +50,16 @@
         </div>
     </div>
 
+    @if ($this->ambassador->status === \App\Enums\AmbassadorStatus::Active)
+        <div class="rounded-xl border border-zinc-200 p-6 text-center dark:border-zinc-700">
+            <flux:heading size="lg" level="2">Parrainer un ambassadeur</flux:heading>
+            <flux:text class="mt-1 text-sm">Invitez un proche à devenir ambassadeur. Vous recevez une prime quand il atteint son objectif de clients amenés.</flux:text>
+            <flux:button class="mt-4" icon="user-plus" :href="route('ambassador.sponsored-ambassadors')" wire:navigate>
+                Inviter un ambassadeur
+            </flux:button>
+        </div>
+    @endif
+
     <div class="grid gap-4 sm:grid-cols-2">
         <div class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
             <flux:text class="text-sm">Statut</flux:text>

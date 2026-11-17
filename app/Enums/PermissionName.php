@@ -49,6 +49,7 @@ enum PermissionName: string
     case ApproveAmbassador = 'approve-ambassador';
     case SuspendAmbassador = 'suspend-ambassador';
     case DeleteAmbassador = 'delete-ambassador';
+    case PayAmbassadors = 'pay-ambassadors';
 
     /**
      * The French label seeded into the editable `permissions.label` column.
@@ -88,6 +89,7 @@ enum PermissionName: string
             self::ApproveAmbassador => 'Valider ou refuser un ambassadeur',
             self::SuspendAmbassador => 'Suspendre ou réactiver un ambassadeur',
             self::DeleteAmbassador => 'Supprimer un ambassadeur',
+            self::PayAmbassadors => 'Payer les ambassadeurs (envoi d\'argent via Wave)',
         };
     }
 

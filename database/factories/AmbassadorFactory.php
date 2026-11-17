@@ -5,6 +5,7 @@ namespace Database\Factories;
 use App\Enums\AmbassadorStatus;
 use App\Models\Ambassador;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Support\Str;
 
 /**
  * @extends Factory<Ambassador>
@@ -27,6 +28,16 @@ class AmbassadorFactory extends Factory
             'contract_starts_at' => today()->subMonth(),
             'contract_ends_at' => today()->addYear(),
         ];
+    }
+
+    public function invited(): static
+    {
+        return $this->state(fn (): array => [
+            'status' => AmbassadorStatus::Invited,
+            'invitation_token' => Str::random(40),
+            'contract_starts_at' => null,
+            'contract_ends_at' => null,
+        ]);
     }
 
     public function pendingApproval(): static

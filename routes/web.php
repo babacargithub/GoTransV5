@@ -12,9 +12,13 @@ use App\Http\Middleware\EncryptCookies;
 use App\Http\Middleware\EnsureUserIsAmbassador;
 use App\Http\Middleware\RejectAmbassadorAccounts;
 use App\Http\Middleware\VerifyCsrfToken;
+use App\Livewire\Ambassador\EarningsPage as AmbassadorEarnings;
 use App\Livewire\Ambassador\Home as AmbassadorHome;
+use App\Livewire\Ambassador\PayoutsPage as AmbassadorPayouts;
+use App\Livewire\Ambassador\SponsoredAmbassadors;
 use App\Livewire\BackOffice\AddBusToDepart;
 use App\Livewire\BackOffice\AmbassadorList;
+use App\Livewire\BackOffice\AmbassadorPayoutList;
 use App\Livewire\BackOffice\AppParamsPage;
 use App\Livewire\BackOffice\BusBookings;
 use App\Livewire\BackOffice\CaisseBalancesPage;
@@ -33,6 +37,7 @@ use App\Livewire\BackOffice\UserAccessManagement;
 use App\Livewire\BackOffice\VehiculeList;
 use App\Livewire\BackOffice\WavePaymentsPage;
 use App\Livewire\Profile\Edit;
+use App\Livewire\Website\AmbassadorInvitation;
 use App\Livewire\Website\BookingGroupShow;
 use App\Livewire\Website\StudentBooking;
 use App\Models\Trajet;
@@ -74,6 +79,9 @@ Route::domain(config('app.ambassador_domain'))
     ->name('ambassador.')
     ->group(function () {
         Route::get('/', AmbassadorHome::class)->name('home');
+        Route::get('gains', AmbassadorEarnings::class)->name('earnings');
+        Route::get('filleuls', SponsoredAmbassadors::class)->name('sponsored-ambassadors');
+        Route::get('paiements', AmbassadorPayouts::class)->name('payouts');
     });
 
 /*
@@ -132,6 +140,9 @@ Route::domain(config('app.public_website_domain'))->name('website.')->group(func
     // stack (Livewire needs session + CSRF).
     Route::get('reserver/{depart}', StudentBooking::class)->name('bookings.create');
 
+    // Acceptance of the invitation a sponsoring ambassador sent to a new ambassador. Transactional page: noindex.
+    Route::get('devenir-ambassadeur/{invitationToken}', AmbassadorInvitation::class)->name('ambassador-invitation');
+
     // Public booking page, addressed by the group's shared UUID (not the numeric group_id).
     Route::get('reservations/{uuid}', BookingGroupShow::class)->name('bookings.show');
 
@@ -183,6 +194,7 @@ Route::middleware(['auth', RejectAmbassadorAccounts::class])->prefix('back-offic
     Route::get('horaires', HoraireList::class)->name('horaires.index');
     Route::get('trajets', TrajetList::class)->name('trajets.index');
     Route::get('ambassadeurs', AmbassadorList::class)->name('ambassadors.index');
+    Route::get('ambassadeurs/paiements', AmbassadorPayoutList::class)->name('ambassador-payouts.index');
     Route::get('employes', EmployeList::class)->name('employes.index');
     Route::get('users', UserAccessManagement::class)->name('users.index');
     Route::get('vehicules', VehiculeList::class)->name('vehicules.index');

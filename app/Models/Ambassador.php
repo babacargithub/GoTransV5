@@ -29,6 +29,7 @@ class Ambassador extends Model
         'phone_number',
         'wave_phone_number',
         'code',
+        'invitation_token',
         'status',
         'contract_starts_at',
         'contract_ends_at',
@@ -100,6 +101,14 @@ class Ambassador extends Model
     public function earnings(): HasMany
     {
         return $this->hasMany(AmbassadorEarning::class);
+    }
+
+    /**
+     * Earnings (such as a sponsor's bonus) that exist because of this ambassador's own activity.
+     */
+    public function earningsGeneratedForSponsor(): HasMany
+    {
+        return $this->hasMany(AmbassadorEarning::class, 'source_ambassador_id');
     }
 
     public function payouts(): HasMany

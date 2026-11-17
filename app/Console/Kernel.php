@@ -14,6 +14,8 @@ class Kernel extends ConsoleKernel
     {
         // $schedule->command('inspire')->hourly();
         $schedule->command('ambassador:approve-due-earnings')->hourly();
+        // Payouts are never automatic: the manager pays from the back-office on the 15th and the last day of the month.
+        $schedule->command('ambassador:remind-manager-of-payout-day')->dailyAt('08:00');
     }
 
     /**

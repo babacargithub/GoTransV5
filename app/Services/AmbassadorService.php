@@ -9,6 +9,7 @@ use DomainException;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * Back-office management of ambassadors: listing, CRUD and the status lifecycle
@@ -72,6 +73,113 @@ class AmbassadorService
                 'approved_by_user_id' => $creator->id,
                 'approved_at' => now(),
             ]);
+        });
+    }
+
+    /**
+     * Records the invitation an ambassador sends to someone they sponsor. The invited ambassador starts as
+     * `invited`, without contract nor login account, and carries the secret token of the link they must
+     * open to accept ({@see self::acceptInvitation()}). The sponsor is fixed here and can never change
+     * afterwards.
+     *
+     * Guards, re-checked under a lock on the sponsor row: the sponsor must be active (a suspended, pending
+     * or rejected ambassador cannot recruit), the invited person cannot be the sponsor themselves (same
+     * phone or Wave number) and cannot already be an ambassador. A brand-new ambassador has no sponsored
+     * ambassadors yet, so a sponsorship cycle is impossible by construction.
+     *
+     * Inviting a number that still has a pending invitation issues a new invitation: the token is replaced (the
+     * previous link stops working) and the latest inviter becomes the sponsor.
+     *
+     * @param  array{first_name: string, last_name: string, phone_number: string, wave_phone_number?: ?string}  $applicantAttributes
+     *
+     * @throws DomainException when one of the guards above fails
+     */
+    public function inviteSponsoredAmbassador(Ambassador $sponsor, array $applicantAttributes): Ambassador
+    {
+        return DB::transaction(function () use ($sponsor, $applicantAttributes): Ambassador {
+            $lockedSponsor = Ambassador::query()->lockForUpdate()->findOrFail($sponsor->id);
+
+            if ($lockedSponsor->status !== AmbassadorStatus::Active) {
+                throw new DomainException("Ce lien de parrainage n'est plus valide.");
+            }
+
+            $applicantPhoneNumber = (int) $applicantAttributes['phone_number'];
+            $applicantWaveNumber = filled($applicantAttributes['wave_phone_number'] ?? null)
+                ? (int) $applicantAttributes['wave_phone_number']
+                : null;
+
+            if (in_array($lockedSponsor->phone_number, [$applicantPhoneNumber, $applicantWaveNumber], true)
+                || ($lockedSponsor->wave_phone_number !== null && in_array((int) $lockedSponsor->wave_phone_number, [$applicantPhoneNumber, $applicantWaveNumber], true))) {
+                throw new DomainException('Vous ne pouvez pas vous parrainer vous-même.');
+            }
+
+            $existingAmbassador = Ambassador::query()->where('phone_number', $applicantPhoneNumber)->lockForUpdate()->first();
+
+            if ($existingAmbassador !== null && $existingAmbassador->status !== AmbassadorStatus::Invited) {
+                throw new DomainException('Ce numéro correspond déjà à un ambassadeur.');
+            }
+
+            if ($existingAmbassador !== null) {
+                $existingAmbassador->update([
+                    'sponsor_ambassador_id' => $lockedSponsor->id,
+                    'first_name' => $applicantAttributes['first_name'],
+                    'last_name' => $applicantAttributes['last_name'],
+                    'wave_phone_number' => $applicantWaveNumber,
+                    'invitation_token' => Str::random(40),
+                ]);
+
+                return $existingAmbassador;
+            }
+
+            return Ambassador::create([
+                'sponsor_ambassador_id' => $lockedSponsor->id,
+                'first_name' => $applicantAttributes['first_name'],
+                'last_name' => $applicantAttributes['last_name'],
+                'phone_number' => $applicantPhoneNumber,
+                'wave_phone_number' => $applicantWaveNumber,
+                'code' => $this->generateUniqueCode(),
+                'invitation_token' => Str::random(40),
+                'status' => AmbassadorStatus::Invited,
+            ]);
+        });
+    }
+
+    /**
+     * The invited ambassador behind an invitation link, null when the token is unknown or already used.
+     */
+    public function findInvitedAmbassadorByToken(string $invitationToken): ?Ambassador
+    {
+        return Ambassador::query()
+            ->where('invitation_token', $invitationToken)
+            ->where('status', AmbassadorStatus::Invited)
+            ->first();
+    }
+
+    /**
+     * The invited person accepts their sponsor's invitation: the link is spent and the ambassador now waits
+     * for a back-office user to approve them. A sponsor suspended in the meantime cannot get recruits.
+     *
+     * @throws DomainException when the invitation is unknown, already accepted, or its sponsor is no longer active
+     */
+    public function acceptInvitation(string $invitationToken): Ambassador
+    {
+        return DB::transaction(function () use ($invitationToken): Ambassador {
+            $invitedAmbassador = Ambassador::query()
+                ->where('invitation_token', $invitationToken)
+                ->where('status', AmbassadorStatus::Invited)
+                ->lockForUpdate()
+                ->first();
+
+            if ($invitedAmbassador === null || $invitedAmbassador->sponsor?->status !== AmbassadorStatus::Active) {
+                throw new DomainException("Ce lien d'invitation n'est plus valide.");
+            }
+
+            $invitedAmbassador->update([
+                'status' => AmbassadorStatus::PendingApproval,
+                'invitation_token' => null,
+            ]);
+
+            return $invitedAmbassador;
         });
     }
 

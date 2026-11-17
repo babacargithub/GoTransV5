@@ -2,11 +2,16 @@
 
 namespace App\Services;
 
+use App\Enums\PermissionName;
+use App\Models\Ambassador;
+use App\Models\AmbassadorPayout;
 use App\Models\AppParams;
 use App\Models\Booking;
 use App\Models\Bus;
 use App\Models\BusSeat;
+use App\Models\Employe;
 use App\Models\Trajet;
+use App\Models\User;
 use App\Utils\NotificationSender\SMSSender\SMSSender;
 use Illuminate\Support\Collection;
 
@@ -66,6 +71,90 @@ class NotificationService
             Contact convoyeur du bus: '.$contactAgent;
         $message = $online ? $notificationMessageForOnlineUsers : $notificationMessage;
         $this->smsSender->sendSms($booking->customer->phone_number, $message);
+    }
+
+    /**
+     * Sends the invited ambassador the link they must open to accept their sponsor's invitation.
+     */
+    public function notifyAmbassadorOfSponsorshipInvitation(Ambassador $invitedAmbassador): void
+    {
+        $acceptanceUrl = route('website.ambassador-invitation', ['invitationToken' => $invitedAmbassador->invitation_token]);
+
+        $this->smsSender->sendSms(
+            (string) $invitedAmbassador->phone_number,
+            self::STUDENT_BRAND_NAME." : {$invitedAmbassador->sponsor->full_name} vous invite à devenir ambassadeur Globe One Transports. Gagnez de l'argent à chaque nouveau client. Acceptez l'invitation ici : {$acceptanceUrl}",
+        );
+    }
+
+    /**
+     * Tells a sponsor that the ambassador they invited accepted, and now waits for the back office to approve them.
+     */
+    public function notifySponsorOfAcceptedInvitation(Ambassador $acceptedAmbassador): void
+    {
+        $this->smsSender->sendSms(
+            (string) $acceptedAmbassador->sponsor->phone_number,
+            self::STUDENT_BRAND_NAME." : {$acceptedAmbassador->full_name} a accepté votre invitation. Son compte ambassadeur est en cours de validation.",
+        );
+    }
+
+    /**
+     * Tells every user holding the full-access permission that an ambassador is waiting for approval, so it is
+     * done quickly. Their phone number is the one of the employee linked to their user account; a full-access
+     * user without an employee record cannot be reached and is skipped.
+     */
+    public function notifyAdministratorsOfAmbassadorAwaitingApproval(Ambassador $acceptedAmbassador): void
+    {
+        $administratorUserIds = User::permission(PermissionName::FullAccess->value)->pluck('users.id');
+
+        $administratorPhoneNumbers = Employe::query()
+            ->whereIn('user_account_id', $administratorUserIds)
+            ->pluck('tel');
+
+        foreach ($administratorPhoneNumbers as $administratorPhoneNumber) {
+            $this->smsSender->sendSms(
+                (string) $administratorPhoneNumber,
+                self::STUDENT_BRAND_NAME." : le nouvel ambassadeur {$acceptedAmbassador->full_name} (parrainé par {$acceptedAmbassador->sponsor->full_name}) attend votre validation.",
+            );
+        }
+    }
+
+    /**
+     * Tells an ambassador that a payout was sent to their Wave account.
+     */
+    public function notifyAmbassadorOfSuccessfulPayout(AmbassadorPayout $payout): void
+    {
+        $amountLabel = number_format($payout->amount, 0, ',', ' ');
+
+        $this->smsSender->sendSms(
+            (string) $payout->ambassador->phone_number,
+            self::STUDENT_BRAND_NAME." : le paiement des vos commissions d'ambassadeur Globe One Transports pour un montant de {$amountLabel} FCFA a été envoyé sur votre compte Wave ({$payout->wave_phone_number}).",
+        );
+    }
+
+    /**
+     * Tells an ambassador that a payout could not be sent yet. The technical reason is deliberately left out.
+     */
+    public function notifyAmbassadorOfFailedPayout(AmbassadorPayout $payout): void
+    {
+        $amountLabel = number_format($payout->amount, 0, ',', ' ');
+
+        $this->smsSender->sendSms(
+            (string) $payout->ambassador->phone_number,
+            self::STUDENT_BRAND_NAME." : votre paiement ambassadeur de {$amountLabel} FCFA a échoué pour une erreur interne. Le système renverra automatiquement une nouvelle tentative, vous n'avez rien à faire.",
+        );
+    }
+
+    /**
+     * Reminds the operations manager that ambassador payouts are due today and what they add up to.
+     */
+    public function notifyManagerOfAmbassadorPayoutDay(int $ambassadorsCount, int $totalAmount): void
+    {
+        $totalAmountLabel = number_format($totalAmount, 0, ',', ' ');
+
+        $this->smsSender->sendSms(
+            self::OPERATIONS_MANAGER_PHONE,
+            "PAIEMENT AMBASSADEURS : {$ambassadorsCount} ambassadeur(s) à payer aujourd'hui, {$totalAmountLabel} FCFA au total. Lancez les paiements depuis le back-office (Ambassadeurs > Paiements).",
+        );
     }
 
     /**

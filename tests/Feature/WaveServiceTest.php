@@ -8,6 +8,7 @@ use App\Models\Ambassador;
 use App\Models\AmbassadorEarning;
 use App\Models\AmbassadorPayout;
 use App\Services\EarningPayoutService;
+use App\Services\NotificationService;
 use App\Services\WaveService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Http\Client\Request;
@@ -174,6 +175,7 @@ class WaveServiceTest extends TestCase
     {
         config(['app.wave_key' => '']);
         Http::fake();
+        $this->mock(NotificationService::class)->shouldReceive('notifyAmbassadorOfFailedPayout')->once();
         $payout = $this->createPendingPayoutWithEarnings(500);
 
         $this->waveService()->pay($payout);
@@ -279,5 +281,40 @@ class WaveServiceTest extends TestCase
         $this->assertNotNull($this->waveService()->refundTransaction('cos-1'));
 
         Http::assertNothingSent();
+    }
+
+    public function test_the_ambassador_is_notified_once_when_the_payout_is_settled(): void
+    {
+        Http::fake(['api.wave.com/v1/payout' => Http::response(['id' => 'pt-123', 'status' => 'succeeded'])]);
+        $payout = $this->createPendingPayoutWithEarnings(5000);
+        $this->mock(NotificationService::class)->shouldReceive('notifyAmbassadorOfSuccessfulPayout')->once();
+
+        $this->waveService()->pay($payout);
+        $this->waveService()->pay($payout);
+    }
+
+    public function test_only_the_first_failed_attempt_is_announced_to_the_ambassador(): void
+    {
+        Http::fake(['api.wave.com/v1/payout' => Http::response(['message' => 'boom'], 500)]);
+        $payout = $this->createPendingPayoutWithEarnings(5000);
+        $this->mock(NotificationService::class)->shouldReceive('notifyAmbassadorOfFailedPayout')->once();
+
+        $this->waveService()->pay($payout);
+        $this->waveService()->pay($payout);
+
+        $this->assertSame(2, $payout->fresh()->attempts_count);
+    }
+
+    public function test_a_notification_failure_never_undoes_a_settled_payout(): void
+    {
+        Http::fake(['api.wave.com/v1/payout' => Http::response(['id' => 'pt-123', 'status' => 'succeeded'])]);
+        $payout = $this->createPendingPayoutWithEarnings(5000);
+        $this->mock(NotificationService::class)
+            ->shouldReceive('notifyAmbassadorOfSuccessfulPayout')
+            ->andThrow(new \RuntimeException('sms provider down'));
+
+        $this->waveService()->pay($payout);
+
+        $this->assertSame(AmbassadorPayoutStatus::Success, $payout->fresh()->status);
     }
 }

@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
+use Throwable;
 
 /**
  * Everything that talks to Wave: checkout sessions, webhook signature check, balance, refunds and ambassador
@@ -28,7 +29,10 @@ class WaveService
 
     private const WEBHOOK_SIGNATURE_TOLERANCE_IN_SECONDS = 300;
 
-    public function __construct(private readonly LoggerInterface $logger) {}
+    public function __construct(
+        private readonly LoggerInterface $logger,
+        private readonly NotificationService $notificationService,
+    ) {}
 
     /**
      * @return array{Authorization: string, Content-Type: string, Accept: string}
@@ -337,21 +341,46 @@ class WaveService
         ]);
 
         $waveResult = $this->sendPayout($payout);
-
+        // TODO read carefully https://docs.wave.com/business#api-reference about payout responses and errors
         if ($waveResult['transaction_id'] !== null) {
             $payout->update(['provider_payout_id' => $waveResult['transaction_id']]);
         }
 
         if ($waveResult['is_settled']) {
             $this->markAsSucceeded($payout);
+
+            $this->notifyAmbassadorWithoutRisk(fn () => $this->notificationService->notifyAmbassadorOfSuccessfulPayout($payout));
         } elseif ($waveResult['failure_reason'] !== null) {
             $payout->update([
                 'status' => AmbassadorPayoutStatus::Failed,
                 'failure_reason' => $waveResult['failure_reason'],
             ]);
+
+            // Only the first failure is announced: the retries that follow must not flood the ambassador.
+            if ($payout->attempts_count === 1) {
+                $this->notifyAmbassadorWithoutRisk(fn () => $this->notificationService->notifyAmbassadorOfFailedPayout($payout));
+            }
         }
 
         return $payout;
+    }
+
+    /**
+     * Ambassadors are only texted about payouts that really moved money, so like the Wave call itself this
+     * only happens in production (a simulated payout must never message a real person). An SMS problem must
+     * never affect a payout that is already recorded: it is only logged.
+     */
+    private function notifyAmbassadorWithoutRisk(callable $sendNotification): void
+    {
+        if (! app()->isProduction()) {
+            return;
+        }
+
+        try {
+            $sendNotification();
+        } catch (Throwable $throwable) {
+            $this->logger->error("Ambassador payout notification failed: {$throwable->getMessage()}");
+        }
     }
 
     /**

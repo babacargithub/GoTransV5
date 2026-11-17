@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AmbassadorPayout;
 use App\Models\Booking;
 use App\Models\Bus;
 use App\Models\Customer;
@@ -196,5 +197,33 @@ class NotificationServiceTest extends TestCase
         $this->assertStringContainsString('sur '.self::GP_BRAND_NAME.' pour', $sentContent);
         $this->assertStringContainsString('777794818', $sentContent);
         $this->assertStringNotContainsString(self::STUDENT_BRAND_NAME, $sentContent);
+    }
+
+    public function test_the_ambassador_is_told_when_a_payout_was_sent_to_their_wave_account(): void
+    {
+        $payout = AmbassadorPayout::factory()->create(['amount' => 12500, 'wave_phone_number' => '771234567']);
+
+        $sentContent = $this->captureSingleSms(fn (NotificationService $service) => $service->notifyAmbassadorOfSuccessfulPayout($payout));
+
+        $this->assertStringContainsString('12 500 FCFA', $sentContent);
+        $this->assertStringContainsString('771234567', $sentContent);
+    }
+
+    public function test_the_failed_payout_message_never_exposes_the_technical_reason(): void
+    {
+        $payout = AmbassadorPayout::factory()->create(['amount' => 3000, 'failure_reason' => 'Wave HTTP 500 : secret detail']);
+
+        $sentContent = $this->captureSingleSms(fn (NotificationService $service) => $service->notifyAmbassadorOfFailedPayout($payout));
+
+        $this->assertStringContainsString('3 000 FCFA', $sentContent);
+        $this->assertStringNotContainsString('secret detail', $sentContent);
+    }
+
+    public function test_the_manager_payout_day_reminder_states_the_count_and_the_total_amount(): void
+    {
+        $sentContent = $this->captureSingleSms(fn (NotificationService $service) => $service->notifyManagerOfAmbassadorPayoutDay(3, 27500));
+
+        $this->assertStringContainsString('3 ambassadeur(s)', $sentContent);
+        $this->assertStringContainsString('27 500 FCFA', $sentContent);
     }
 }

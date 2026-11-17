@@ -4,8 +4,11 @@ namespace App\Services;
 
 use App\Data\Ambassador\AmbassadorBalanceDTO;
 use App\Enums\AmbassadorEarningStatus;
+use App\Enums\AmbassadorEarningType;
+use App\Enums\AmbassadorPayoutStatus;
 use App\Models\Ambassador;
 use App\Models\AmbassadorEarning;
+use App\Models\AmbassadorPayout;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 /**
@@ -65,6 +68,60 @@ class AmbassadorPerformanceService
                 'ambassadorAcquisitionEarning',
             ])
             ->latest()
+            ->paginate($perPage);
+    }
+
+    /**
+     * The ambassador's earnings ledger, newest first, optionally narrowed to one status.
+     */
+    public function paginateEarnings(Ambassador $ambassador, ?AmbassadorEarningStatus $status = null, int $perPage = 15): LengthAwarePaginator
+    {
+        return AmbassadorEarning::query()
+            ->where('ambassador_id', $ambassador->id)
+            ->when($status !== null, fn ($earningsQuery) => $earningsQuery->where('status', $status))
+            ->latest('id')
+            ->paginate($perPage);
+    }
+
+    /**
+     * The ambassadors sponsored by this ambassador, each with the number of customers they acquired
+     * (acquired_customers_count, the figure the sponsorship threshold is measured on) and whether the
+     * sponsorship bonus was already earned for them (sponsorship_bonus_earned).
+     */
+    public function paginateSponsoredAmbassadorsWithProgress(Ambassador $ambassador, int $perPage = 15): LengthAwarePaginator
+    {
+        return $ambassador->sponsoredAmbassadors()
+            ->withCount(['earnings as acquired_customers_count' => fn ($earningsQuery) => $earningsQuery
+                ->where('type', AmbassadorEarningType::Acquisition)
+                ->notCancelled()])
+            ->withExists(['earningsGeneratedForSponsor as sponsorship_bonus_earned' => fn ($earningsQuery) => $earningsQuery
+                ->where('type', AmbassadorEarningType::SponsorshipBonus)
+                ->where('ambassador_id', $ambassador->id)
+                ->notCancelled()])
+            ->latest('id')
+            ->paginate($perPage);
+    }
+
+    /**
+     * The payouts requested for the ambassador, newest first.
+     */
+    public function paginatePayouts(Ambassador $ambassador, int $perPage = 15): LengthAwarePaginator
+    {
+        return AmbassadorPayout::query()
+            ->where('ambassador_id', $ambassador->id)
+            ->latest('id')
+            ->paginate($perPage);
+    }
+
+    /**
+     * Every payout for the back-office payout screen, newest first, optionally narrowed to one status.
+     */
+    public function paginatePayoutsForBackOffice(?AmbassadorPayoutStatus $status = null, int $perPage = 15): LengthAwarePaginator
+    {
+        return AmbassadorPayout::query()
+            ->with('ambassador')
+            ->when($status !== null, fn ($payoutsQuery) => $payoutsQuery->where('status', $status))
+            ->latest('id')
             ->paginate($perPage);
     }
 }

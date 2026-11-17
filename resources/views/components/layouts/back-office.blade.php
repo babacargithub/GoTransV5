@@ -57,7 +57,19 @@
             </flux:dropdown>
 
             @if (\App\Enums\PermissionName::ViewAmbassadors->allowedForCurrentUser())
-                <flux:navbar.item icon="megaphone" :href="route('back-office.ambassadors.index')" :current="request()->routeIs('back-office.ambassadors.*')">Ambassadeurs</flux:navbar.item>
+                <flux:dropdown>
+                    <flux:navbar.item
+                        icon="megaphone"
+                        icon:trailing="chevron-down"
+                        :current="request()->routeIs('back-office.ambassadors.*', 'back-office.ambassador-payouts.*')"
+                    >
+                        Ambassadeurs
+                    </flux:navbar.item>
+                    <flux:navmenu>
+                        <flux:navmenu.item icon="list-bullet" :href="route('back-office.ambassadors.index')" :current="request()->routeIs('back-office.ambassadors.*')">Listes</flux:navmenu.item>
+                        <flux:navmenu.item icon="banknotes" :href="route('back-office.ambassador-payouts.index')" :current="request()->routeIs('back-office.ambassador-payouts.*')">Commissions</flux:navmenu.item>
+                    </flux:navmenu>
+                </flux:dropdown>
             @endif
 
             @if (\App\Enums\PermissionName::FullAccess->allowedForCurrentUser())
@@ -112,7 +124,10 @@
                 </flux:menu.group>
 
                 @if (\App\Enums\PermissionName::ViewAmbassadors->allowedForCurrentUser())
-                    <flux:menu.item icon="megaphone" :href="route('back-office.ambassadors.index')">Ambassadeurs</flux:menu.item>
+                    <flux:menu.group heading="Ambassadeurs">
+                        <flux:menu.item icon="list-bullet" :href="route('back-office.ambassadors.index')">Liste des ambassadeurs</flux:menu.item>
+                        <flux:menu.item icon="banknotes" :href="route('back-office.ambassador-payouts.index')">Commissions ambassadeurs</flux:menu.item>
+                    </flux:menu.group>
                 @endif
 
                 @if (\App\Enums\PermissionName::FullAccess->allowedForCurrentUser())
