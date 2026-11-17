@@ -39,7 +39,7 @@ class ExpenseTypeList extends Component
     }
 
     /**
-     * @return array<int, array{id: int, name: string, isSystem: bool, isActive: bool, transactionsCount: int, canBeDeleted: bool}>
+     * @return array<int, array{id: int, name: string, isSystem: bool, isActive: bool, isPlannedMonthly: bool, transactionsCount: int, canBeDeleted: bool}>
      */
     #[Computed]
     public function expenseTypeRows(): array
@@ -53,6 +53,7 @@ class ExpenseTypeList extends Component
                 'name' => $expenseType->name,
                 'isSystem' => $expenseType->is_system,
                 'isActive' => $expenseType->is_active,
+                'isPlannedMonthly' => $expenseType->is_planned_monthly,
                 'transactionsCount' => $expenseType->account_transactions_count,
                 'canBeDeleted' => ! $expenseType->is_system && $expenseType->account_transactions_count === 0,
             ])
@@ -118,6 +119,16 @@ class ExpenseTypeList extends Component
 
         $expenseType = ExpenseType::findOrFail($expenseTypeId);
         $expenseType->update(['is_active' => ! $expenseType->is_active]);
+
+        unset($this->expenseTypeRows);
+    }
+
+    public function toggleExpenseTypePlannedMonthly(int $expenseTypeId): void
+    {
+        PermissionName::FullAccess->authorizeForCurrentUser();
+
+        $expenseType = ExpenseType::findOrFail($expenseTypeId);
+        $expenseType->update(['is_planned_monthly' => ! $expenseType->is_planned_monthly]);
 
         unset($this->expenseTypeRows);
     }

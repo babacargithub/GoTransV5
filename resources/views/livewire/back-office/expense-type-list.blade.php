@@ -19,6 +19,7 @@
             <flux:table.columns>
                 <flux:table.column>Nom</flux:table.column>
                 <flux:table.column align="center">Opérations</flux:table.column>
+                <flux:table.column align="center">Planifié chaque mois</flux:table.column>
                 <flux:table.column align="center">Actif</flux:table.column>
                 <flux:table.column />
             </flux:table.columns>
@@ -33,6 +34,13 @@
                             @endif
                         </flux:table.cell>
                         <flux:table.cell align="center">{{ $expenseTypeRow['transactionsCount'] }}</flux:table.cell>
+                        <flux:table.cell align="center">
+                            <flux:switch
+                                :checked="$expenseTypeRow['isPlannedMonthly']"
+                                wire:click="toggleExpenseTypePlannedMonthly({{ $expenseTypeRow['id'] }})"
+                                aria-label="Planifier ce type chaque mois"
+                            />
+                        </flux:table.cell>
                         <flux:table.cell align="center">
                             <flux:switch
                                 :checked="$expenseTypeRow['isActive']"
@@ -61,7 +69,7 @@
     </div>
 
     <flux:text size="sm" class="mt-4 text-zinc-500">
-        Un type désactivé n'est plus proposé dans la sortie de caisse, mais reste visible dans les bilans. Seuls les types jamais utilisés peuvent être supprimés.
+        Un type désactivé n'est plus proposé dans la sortie de caisse, mais reste visible dans les bilans. Seuls les types jamais utilisés peuvent être supprimés. Les types « planifiés chaque mois » apparaissent dans la grille de Gestion dépenses.
     </flux:text>
 
     {{-- Créer / renommer --}}

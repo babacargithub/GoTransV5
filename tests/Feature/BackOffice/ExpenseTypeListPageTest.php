@@ -102,6 +102,28 @@ class ExpenseTypeListPageTest extends TestCase
         $this->assertTrue($expenseType->fresh()->is_active);
     }
 
+    public function test_a_type_can_be_flagged_and_unflagged_as_planned_monthly(): void
+    {
+        $expenseType = ExpenseType::factory()->create();
+
+        $component = Livewire::actingAs($this->createUserWithFullAccess())->test(ExpenseTypeList::class);
+
+        $component->call('toggleExpenseTypePlannedMonthly', $expenseType->id);
+        $this->assertTrue($expenseType->fresh()->is_planned_monthly);
+
+        $component->call('toggleExpenseTypePlannedMonthly', $expenseType->id);
+        $this->assertFalse($expenseType->fresh()->is_planned_monthly);
+    }
+
+    public function test_only_salaries_transport_internet_and_advertising_are_planned_monthly_by_default(): void
+    {
+        $plannedCodes = [ExpenseTypeCode::SalairePdg, ExpenseTypeCode::SalaireEmploye, ExpenseTypeCode::TransportEmploye, ExpenseTypeCode::CreditEtPasseInternet, ExpenseTypeCode::Publicite];
+
+        foreach (ExpenseTypeCode::cases() as $code) {
+            $this->assertSame(in_array($code, $plannedCodes, true), ExpenseType::findByCode($code)->is_planned_monthly, $code->value);
+        }
+    }
+
     public function test_only_an_unused_non_system_type_can_be_deleted(): void
     {
         $unusedType = ExpenseType::factory()->create();

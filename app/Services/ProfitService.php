@@ -4,20 +4,28 @@ namespace App\Services;
 
 use App\Data\Profit\ProfitReportDTO;
 use App\Enums\AccountTransactionCategory;
+use App\Enums\AccountTransactionType;
+use App\Enums\AccountType;
 use App\Models\Account;
 use App\Models\AccountTransaction;
+use App\Models\Booking;
+use App\Models\DepartCostReport;
 use App\Models\ExpenseType;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Reads profit (revenue − expenses) straight off the persisted
- * AccountTransaction.category column — see AccountService::determineCategory()
- * for how each transaction gets classified as Revenue, Expense, or Internal
- * at creation time.
+ * Single source of truth for profit (revenue − expenses).
  *
- * Ticket sales (and their refunds) for departs that have not left yet are
+ * Revenue = the ticket sales of the départs that have a cost report (départ date in range, the same
+ * figure as the Bilans page) + every Revenue ledger entry that is not a ticket sale (colis, bus
+ * coalisés, manual entrées…). Ticket sale ledger entries are ignored on the revenue side because the
+ * cost reports already carry them, whenever they were paid.
+ *
+ * Expenses are read off the persisted AccountTransaction.category column — see
+ * AccountService::determineCategory() for how each transaction gets classified as Revenue,
+ * Expense, or Internal at creation time. Ticket refunds for departs that have not left yet are
  * provisional: they are excluded until the depart date has passed.
  */
 class ProfitService
@@ -26,7 +34,11 @@ class ProfitService
 
     public function computeProfit(?string $dateFrom = null, ?string $dateTo = null): ProfitReportDTO
     {
-        $revenueByAccount = $this->sumByCategory(AccountTransactionCategory::Revenue, $dateFrom, $dateTo);
+        $revenueByAccount = $this->addTicketSalesOfCostReportedDeparts(
+            $this->sumByCategory(AccountTransactionCategory::Revenue, $dateFrom, $dateTo, excludeTicketLedgerEntries: true),
+            $dateFrom,
+            $dateTo,
+        );
         $expensesByAccount = $this->sumByCategory(AccountTransactionCategory::Expense, $dateFrom, $dateTo);
 
         $totalRevenue = array_sum(array_column($revenueByAccount, 'amount'));
@@ -43,6 +55,66 @@ class ProfitService
     }
 
     /**
+     * Bookings holding a ticket, joined to their ticket, for the given départs — the "ticket sales"
+     * definition shared with DepartController@ticketSales and the Bilans page.
+     *
+     * @param  array<int, int>  $departIds
+     * @return Builder<Booking>
+     */
+    public function ticketSalesQueryForDeparts(array $departIds): Builder
+    {
+        return Booking::query()
+            ->whereIn('bookings.depart_id', $departIds)
+            ->whereNotNull('bookings.ticket_id')
+            ->join('tickets', 'bookings.ticket_id', '=', 'tickets.id');
+    }
+
+    /**
+     * Ticket sales of the existing départs that have a cost report and whose date is in the range.
+     */
+    public function ticketSalesOfCostReportedDeparts(?string $dateFrom = null, ?string $dateTo = null): int
+    {
+        $departIds = DepartCostReport::query()
+            ->whereHas('depart', function (Builder $departs) use ($dateFrom, $dateTo): void {
+                $departs
+                    ->when($dateFrom !== null, fn (Builder $query) => $query->whereDate('date', '>=', $dateFrom))
+                    ->when($dateTo !== null, fn (Builder $query) => $query->whereDate('date', '<=', $dateTo));
+            })
+            ->pluck('depart_id')
+            ->all();
+
+        return (int) $this->ticketSalesQueryForDeparts($departIds)->sum('tickets.price');
+    }
+
+    /**
+     * @param  array<int, array{accountId: int, name: string, amount: int}>  $revenueByAccount
+     * @return array<int, array{accountId: int, name: string, amount: int}>
+     */
+    private function addTicketSalesOfCostReportedDeparts(array $revenueByAccount, ?string $dateFrom, ?string $dateTo): array
+    {
+        $ticketSales = $this->ticketSalesOfCostReportedDeparts($dateFrom, $dateTo);
+
+        if ($ticketSales === 0) {
+            return $revenueByAccount;
+        }
+
+        $ticketSalesAccount = Account::query()->where('account_type', AccountType::TicketSales)->orderBy('id')->first(['id', 'name']);
+        $ticketSalesAccountId = $ticketSalesAccount?->id ?? 0;
+
+        foreach ($revenueByAccount as $index => $revenueRow) {
+            if ($revenueRow['accountId'] === $ticketSalesAccountId) {
+                $revenueByAccount[$index]['amount'] += $ticketSales;
+
+                return $revenueByAccount;
+            }
+        }
+
+        $revenueByAccount[] = ['accountId' => $ticketSalesAccountId, 'name' => $ticketSalesAccount?->name ?? 'Ventes de billets', 'amount' => $ticketSales];
+
+        return $revenueByAccount;
+    }
+
+    /**
      * Expenses grouped by expense type, biggest first. Expenses without a type
      * (historical rows that could not be classified) are gathered in a single
      * trailing "Non classé" row whose expenseTypeId is null.
@@ -52,7 +124,7 @@ class ProfitService
     private function sumExpensesByType(?string $dateFrom, ?string $dateTo): array
     {
         $amountsByExpenseTypeId = $this->categoryQuery(AccountTransactionCategory::Expense, $dateFrom, $dateTo)
-            ->selectRaw('expense_type_id, SUM(amount) as total')
+            ->selectRaw('expense_type_id, SUM('.$this->signedAmountSql(AccountTransactionCategory::Expense).') as total')
             ->groupBy('expense_type_id')
             ->pluck('total', 'expense_type_id');
 
@@ -99,9 +171,16 @@ class ProfitService
     /**
      * @return Builder<AccountTransaction>
      */
-    private function categoryQuery(AccountTransactionCategory $category, ?string $dateFrom, ?string $dateTo): Builder
+    private function categoryQuery(AccountTransactionCategory $category, ?string $dateFrom, ?string $dateTo, bool $excludeTicketLedgerEntries = false): Builder
     {
         $query = AccountTransaction::query()->where('category', $category->value);
+
+        if ($excludeTicketLedgerEntries) {
+            $query->where(fn (Builder $nonTicketQuery) => $nonTicketQuery
+                ->whereNull('reference_type')
+                ->orWhereNotIn('reference_type', self::TICKET_REFERENCE_TYPES));
+        }
+
         $this->excludeTransactionsOfUpcomingDeparts($query);
 
         if ($dateFrom !== null) {
@@ -118,10 +197,10 @@ class ProfitService
     /**
      * @return array<int, array{accountId: int, name: string, amount: int}>
      */
-    private function sumByCategory(AccountTransactionCategory $category, ?string $dateFrom, ?string $dateTo): array
+    private function sumByCategory(AccountTransactionCategory $category, ?string $dateFrom, ?string $dateTo, bool $excludeTicketLedgerEntries = false): array
     {
-        $amountsByAccountId = $this->categoryQuery($category, $dateFrom, $dateTo)
-            ->selectRaw('account_id, SUM(amount) as total')
+        $amountsByAccountId = $this->categoryQuery($category, $dateFrom, $dateTo, $excludeTicketLedgerEntries)
+            ->selectRaw('account_id, SUM('.$this->signedAmountSql($category).') as total')
             ->groupBy('account_id')
             ->pluck('total', 'account_id');
 
@@ -140,6 +219,20 @@ class ProfitService
             ])
             ->values()
             ->all();
+    }
+
+    /**
+     * Amount signed by direction: a credit adds to a revenue and a debit adds to an expense, the
+     * opposite direction takes away from it (e.g. a withdrawal wrongly tagged as revenue lowers
+     * revenue instead of raising it).
+     */
+    private function signedAmountSql(AccountTransactionCategory $category): string
+    {
+        $addingTransactionType = $category === AccountTransactionCategory::Revenue
+            ? AccountTransactionType::Credit
+            : AccountTransactionType::Debit;
+
+        return "CASE WHEN transaction_type = '{$addingTransactionType->value}' THEN amount ELSE -amount END";
     }
 
     /**

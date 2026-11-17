@@ -20,6 +20,12 @@ class ExpenseTypeFactory extends Factory
             'name' => fake()->unique()->words(2, true),
             'is_system' => false,
             'is_active' => true,
+            'is_planned_monthly' => false,
         ];
+    }
+
+    public function plannedMonthly(): static
+    {
+        return $this->state(['is_planned_monthly' => true]);
     }
 }

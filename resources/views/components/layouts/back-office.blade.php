@@ -27,14 +27,16 @@
                     <flux:navbar.item
                         icon="banknotes"
                         icon:trailing="chevron-down"
-                        :current="request()->routeIs('back-office.caisses.*', 'back-office.cost-reports.*', 'back-office.revenus.*', 'back-office.expense-types.*', 'back-office.paiements-om.*', 'back-office.paiements-wave.*')"
+                        :current="request()->routeIs('back-office.caisses.*', 'back-office.comptes.*', 'back-office.cost-reports.*', 'back-office.revenus.*', 'back-office.depenses.*', 'back-office.expense-types.*', 'back-office.paiements-om.*', 'back-office.paiements-wave.*')"
                     >
                         Finances
                     </flux:navbar.item>
                     <flux:navmenu>
                         <flux:navmenu.item icon="wallet" :href="route('back-office.caisses.index')" :current="request()->routeIs('back-office.caisses.*')">Caisses</flux:navmenu.item>
+                        <flux:navmenu.item icon="banknotes" :href="route('back-office.comptes.index')" :current="request()->routeIs('back-office.comptes.*')">Comptes</flux:navmenu.item>
                         <flux:navmenu.item icon="document-chart-bar" :href="route('back-office.cost-reports.index')" :current="request()->routeIs('back-office.cost-reports.*')">Bilans</flux:navmenu.item>
                         <flux:navmenu.item icon="chart-bar" :href="route('back-office.revenus.index')" :current="request()->routeIs('back-office.revenus.*')">Revenus</flux:navmenu.item>
+                        <flux:navmenu.item icon="receipt-percent" :href="route('back-office.depenses.index')" :current="request()->routeIs('back-office.depenses.*')">Gestion dépenses</flux:navmenu.item>
                         <flux:navmenu.item icon="device-phone-mobile" :href="route('back-office.paiements-om.index')" :current="request()->routeIs('back-office.paiements-om.*')">Paiements OM</flux:navmenu.item>
                         <flux:navmenu.item icon="device-phone-mobile" :href="route('back-office.paiements-wave.index')" :current="request()->routeIs('back-office.paiements-wave.*')">Paiements Wave</flux:navmenu.item>
                         <flux:navmenu.item icon="tag" :href="route('back-office.expense-types.index')" :current="request()->routeIs('back-office.expense-types.*')">Types de dépense</flux:navmenu.item>
@@ -99,8 +101,10 @@
                 @if (\App\Enums\PermissionName::FullAccess->allowedForCurrentUser())
                     <flux:menu.group heading="Finances">
                         <flux:menu.item icon="wallet" :href="route('back-office.caisses.index')">Caisses</flux:menu.item>
+                        <flux:menu.item icon="banknotes" :href="route('back-office.comptes.index')">Comptes</flux:menu.item>
                         <flux:menu.item icon="document-chart-bar" :href="route('back-office.cost-reports.index')">Bilans</flux:menu.item>
                         <flux:menu.item icon="chart-bar" :href="route('back-office.revenus.index')">Revenus</flux:menu.item>
+                        <flux:menu.item icon="receipt-percent" :href="route('back-office.depenses.index')">Gestion dépenses</flux:menu.item>
                         <flux:menu.item icon="tag" :href="route('back-office.expense-types.index')">Types de dépense</flux:menu.item>
                         <flux:menu.item icon="device-phone-mobile" :href="route('back-office.paiements-om.index')">Paiements OM</flux:menu.item>
                         <flux:menu.item icon="device-phone-mobile" :href="route('back-office.paiements-wave.index')">Paiements Wave</flux:menu.item>

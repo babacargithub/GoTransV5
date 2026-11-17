@@ -339,6 +339,13 @@ class DepartCostReportPage extends Component
         $this->flashStatusMessage = null;
         $this->flashErrorMessage = null;
 
+        if (! $this->depart->isPassed()) {
+            $this->flashErrorMessage = 'Le bilan ne peut être enregistré qu\'une fois le départ passé.';
+            $this->addError('depart', $this->flashErrorMessage);
+
+            return;
+        }
+
         $this->validate();
 
         $paidAmountByBusId = $this->savedCostReport?->busRentals->pluck('paid_amount', 'bus_id') ?? collect();

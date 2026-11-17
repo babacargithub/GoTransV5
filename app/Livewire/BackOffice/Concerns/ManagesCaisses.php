@@ -430,7 +430,7 @@ trait ManagesCaisses
         $validated = $this->validate([
             'sortieAmount' => ['required', 'integer', 'min:1'],
             'sortieLabel' => ['required', 'string', 'max:255'],
-            'sortieCategory' => ['required', 'string', 'in:REVENUE,EXPENSE,INTERNAL'],
+            'sortieCategory' => ['required', 'string', 'in:EXPENSE,INTERNAL'],
             'sortieExpenseTypeId' => ['nullable', 'required_if:sortieCategory,EXPENSE', 'integer', 'exists:expense_types,id'],
             'sortieAccountIds' => ['required', 'array', 'min:1'],
             'sortieAccountIds.*' => ['integer', 'exists:accounts,id'],

@@ -27,17 +27,19 @@ return new class extends Migration
 
     public function up(): void
     {
-        Schema::create('expense_types', function (Blueprint $table): void {
-            $table->id();
+        if (! Schema::hasTable('expense_types')) {
+            Schema::create('expense_types', function (Blueprint $table): void {
+                $table->id();
 
-            // Stable programmatic identifier of the built-in types (see ExpenseTypeCode).
-            // Null for types created later through the UI.
-            $table->string('code')->nullable()->unique();
-            $table->string('name')->unique();
-            $table->boolean('is_system')->default(false);
-            $table->boolean('is_active')->default(true);
-            $table->timestamps();
-        });
+                // Stable programmatic identifier of the built-in types (see ExpenseTypeCode).
+                // Null for types created later through the UI.
+                $table->string('code')->nullable()->unique();
+                $table->string('name')->unique();
+                $table->boolean('is_system')->default(false);
+                $table->boolean('is_active')->default(true);
+                $table->timestamps();
+            });
+        }
 
         Schema::table('account_transactions', function (Blueprint $table): void {
             // Only set on EXPENSE transactions. Nullable: historical rows that could not
@@ -58,7 +60,7 @@ return new class extends Migration
         $now = now();
 
         foreach (ExpenseTypeCode::cases() as $code) {
-            DB::table('expense_types')->insert([
+            DB::table('expense_types')->insertOrIgnore([
                 'code' => $code->value,
                 'name' => $code->defaultName(),
                 'is_system' => true,

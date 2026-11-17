@@ -12,6 +12,7 @@ use App\Models\Account;
 use App\Models\AccountTransaction;
 use App\Models\Caisse;
 use App\Models\ExpenseType;
+use App\Models\User;
 use App\Services\AccountService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Http;
@@ -175,6 +176,27 @@ class CaisseManagementTest extends TestCase
         $this->assertSame(ExpenseType::idForCode(ExpenseTypeCode::LocationDeBus), $debit->expense_type_id);
     }
 
+    public function test_sortie_de_caisse_cannot_be_categorised_as_a_revenue(): void
+    {
+        $user = $this->createUserWithFullAccess();
+        $caisse = Caisse::findByCode(CaisseCode::Principale);
+        $account = Account::create(['name' => 'Compte Sortie Revenu', 'account_type' => AccountType::Management, 'balance' => 0, 'is_active' => true]);
+        app(AccountService::class)->processEntreeDeCaisse($caisse, $account, 50_000, 'Fonds initial');
+
+        Livewire::actingAs($user)
+            ->test(CaisseBalancesPage::class)
+            ->set('activeTab', 'caisses')
+            ->call('openSortieDeCaisse', $caisse->id)
+            ->set('sortieAmount', 20_000)
+            ->set('sortieLabel', 'Encaissement erroné')
+            ->set('sortieCategory', AccountTransactionCategory::Revenue->value)
+            ->set('sortieAccountIds', [$account->id])
+            ->call('saveSortieDeCaisse')
+            ->assertHasErrors('sortieCategory');
+
+        $this->assertSame(0, AccountTransaction::where('account_id', $account->id)->where('transaction_type', 'DEBIT')->count());
+    }
+
     public function test_sortie_de_caisse_expense_requires_an_expense_type(): void
     {
         $user = $this->createUserWithFullAccess();
@@ -322,5 +344,36 @@ class CaisseManagementTest extends TestCase
         $this->assertCount(2, $firstPage['transactions']);
         $this->assertSame(2, $firstPage['lastPage']);
         $this->assertSame(3500, $firstPage['difference']);
+    }
+
+    public function test_caisse_cards_show_provider_logos_and_a_cash_icon(): void
+    {
+        $this->actingAs(User::factory()->create())
+            ->get(route('back-office.caisses.index', ['onglet' => 'caisses']))
+            ->assertOk()
+            ->assertSee('images/payments/wave.png', false)
+            ->assertSee('images/payments/orange-money.png', false);
+    }
+
+    public function test_a_caisse_named_after_cbao_shows_the_cbao_logo(): void
+    {
+        Caisse::create(['name' => 'Banque CBAO Test', 'balance' => 0]);
+
+        $this->actingAs(User::factory()->create())
+            ->get(route('back-office.caisses.index', ['onglet' => 'caisses']))
+            ->assertSee('images/banks/cbao.png', false);
+    }
+
+    public function test_the_caisses_tab_offers_the_balance_calculator_with_a_checkbox_per_caisse(): void
+    {
+        $caisse = Caisse::create(['name' => 'Caisse Somme Test', 'balance' => 0]);
+
+        $this->actingAs(User::factory()->create())
+            ->get(route('back-office.caisses.index', ['onglet' => 'caisses']))
+            ->assertOk()
+            ->assertSee('Additionner des soldes', false)
+            ->assertSee('Tout sélectionner')
+            ->assertSee('Inclure Caisse Somme Test dans le total', false)
+            ->assertSee("\\u0022{$caisse->id}\\u0022:0", false);
     }
 }

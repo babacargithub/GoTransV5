@@ -10,6 +10,7 @@ use App\Http\Controllers\TicketController;
 use App\Http\Middleware\CachePublicHtmlResponse;
 use App\Http\Middleware\EncryptCookies;
 use App\Http\Middleware\VerifyCsrfToken;
+use App\Livewire\BackOffice\AccountListPage;
 use App\Livewire\BackOffice\AddBusToDepart;
 use App\Livewire\BackOffice\AppParamsPage;
 use App\Livewire\BackOffice\BusBookings;
@@ -22,6 +23,7 @@ use App\Livewire\BackOffice\DepartScheduleNotifications;
 use App\Livewire\BackOffice\EditBus;
 use App\Livewire\BackOffice\EditDepart;
 use App\Livewire\BackOffice\EmployeList;
+use App\Livewire\BackOffice\ExpenseManagement;
 use App\Livewire\BackOffice\ExpenseTypeList;
 use App\Livewire\BackOffice\ExpenseTypeOperations;
 use App\Livewire\BackOffice\HoraireList;
@@ -180,8 +182,10 @@ Route::middleware('auth')->prefix('back-office')->name('back-office.')->group(fu
     Route::get('parametres', AppParamsPage::class)->name('parametres.index');
 
     Route::get('caisses', CaisseBalancesPage::class)->name('caisses.index');
+    Route::get('comptes', AccountListPage::class)->name('comptes.index');
     Route::get('cost-reports', DepartCostReportList::class)->name('cost-reports.index');
     Route::get('revenus', ProfitReportPage::class)->name('revenus.index');
+    Route::get('depenses', ExpenseManagement::class)->name('depenses.index');
     Route::get('expense-types', ExpenseTypeList::class)->name('expense-types.index');
     Route::get('expense-types/unclassified/operations', ExpenseTypeOperations::class)->name('expense-types.unclassified-operations');
     Route::get('expense-types/{expenseType}/operations', ExpenseTypeOperations::class)->name('expense-types.operations');

@@ -2,9 +2,9 @@
 
 namespace App\Livewire\BackOffice;
 
-use App\Enums\PermissionName;
 use App\Http\Controllers\OrangeMoneyController;
 use App\Http\Controllers\WavePaiementController;
+use App\Livewire\BackOffice\Concerns\FlashesStatusAndGuardsPermissions;
 use App\Livewire\BackOffice\Concerns\ManagesAccounts;
 use App\Livewire\BackOffice\Concerns\ManagesCaisses;
 use App\Models\Booking;
@@ -17,51 +17,24 @@ use Livewire\Component;
 /**
  * Back office "Caisses" page (Finance).
  *
- * Three tabs:
+ * Two tabs:
  * - "Aperçu": the original read-only dashboard — ticket revenue grouped by
  *   payment method for upcoming départs, plus live Wave/Orange Money merchant
  *   balances (each provider call fails independently so the page still
  *   renders the database figures).
  * - "Caisses": real till management — create/edit/delete, entrée/sortie de
  *   caisse, transfer between caisses, day lock/unlock, transactions.
- * - "Comptes": the generic Account ledger paired with Caisse via the
- *   SUM(accounts) == SUM(caisses) invariant enforced by AccountService.
  */
 #[Layout('components.layouts.back-office')]
 class CaisseBalancesPage extends Component
 {
+    use FlashesStatusAndGuardsPermissions;
     use ManagesAccounts;
     use ManagesCaisses;
 
-    /** @var 'apercu'|'caisses'|'comptes' */
+    /** @var 'apercu'|'caisses' */
     #[Url(as: 'onglet')]
     public string $activeTab = 'apercu';
-
-    public ?string $flashStatusMessage = null;
-
-    public ?string $flashErrorMessage = null;
-
-    protected function resetFlashMessages(): void
-    {
-        $this->flashStatusMessage = null;
-        $this->flashErrorMessage = null;
-    }
-
-    /**
-     * Guard a permission-gated action. Returns false (and flashes an error)
-     * when the current user lacks the permission; a `full-access` holder
-     * always passes.
-     */
-    private function ensurePermittedOrFlash(PermissionName $requiredPermission): bool
-    {
-        if ($requiredPermission->allowedForCurrentUser()) {
-            return true;
-        }
-
-        $this->flashErrorMessage = $requiredPermission->unauthorizedMessage();
-
-        return false;
-    }
 
     #[Computed]
     public function paymentMethodBalances(): array

@@ -37,11 +37,11 @@ class DepartCostReportPageTest extends TestCase
         return Trajet::query()->has('pointDeps')->has('destinations')->firstOrFail();
     }
 
-    private function createDepartWithBuses(int $numberOfBuses = 1): Depart
+    private function createDepartWithBuses(int $numberOfBuses = 1, bool $hasLeft = true): Depart
     {
         $depart = Depart::create([
             'name' => 'DEPART COST REPORT '.uniqid(),
-            'date' => now()->addDays(3),
+            'date' => $hasLeft ? now()->subDays(3) : now()->addDays(3),
             'trajet_id' => $this->trajetWithStops()->id,
             'closed' => false,
             'locked' => false,
@@ -121,7 +121,7 @@ class DepartCostReportPageTest extends TestCase
 
     public function test_depart_list_offers_to_record_the_cost_report_until_it_is_saved(): void
     {
-        $depart = $this->createDepartWithBuses();
+        $depart = $this->createDepartWithBuses(hasLeft: false);
         $user = $this->createUserWithFullAccess();
 
         $this->actingAs($user)
@@ -227,6 +227,58 @@ class DepartCostReportPageTest extends TestCase
             'Ibrahima Fall',
             $savedCostReport->busRentals()->where('bus_id', $secondBus->id)->firstOrFail()->bus_owner_name,
         );
+    }
+
+    public function test_the_profit_is_allocated_when_the_cost_is_recorded_in_caisse_not_when_the_report_is_saved(): void
+    {
+        $depart = $this->createDepartWithBuses();
+        $bus = $depart->buses->first();
+        $this->sellTicketOnBus($bus, 100000);
+        [$caisse, $account] = $this->createFundedCaisseAndAccount(500000, 'Location');
+        $ticketSalesAccount = app(AccountService::class)->getOrCreateTicketSalesAccount();
+        $user = $this->createUserWithFullAccess();
+
+        $component = Livewire::actingAs($user)
+            ->test(DepartCostReportPage::class, ['depart' => $depart])
+            ->set("busRentalRows.{$bus->id}.busOwnerName", 'Mamadou Sow')
+            ->set("busRentalRows.{$bus->id}.rentalFee", '40000')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $costReportId = $depart->costReport()->firstOrFail()->id;
+        $this->assertDatabaseMissing('account_transactions', ['reference_type' => 'DEPART_PROFIT_ALLOCATION', 'reference_id' => $costReportId]);
+        $ticketSalesBalanceBeforeCashOut = $ticketSalesAccount->fresh()->balance;
+
+        $component
+            ->call('openCashOutModal')
+            ->set("paidAmountByBusId.{$bus->id}", '40000')
+            ->set('cashOutCaisseRows.0.caisseId', (string) $caisse->id)
+            ->set('cashOutAccountRows.0.accountId', (string) $account->id)
+            ->call('saveCashOut')
+            ->assertHasNoErrors()
+            ->assertSet('flashErrorMessage', null);
+
+        $this->assertDatabaseHas('account_transactions', [
+            'reference_type' => 'DEPART_PROFIT_ALLOCATION',
+            'reference_id' => $costReportId,
+            'amount' => 60000,
+        ]);
+        $this->assertSame($ticketSalesBalanceBeforeCashOut - 60000, $ticketSalesAccount->fresh()->balance);
+    }
+
+    public function test_saving_the_cost_report_of_an_upcoming_depart_is_rejected(): void
+    {
+        $depart = $this->createDepartWithBuses(hasLeft: false);
+        $bus = $depart->buses->first();
+
+        Livewire::actingAs($this->createUserWithFullAccess())
+            ->test(DepartCostReportPage::class, ['depart' => $depart])
+            ->set("busRentalRows.{$bus->id}.busOwnerName", 'Mamadou Sow')
+            ->set("busRentalRows.{$bus->id}.rentalFee", '40000')
+            ->call('save')
+            ->assertHasErrors('depart');
+
+        $this->assertDatabaseMissing('depart_cost_reports', ['depart_id' => $depart->id]);
     }
 
     public function test_saving_requires_an_owner_and_a_valid_fee_for_every_bus(): void

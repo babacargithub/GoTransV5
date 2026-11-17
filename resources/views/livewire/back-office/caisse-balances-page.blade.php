@@ -8,9 +8,9 @@
     ];
 @endphp
 
-<div class="mx-auto w-full max-w-5xl">
+<div class="mx-auto w-full max-w-7xl">
     <flux:heading size="xl" level="1">Caisses</flux:heading>
-    <flux:text class="mt-1">Tills, comptes et recettes de billets</flux:text>
+    <flux:text class="mt-1">Tills et recettes de billets</flux:text>
 
     <x-flash-toasts :status="$flashStatusMessage" :error="$flashErrorMessage" />
 
@@ -37,17 +37,6 @@
             ])
         >
             Caisses
-        </button>
-        <button
-            type="button"
-            wire:click="$set('activeTab', 'comptes')"
-            @class([
-                'px-4 py-2 text-sm font-medium border-b-2 -mb-px',
-                'border-accent text-accent' => $activeTab === 'comptes',
-                'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200' => $activeTab !== 'comptes',
-            ])
-        >
-            Comptes
         </button>
     </div>
 
@@ -117,11 +106,5 @@
     @if ($activeTab === 'caisses')
         @include('livewire.back-office.partials.caisse-list')
         @include('livewire.back-office.partials.caisse-modals')
-    @endif
-
-    {{-- ============================ COMPTES TAB ============================ --}}
-    @if ($activeTab === 'comptes')
-        @include('livewire.back-office.partials.account-list')
-        @include('livewire.back-office.partials.account-modals')
     @endif
 </div>

@@ -159,6 +159,7 @@
             <flux:label>Nature de l'opération</flux:label>
             <flux:select wire:model="sortieCategory">
                 @foreach (\App\Enums\AccountTransactionCategory::cases() as $category)
+                    @continue($category === \App\Enums\AccountTransactionCategory::Revenue)
                     <flux:select.option value="{{ $category->value }}">{{ $category->label() }}</flux:select.option>
                 @endforeach
             </flux:select>

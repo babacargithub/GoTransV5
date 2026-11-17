@@ -18,12 +18,18 @@ use InvalidArgumentException;
  * amount is re-validated, and any violation throws so nothing is persisted. Each bus rental tracks
  * how much was already paid out (paid_amount) and can never be paid beyond its rental fee, which
  * makes a double submission or a retry unable to pay a bus twice.
+ *
+ * Recording a payment also shares the départ profit between Charges and Bénéfices (see
+ * DepartProfitAllocationService), in the same transaction so a failure undoes the payment too.
  */
 class DepartCostReportPaymentService
 {
     public const ACCOUNT_REFERENCE_TYPE = 'DEPART_COST_REPORT';
 
-    public function __construct(private readonly AccountService $accountService) {}
+    public function __construct(
+        private readonly AccountService $accountService,
+        private readonly DepartProfitAllocationService $departProfitAllocationService,
+    ) {}
 
     /**
      * @param  array<int, int>  $paidAmountByBusId  bus id => amount paid to that bus' owner now
@@ -96,6 +102,8 @@ class DepartCostReportPaymentService
             if ($overpaidRentalsCount > 0) {
                 throw new InvalidArgumentException('Incohérence détectée sur les montants payés : opération annulée.');
             }
+
+            $this->departProfitAllocationService->allocate($departCostReport, $userId);
         });
     }
 

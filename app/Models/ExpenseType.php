@@ -22,6 +22,7 @@ class ExpenseType extends Model
         'name',
         'is_system',
         'is_active',
+        'is_planned_monthly',
     ];
 
     protected function casts(): array
@@ -29,6 +30,7 @@ class ExpenseType extends Model
         return [
             'is_system' => 'boolean',
             'is_active' => 'boolean',
+            'is_planned_monthly' => 'boolean',
         ];
     }
 
