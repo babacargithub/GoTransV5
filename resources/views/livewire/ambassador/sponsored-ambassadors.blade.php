@@ -1,4 +1,4 @@
-<div class="mx-auto w-full max-w-2xl space-y-6">
+<div class="w-full space-y-6">
     <div>
         <flux:heading size="xl" level="1">Mon équipe</flux:heading>
         <flux:text class="mt-1">

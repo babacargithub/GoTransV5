@@ -11,31 +11,34 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="min-h-screen bg-white dark:bg-zinc-800">
-    <flux:header class="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900">
-        <flux:brand href="{{ route('ambassador.home') }}" name="Globe One Transport">
-            <x-slot name="logo">
-                <flux:icon.truck variant="solid" class="size-5 text-accent" />
-            </x-slot>
-        </flux:brand>
+    {{-- Plain markup on purpose: flux:header / flux:main switch <body> to Flux's sidebar grid layout. --}}
+    <header class="sticky top-0 z-10 border-b border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900">
+        <div class="mx-auto flex w-full max-w-2xl items-center justify-between gap-3 px-4 py-2 sm:px-6">
+            <a href="{{ route('ambassador.home') }}" wire:navigate class="flex min-w-0 items-center gap-2 font-semibold">
+                <flux:icon.truck variant="solid" class="size-5 shrink-0 text-accent" />
+                <span class="truncate">Globe One Transport</span>
+            </a>
 
-        <flux:spacer />
+            <form method="POST" action="{{ route('logout') }}" class="shrink-0">
+                @csrf
+                <flux:button type="submit" variant="ghost" size="sm" icon="arrow-right-start-on-rectangle">
+                    <span class="hidden sm:inline">Déconnexion</span>
+                    <span class="sr-only sm:hidden">Déconnexion</span>
+                </flux:button>
+            </form>
+        </div>
 
-        <form method="POST" action="{{ route('logout') }}">
-            @csrf
-            <flux:button type="submit" variant="ghost" size="sm" icon="arrow-right-start-on-rectangle">Déconnexion</flux:button>
-        </form>
-    </flux:header>
+        <nav class="mx-auto flex w-full max-w-2xl gap-1 overflow-x-auto px-4 pb-2 sm:px-6">
+            <flux:button size="sm" variant="ghost" class="shrink-0" :href="route('ambassador.home')" wire:navigate :class="request()->routeIs('ambassador.home') ? 'bg-zinc-200/70 dark:bg-zinc-700' : ''">Accueil</flux:button>
+            <flux:button size="sm" variant="ghost" class="shrink-0" :href="route('ambassador.earnings')" wire:navigate :class="request()->routeIs('ambassador.earnings') ? 'bg-zinc-200/70 dark:bg-zinc-700' : ''">Mes gains</flux:button>
+            <flux:button size="sm" variant="ghost" class="shrink-0" :href="route('ambassador.sponsored-ambassadors')" wire:navigate :class="request()->routeIs('ambassador.sponsored-ambassadors') ? 'bg-zinc-200/70 dark:bg-zinc-700' : ''">Mon équipe</flux:button>
+            <flux:button size="sm" variant="ghost" class="shrink-0" :href="route('ambassador.payouts')" wire:navigate :class="request()->routeIs('ambassador.payouts') ? 'bg-zinc-200/70 dark:bg-zinc-700' : ''">Mes paiements</flux:button>
+        </nav>
+    </header>
 
-    <nav class="flex gap-1 overflow-x-auto border-b border-zinc-200 bg-white px-4 py-2 dark:border-zinc-700 dark:bg-zinc-800">
-        <flux:button size="sm" variant="ghost" :href="route('ambassador.home')" wire:navigate :class="request()->routeIs('ambassador.home') ? 'bg-zinc-100 dark:bg-zinc-700' : ''">Accueil</flux:button>
-        <flux:button size="sm" variant="ghost" :href="route('ambassador.earnings')" wire:navigate :class="request()->routeIs('ambassador.earnings') ? 'bg-zinc-100 dark:bg-zinc-700' : ''">Mes gains</flux:button>
-        <flux:button size="sm" variant="ghost" :href="route('ambassador.sponsored-ambassadors')" wire:navigate :class="request()->routeIs('ambassador.sponsored-ambassadors') ? 'bg-zinc-100 dark:bg-zinc-700' : ''">Mon équipe</flux:button>
-        <flux:button size="sm" variant="ghost" :href="route('ambassador.payouts')" wire:navigate :class="request()->routeIs('ambassador.payouts') ? 'bg-zinc-100 dark:bg-zinc-700' : ''">Mes paiements</flux:button>
-    </nav>
-
-    <flux:main>
+    <main class="mx-auto w-full max-w-2xl px-4 py-6 sm:px-6 sm:py-8">
         {{ $slot }}
-    </flux:main>
+    </main>
 
     @fluxScripts
 </body>

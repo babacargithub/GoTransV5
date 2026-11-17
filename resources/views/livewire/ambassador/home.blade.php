@@ -1,4 +1,4 @@
-<div class="mx-auto w-full max-w-2xl space-y-6">
+<div class="w-full space-y-6">
     <div>
         <flux:heading size="xl" level="1">Bonjour {{ $this->ambassador->first_name }} 👋</flux:heading>
         <flux:text class="mt-1">Bienvenue dans votre espace ambassadeur.</flux:text>
@@ -6,8 +6,8 @@
 
     <div class="rounded-xl bg-zinc-900 p-6 text-center text-white dark:bg-zinc-800">
         <div class="text-sm text-zinc-300">Solde total</div>
-        <div class="mt-2 text-5xl font-bold">{{ number_format($this->accountBalance->totalBalance, 0, ',', ' ') }} <span class="text-2xl font-medium">FCFA</span></div>
-        <div class="mt-4 grid grid-cols-3 gap-2 text-sm">
+        <div class="mt-2 text-4xl font-bold sm:text-5xl">{{ number_format($this->accountBalance->totalBalance, 0, ',', ' ') }} <span class="text-2xl font-medium">FCFA</span></div>
+        <div class="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-3 sm:gap-2">
             <div>
                 <div class="text-zinc-400">Disponible</div>
                 <div class="font-semibold">{{ number_format($this->accountBalance->availableBalance, 0, ',', ' ') }} FCFA</div>
@@ -26,27 +26,69 @@
 
     <div class="rounded-xl border border-zinc-200 p-6 text-center dark:border-zinc-700">
         <flux:text>Votre code ambassadeur</flux:text>
-        <div class="mt-2 font-mono text-5xl font-bold tracking-widest">{{ $this->ambassador->code }}</div>
+        <div class="mt-2 break-all font-mono text-4xl font-bold tracking-widest sm:text-5xl">{{ $this->ambassador->code }}</div>
         <flux:text class="mt-3 text-sm">Partagez ce code : vous êtes rémunéré pour chaque nouveau client que vous amenez.</flux:text>
 
         <div
             x-data="{
                 linkWasCopied: false,
+                linkCopyFailed: false,
                 async copyLink() {
-                    await navigator.clipboard.writeText(@js($this->shareUrl));
+                    const shareUrl = @js($this->shareUrl);
+                    this.linkCopyFailed = false;
+
+                    try {
+                        if (navigator.clipboard && window.isSecureContext) {
+                            await navigator.clipboard.writeText(shareUrl);
+                        } else {
+                            // Plain-HTTP pages have no clipboard API: fall back to selecting a hidden field.
+                            const temporaryField = document.createElement('textarea');
+                            temporaryField.value = shareUrl;
+                            temporaryField.style.position = 'fixed';
+                            temporaryField.style.opacity = '0';
+                            document.body.appendChild(temporaryField);
+                            temporaryField.focus();
+                            temporaryField.select();
+                            const wasCopied = document.execCommand('copy');
+                            document.body.removeChild(temporaryField);
+                            if (! wasCopied) {
+                                throw new Error('copy command refused');
+                            }
+                        }
+                    } catch (copyError) {
+                        this.linkCopyFailed = true;
+                        this.$nextTick(() => this.$refs.shareUrlField.select());
+
+                        return;
+                    }
+
                     this.linkWasCopied = true;
                     setTimeout(() => this.linkWasCopied = false, 2500);
                 },
             }"
-            class="mt-4 flex flex-wrap justify-center gap-2"
+            class="mt-4 space-y-3"
         >
-            <flux:button variant="primary" icon="share" href="{{ $this->whatsappShareUrl }}" target="_blank" rel="noopener">
-                Partager le lien
-            </flux:button>
-            <flux:button icon="clipboard-document" x-on:click="copyLink()">
-                <span x-show="! linkWasCopied">Copier le lien</span>
-                <span x-show="linkWasCopied" x-cloak>Lien copié ✓</span>
-            </flux:button>
+            <div class="flex flex-wrap justify-center gap-2">
+                <flux:button variant="primary" icon="share" href="{{ $this->whatsappShareUrl }}" target="_blank" rel="noopener">
+                    Partager le lien
+                </flux:button>
+                <flux:button type="button" icon="clipboard-document" x-on:click="copyLink()">
+                    <span x-show="! linkWasCopied">Copier le lien</span>
+                    <span x-show="linkWasCopied" x-cloak>Lien copié ✓</span>
+                </flux:button>
+            </div>
+
+            <div x-show="linkCopyFailed" x-cloak class="space-y-1">
+                <flux:text class="text-sm">Copie automatique impossible : copiez le lien ci-dessous.</flux:text>
+                <input
+                    type="text"
+                    readonly
+                    x-ref="shareUrlField"
+                    value="{{ $this->shareUrl }}"
+                    class="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-center text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                    x-on:focus="$el.select()"
+                >
+            </div>
         </div>
     </div>
 

@@ -1,4 +1,4 @@
-<div class="mx-auto w-full max-w-2xl space-y-6">
+<div class="w-full space-y-6">
     <flux:heading size="xl" level="1">Mes paiements</flux:heading>
 
     <div class="space-y-3">

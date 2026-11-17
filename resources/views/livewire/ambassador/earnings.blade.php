@@ -1,4 +1,4 @@
-<div class="mx-auto w-full max-w-2xl space-y-6">
+<div class="w-full space-y-6">
     <flux:heading size="xl" level="1">Mes gains</flux:heading>
 
     <flux:select wire:model.live="statusFilter" aria-label="Filtrer par statut">
