@@ -8,6 +8,7 @@ use App\Http\Controllers\DepartController;
 use App\Http\Resources\DepartResource;
 use App\Models\Bus;
 use App\Models\Depart;
+use App\Models\DepartCostReport;
 use App\Models\Trajet;
 use App\Services\BusService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -192,6 +193,21 @@ class DepartList extends Component
     public function departRows(): array
     {
         return DepartResource::collection($this->departsPage->getCollection())->resolve(request());
+    }
+
+    /**
+     * Ids of the départs on the current page that already have a saved bilan.
+     *
+     * @return array<int, int>
+     */
+    #[Computed]
+    public function departIdsWithCostReport(): array
+    {
+        return DepartCostReport::query()
+            ->whereIn('depart_id', $this->departsPage->getCollection()->modelKeys())
+            ->pluck('depart_id')
+            ->map(fn ($departId): int => (int) $departId)
+            ->all();
     }
 
     /**

@@ -9,11 +9,11 @@ use App\Services\AccountService;
 use Livewire\Attributes\Computed;
 
 /**
- * "Comptes" tab of the back-office Finance page: account CRUD, transfer
+ * "Comptes" page of the back-office Finances menu: account CRUD, transfer
  * between accounts, and a lazy filterable transactions modal.
  *
  * Requires the host to provide $flashStatusMessage / $flashErrorMessage,
- * resetFlashMessages() and ensurePermittedOrFlash() — see CaisseBalancesPage.
+ * resetFlashMessages() and ensurePermittedOrFlash() — see FlashesStatusAndGuardsPermissions.
  */
 trait ManagesAccounts
 {

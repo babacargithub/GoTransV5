@@ -137,15 +137,21 @@
         </flux:field>
 
         <flux:field>
-            <flux:label>Opérations courantes</flux:label>
-            <div class="grid gap-2 sm:grid-cols-2">
-                @foreach (\App\Enums\CommonCaisseOperation::forSortieDeCaisse() as $operation)
-                    <flux:checkbox
-                        :checked="$sortieShortcut === $operation->value"
-                        wire:click="toggleSortieShortcut('{{ $operation->value }}')"
-                        label="{{ $operation->label() }}"
-                    />
+            <flux:label>Type de dépense</flux:label>
+            <flux:select wire:model.live="sortieExpenseTypeId">
+                <flux:select.option value="">Sélectionner un type</flux:select.option>
+                @foreach ($this->expenseTypeOptions as $expenseTypeOption)
+                    <flux:select.option value="{{ $expenseTypeOption['id'] }}">{{ $expenseTypeOption['name'] }}</flux:select.option>
                 @endforeach
+            </flux:select>
+            <flux:error name="sortieExpenseTypeId" />
+
+            <div class="mt-2 flex items-start gap-2">
+                <div class="flex-1">
+                    <flux:input wire:model="newExpenseTypeName" wire:keydown.enter.prevent="createExpenseType" placeholder="Nouveau type (ex : Airtime)" size="sm" />
+                    <flux:error name="newExpenseTypeName" />
+                </div>
+                <flux:button size="sm" wire:click="createExpenseType" wire:loading.attr="disabled" wire:target="createExpenseType">Ajouter</flux:button>
             </div>
         </flux:field>
 
@@ -153,6 +159,7 @@
             <flux:label>Nature de l'opération</flux:label>
             <flux:select wire:model="sortieCategory">
                 @foreach (\App\Enums\AccountTransactionCategory::cases() as $category)
+                    @continue($category === \App\Enums\AccountTransactionCategory::Revenue)
                     <flux:select.option value="{{ $category->value }}">{{ $category->label() }}</flux:select.option>
                 @endforeach
             </flux:select>

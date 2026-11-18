@@ -15,6 +15,7 @@ class AccountTransaction extends Model
         'amount',
         'transaction_type',
         'category',
+        'expense_type_id',
         'label',
         'reference_type',
         'reference_id',
@@ -32,6 +33,11 @@ class AccountTransaction extends Model
     public function account(): BelongsTo
     {
         return $this->belongsTo(Account::class);
+    }
+
+    public function expenseType(): BelongsTo
+    {
+        return $this->belongsTo(ExpenseType::class);
     }
 
     public function user(): BelongsTo

@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Collection;
 
 /**
@@ -101,6 +102,30 @@ class Depart extends Model
     public function bookings(): HasManyThrough
     {
         return $this->hasManyThrough(Booking::class, Bus::class);
+    }
+
+    public function costReport(): HasOne
+    {
+        return $this->hasOne(DepartCostReport::class);
+    }
+
+    /**
+     * Ticket sales amount (FCFA) of each bus of the départ, keyed by bus id; buses with no sold ticket are absent.
+     * Same rule as DepartController@ticketSales: only bookings holding a ticket count.
+     *
+     * @return array<int, int>
+     */
+    public function ticketSalesAmountByBusId(): array
+    {
+        return Booking::query()
+            ->where('bookings.depart_id', $this->id)
+            ->whereNotNull('bookings.ticket_id')
+            ->join('tickets', 'bookings.ticket_id', '=', 'tickets.id')
+            ->selectRaw('bookings.bus_id as bus_id, SUM(tickets.price) as total')
+            ->groupBy('bookings.bus_id')
+            ->pluck('total', 'bus_id')
+            ->map(fn ($total): int => (int) $total)
+            ->all();
     }
 
     public function cancel(): self

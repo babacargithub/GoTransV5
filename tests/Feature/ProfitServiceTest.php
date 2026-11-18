@@ -3,9 +3,18 @@
 namespace Tests\Feature;
 
 use App\Data\Profit\ProfitReportDTO;
+use App\Enums\AccountTransactionCategory;
+use App\Enums\AccountTransactionType;
 use App\Enums\AccountType;
 use App\Models\Account;
+use App\Models\AccountTransaction;
 use App\Models\Caisse;
+use App\Models\Customer;
+use App\Models\Depart;
+use App\Models\ExpenseType;
+use App\Models\Seat;
+use App\Models\Ticket;
+use App\Models\Trajet;
 use App\Services\AccountService;
 use App\Services\ProfitService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -170,25 +179,44 @@ class ProfitServiceTest extends TestCase
         $this->assertSame(70_000, $this->amountForAccount($februaryReport, 'revenue', $ticketSales->id));
     }
 
-    public function test_ticket_sales_for_upcoming_departs_are_excluded_until_the_depart_has_passed(): void
+    public function test_ticket_sale_ledger_entries_do_not_count_as_revenue_because_cost_reports_carry_them(): void
     {
         $caisse = $this->makeCaisse();
         $ticketSales = $this->makeAccount('Ventes de billets', AccountType::TicketSales);
         $baseline = $this->profitService->computeProfit();
 
         $pastTicketId = $this->createTicketBookedOnDepartAt(now()->subDay());
-        $upcomingTicketId = $this->createTicketBookedOnDepartAt(now()->addDay());
-
-        foreach ([$pastTicketId => 30_000, $upcomingTicketId => 50_000] as $ticketId => $amount) {
-            $this->accountService->depositToCaisseAndCreditAccount(
-                $caisse, $ticketSales, $amount, 'Vente', 'Vente', 'TICKET_SALE', $ticketId,
-            );
-        }
+        $this->accountService->depositToCaisseAndCreditAccount(
+            $caisse, $ticketSales, 30_000, 'Vente', 'Vente', 'TICKET_SALE', $pastTicketId,
+        );
 
         $report = $this->profitService->computeProfit();
 
-        $this->assertSame(30_000, $this->amountForAccount($report, 'revenue', $ticketSales->id));
-        $this->assertSame($baseline->totalRevenue + 30_000, $report->totalRevenue);
+        $this->assertNull($this->amountForAccount($report, 'revenue', $ticketSales->id));
+        $this->assertSame($baseline->totalRevenue, $report->totalRevenue);
+    }
+
+    public function test_expenses_are_broken_down_by_type_with_unclassified_expenses_last(): void
+    {
+        $caisse = $this->makeCaisse();
+        $account = $this->makeAccount('Compte charges (test types)', AccountType::Management);
+        $this->accountService->processEntreeDeCaisse($caisse, $account, 100_000, 'Fonds');
+
+        $airtimeType = ExpenseType::factory()->create(['name' => 'Airtime (test)']);
+        $fuelType = ExpenseType::factory()->create(['name' => 'Carburant (test)']);
+        $baseline = $this->profitService->computeProfit();
+        $baselineUnclassifiedAmount = collect($baseline->expensesByType)->firstWhere('expenseTypeId', null)['amount'] ?? 0;
+
+        $this->accountService->processSortieDeCaisse($caisse, 10_000, 'Airtime', [$account->id], expenseTypeId: $airtimeType->id, categoryOverride: AccountTransactionCategory::Expense);
+        $this->accountService->processSortieDeCaisse($caisse, 30_000, 'Gasoil', [$account->id], expenseTypeId: $fuelType->id, categoryOverride: AccountTransactionCategory::Expense);
+        $this->accountService->processSortieDeCaisse($caisse, 5_000, 'Divers', [$account->id], categoryOverride: AccountTransactionCategory::Expense);
+
+        $expensesByType = collect($this->profitService->computeProfit()->expensesByType);
+
+        $this->assertSame(10_000, $expensesByType->firstWhere('expenseTypeId', $airtimeType->id)['amount']);
+        $this->assertSame(30_000, $expensesByType->firstWhere('expenseTypeId', $fuelType->id)['amount']);
+        $this->assertSame($baselineUnclassifiedAmount + 5_000, $expensesByType->firstWhere('expenseTypeId', null)['amount']);
+        $this->assertNull($expensesByType->last()['expenseTypeId']);
     }
 
     private function createTicketBookedOnDepartAt(Carbon $departDate): int
@@ -198,5 +226,56 @@ class ProfitServiceTest extends TestCase
         Schema::withoutForeignKeyConstraints(fn () => DB::table('bookings')->insert(['depart_id' => $departId, 'ticket_id' => $ticketId, 'customer_id' => 0, 'point_dep_id' => 0, 'destination_id' => 0, 'paye' => true, 'created_at' => now(), 'updated_at' => now()]));
 
         return $ticketId;
+    }
+
+    public function test_a_debit_tagged_as_revenue_lowers_revenue_instead_of_raising_it(): void
+    {
+        $caisse = $this->makeCaisse();
+        $account = $this->makeAccount('Compte Revenu Erroné', AccountType::Management);
+        $baselineRevenue = $this->profitService->computeProfit()->totalRevenue;
+
+        $this->accountService->processEntreeDeCaisse($caisse, $account, 100_000, 'Encaissement', categoryOverride: AccountTransactionCategory::Revenue);
+        $this->accountService->processSortieDeCaisse($caisse, 30_000, 'Sortie erronée', [$account->id], categoryOverride: AccountTransactionCategory::Revenue);
+
+        $this->assertSame($baselineRevenue + 70_000, $this->profitService->computeProfit()->totalRevenue);
+    }
+
+    public function test_revenue_is_the_cost_reported_ticket_sales_plus_non_ticket_revenue_entries(): void
+    {
+        $trajet = Trajet::query()->has('pointDeps')->has('destinations')->firstOrFail();
+        $depart = Depart::create(['name' => 'DEPART REVENU '.uniqid(), 'date' => '2019-06-10 08:00:00', 'trajet_id' => $trajet->id, 'closed' => false, 'locked' => false, 'canceled' => false]);
+        $bus = $depart->buses()->create(['name' => 'Bus Revenu', 'nombre_place' => 57, 'ticket_price' => 3550, 'gp_ticket_price' => 6000, 'closed' => false]);
+        $ticket = new Ticket;
+        $ticket->forceFill(['number' => random_int(1_000_000, 9_999_999_999), 'price' => 50_000, 'payment_method' => 'wave', 'used' => true, 'soldBy' => 'agence test', 'soldAt' => now(), 'expiryDate' => now()->addDays(30)])->save();
+        $bus->bookings()->create([
+            'customer_id' => Customer::create(['prenom' => 'awa', 'nom' => 'ndiaye', 'phone_number' => 770000000 + random_int(1, 9999999)])->id,
+            'depart_id' => $depart->id,
+            'point_dep_id' => $trajet->pointDeps()->firstOrFail()->id,
+            'destination_id' => $trajet->destinations()->firstOrFail()->id,
+            'seat_id' => $bus->seats()->create(['seat_id' => Seat::query()->inRandomOrder()->firstOrFail()->id, 'booked' => true, 'price' => 50_000])->id,
+            'ticket_id' => $ticket->id,
+            'paye' => true,
+        ]);
+        $depart->costReport()->create();
+
+        $ticketSalesAccount = $this->makeAccount('Ventes de billets (test revenu)', AccountType::TicketSales);
+        foreach ([['TICKET_SALE', 99_000], ['ENTREE_DE_CAISSE', 20_000]] as [$referenceType, $amount]) {
+            (new AccountTransaction)->forceFill([
+                'account_id' => $ticketSalesAccount->id,
+                'amount' => $amount,
+                'transaction_type' => AccountTransactionType::Credit,
+                'category' => AccountTransactionCategory::Revenue,
+                'label' => 'test',
+                'reference_type' => $referenceType,
+                'reference_id' => null,
+                'created_at' => '2019-06-15 10:00:00',
+                'updated_at' => '2019-06-15 10:00:00',
+            ])->save();
+        }
+
+        $report = $this->profitService->computeProfit('2019-06-01', '2019-06-30');
+
+        $this->assertSame(50_000 + 20_000, $report->totalRevenue);
+        $this->assertSame(50_000, $this->profitService->ticketSalesOfCostReportedDeparts('2019-06-01', '2019-06-30'));
     }
 }

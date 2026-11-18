@@ -254,3 +254,7 @@
     @apply space-x-8;
   }
 }
+
+[x-cloak] {
+    display: none !important;
+}

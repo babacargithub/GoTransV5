@@ -2,16 +2,19 @@
 
 namespace Tests\Feature\BackOffice;
 
+use App\Enums\AccountTransactionCategory;
 use App\Enums\AccountType;
-use App\Livewire\BackOffice\CaisseBalancesPage;
+use App\Livewire\BackOffice\ProfitReportPage;
 use App\Models\Account;
+use App\Models\Caisse;
+use App\Models\ExpenseType;
 use App\Services\AccountService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
 use Tests\TestCase;
 
-class ProfitReportTabTest extends TestCase
+class ProfitReportPageTest extends TestCase
 {
     use DatabaseTransactions;
 
@@ -37,8 +40,7 @@ class ProfitReportTabTest extends TestCase
         $user = $this->createUserWithFullAccess();
 
         Livewire::actingAs($user)
-            ->test(CaisseBalancesPage::class)
-            ->set('activeTab', 'revenus')
+            ->test(ProfitReportPage::class)
             ->assertSet('profitReportDateFrom', now()->startOfMonth()->toDateString())
             ->assertSet('profitReportDateTo', now()->endOfMonth()->toDateString());
     }
@@ -56,8 +58,7 @@ class ProfitReportTabTest extends TestCase
         $accountService->debit($salaires, 30_000, 'Paie', referenceType: 'SORTIE_DE_CAISSE');
 
         $component = Livewire::actingAs($user)
-            ->test(CaisseBalancesPage::class)
-            ->set('activeTab', 'revenus')
+            ->test(ProfitReportPage::class)
             ->set('profitReportDateFrom', now()->startOfMonth()->toDateString())
             ->set('profitReportDateTo', now()->endOfMonth()->toDateString())
             ->call('applyProfitReportFilter');
@@ -81,8 +82,7 @@ class ProfitReportTabTest extends TestCase
         $accountService->credit($ticketSales, 100_000, 'Billets');
 
         $component = Livewire::actingAs($user)
-            ->test(CaisseBalancesPage::class)
-            ->set('activeTab', 'revenus')
+            ->test(ProfitReportPage::class)
             ->set('profitReportDateFrom', now()->addDays(10)->toDateString())
             ->set('profitReportDateTo', now()->addDays(20)->toDateString())
             ->call('applyProfitReportFilter');
@@ -92,5 +92,49 @@ class ProfitReportTabTest extends TestCase
         $revenueRow = collect($report['revenueByAccount'])->firstWhere('accountId', $ticketSales->id);
 
         $this->assertNull($revenueRow);
+    }
+
+    public function test_balance_sheet_widget_lists_revenues_and_expenses_by_type_with_totals_and_net_result(): void
+    {
+        $user = $this->createUserWithFullAccess();
+        $accountService = app(AccountService::class);
+        $caisse = Caisse::create(['name' => 'Caisse bilan (test)', 'balance' => 0]);
+        $ticketSales = $this->makeAccount('Ventes bilan (test)', AccountType::TicketSales);
+        $airtimeType = ExpenseType::factory()->create(['name' => 'Airtime bilan (test)']);
+
+        $accountService->processEntreeDeCaisse($caisse, $ticketSales, 200_000, 'Billets', categoryOverride: AccountTransactionCategory::Revenue);
+        $accountService->processSortieDeCaisse($caisse, 50_000, 'Airtime', [$ticketSales->id], categoryOverride: AccountTransactionCategory::Expense, expenseTypeId: $airtimeType->id);
+
+        Livewire::actingAs($user)
+            ->test(ProfitReportPage::class)
+            ->assertSee('Bilan de la période')
+            ->assertSee('Total revenus')
+            ->assertSee('Total dépenses')
+            ->assertSee('Résultat net')
+            ->assertSee('Airtime bilan (test)')
+            ->assertSee('50 000 FCFA');
+    }
+
+    public function test_balance_sheet_widget_shows_an_empty_expenses_section_when_there_are_none(): void
+    {
+        $user = $this->createUserWithFullAccess();
+
+        Livewire::actingAs($user)
+            ->test(ProfitReportPage::class)
+            ->set('profitReportDateFrom', now()->addYears(5)->toDateString())
+            ->set('profitReportDateTo', now()->addYears(5)->addDay()->toDateString())
+            ->call('applyProfitReportFilter')
+            ->assertSee('Aucune dépense sur cette période');
+    }
+
+    public function test_the_page_is_reserved_to_full_access_users(): void
+    {
+        $this->actingAs($this->createUserWithFullAccess())
+            ->get(route('back-office.revenus.index'))
+            ->assertOk();
+
+        $this->actingAs($this->createUserWithPermissions([]))
+            ->get(route('back-office.revenus.index'))
+            ->assertForbidden();
     }
 }

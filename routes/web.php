@@ -16,6 +16,7 @@ use App\Livewire\Ambassador\EarningsPage as AmbassadorEarnings;
 use App\Livewire\Ambassador\Home as AmbassadorHome;
 use App\Livewire\Ambassador\PayoutsPage as AmbassadorPayouts;
 use App\Livewire\Ambassador\SponsoredAmbassadors;
+use App\Livewire\BackOffice\AccountListPage;
 use App\Livewire\BackOffice\AddBusToDepart;
 use App\Livewire\BackOffice\AmbassadorList;
 use App\Livewire\BackOffice\AmbassadorPayoutList;
@@ -23,15 +24,21 @@ use App\Livewire\BackOffice\AppParamsPage;
 use App\Livewire\BackOffice\BusBookings;
 use App\Livewire\BackOffice\CaisseBalancesPage;
 use App\Livewire\BackOffice\CreateDepart;
+use App\Livewire\BackOffice\DepartCostReportList;
+use App\Livewire\BackOffice\DepartCostReportPage;
 use App\Livewire\BackOffice\DepartList;
 use App\Livewire\BackOffice\DepartScheduleNotifications;
 use App\Livewire\BackOffice\EditBus;
 use App\Livewire\BackOffice\EditDepart;
 use App\Livewire\BackOffice\EmployeList;
+use App\Livewire\BackOffice\ExpenseManagement;
+use App\Livewire\BackOffice\ExpenseTypeList;
+use App\Livewire\BackOffice\ExpenseTypeOperations;
 use App\Livewire\BackOffice\HoraireList;
 use App\Livewire\BackOffice\ItineraireList;
 use App\Livewire\BackOffice\OrangeMoneyPage;
 use App\Livewire\BackOffice\PointDepList;
+use App\Livewire\BackOffice\ProfitReportPage;
 use App\Livewire\BackOffice\TrajetList;
 use App\Livewire\BackOffice\UserAccessManagement;
 use App\Livewire\BackOffice\VehiculeList;
@@ -183,6 +190,7 @@ Route::middleware(['auth', RejectAmbassadorAccounts::class])->prefix('back-offic
     Route::get('departs', DepartList::class)->name('departs.index');
     Route::get('departs/create', CreateDepart::class)->name('departs.create');
     Route::get('departs/{depart}/edit', EditDepart::class)->name('departs.edit');
+    Route::get('departs/{depart}/cost-report', DepartCostReportPage::class)->name('departs.cost-report');
     Route::get('departs/{depart}/add-bus', AddBusToDepart::class)->name('departs.add-bus');
     Route::get('departs/{depart}/schedule-notifications', DepartScheduleNotifications::class)
         ->name('departs.schedule-notifications');
@@ -201,6 +209,13 @@ Route::middleware(['auth', RejectAmbassadorAccounts::class])->prefix('back-offic
     Route::get('parametres', AppParamsPage::class)->name('parametres.index');
 
     Route::get('caisses', CaisseBalancesPage::class)->name('caisses.index');
+    Route::get('comptes', AccountListPage::class)->name('comptes.index');
+    Route::get('cost-reports', DepartCostReportList::class)->name('cost-reports.index');
+    Route::get('revenus', ProfitReportPage::class)->name('revenus.index');
+    Route::get('depenses', ExpenseManagement::class)->name('depenses.index');
+    Route::get('expense-types', ExpenseTypeList::class)->name('expense-types.index');
+    Route::get('expense-types/unclassified/operations', ExpenseTypeOperations::class)->name('expense-types.unclassified-operations');
+    Route::get('expense-types/{expenseType}/operations', ExpenseTypeOperations::class)->name('expense-types.operations');
     Route::get('paiements-om', OrangeMoneyPage::class)->name('paiements-om.index');
     Route::get('paiements-wave', WavePaymentsPage::class)->name('paiements-wave.index');
 

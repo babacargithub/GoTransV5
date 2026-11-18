@@ -4,22 +4,27 @@ namespace App\Livewire\BackOffice\Concerns;
 
 use App\Services\ProfitService;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Url;
 
 /**
- * "Revenus" tab of the back-office Finance page: revenue vs. expenses vs.
+ * "Revenus" back-office page (Finances): revenue vs. expenses vs.
  * net profit over a date range (default: current month), broken down by
  * account, straight off ProfitService::computeProfit().
  */
 trait ManagesProfitReport
 {
+    #[Url(as: 'du')]
     public string $profitReportDateFrom = '';
 
+    #[Url(as: 'au')]
     public string $profitReportDateTo = '';
 
     public function mountManagesProfitReport(): void
     {
-        $this->profitReportDateFrom = now()->startOfMonth()->toDateString();
-        $this->profitReportDateTo = now()->endOfMonth()->toDateString();
+        if ($this->profitReportDateFrom === '' && $this->profitReportDateTo === '') {
+            $this->profitReportDateFrom = now()->startOfMonth()->toDateString();
+            $this->profitReportDateTo = now()->endOfMonth()->toDateString();
+        }
     }
 
     public function applyProfitReportFilter(): void
@@ -28,7 +33,7 @@ trait ManagesProfitReport
     }
 
     /**
-     * @return array{totalRevenue: int, totalExpenses: int, profit: int, revenueByAccount: array<int, array{accountId: int, name: string, amount: int}>, expensesByAccount: array<int, array{accountId: int, name: string, amount: int}>}
+     * @return array{totalRevenue: int, totalExpenses: int, profit: int, revenueByAccount: array<int, array{accountId: int, name: string, amount: int}>, expensesByAccount: array<int, array{accountId: int, name: string, amount: int}>, expensesByType: array<int, array{expenseTypeId: int|null, name: string, amount: int}>}
      */
     #[Computed]
     public function profitReport(): array
@@ -44,6 +49,7 @@ trait ManagesProfitReport
             'profit' => $report->profit,
             'revenueByAccount' => $report->revenueByAccount,
             'expensesByAccount' => $report->expensesByAccount,
+            'expensesByType' => $report->expensesByType,
         ];
     }
 }
