@@ -301,7 +301,7 @@ class WaveService
                     'currency' => 'XOF',
                     'receive_amount' => (string) $payout->amount,
                     'mobile' => '+221'.$payout->wave_phone_number,
-                    'client_reference' => "ambassador-payout-{$payout->id}",
+                    'client_reference' => $this->payoutClientReference($payout),
                     'payment_reason' => $payout->payment_reason,
                 ]);
         } catch (ConnectionException $connectionException) {
@@ -319,8 +319,141 @@ class WaveService
         return [
             'transaction_id' => $response->json('id'),
             'is_settled' => $waveStatus === 'succeeded',
-            'failure_reason' => $waveStatus === 'failed' ? ($response->json('error') ?? 'Paiement refusé par Wave') : null,
+            'failure_reason' => $waveStatus === 'failed' ? $this->describePayoutError($response->json('payout_error')) : null,
         ];
+    }
+
+    /**
+     * Asks Wave what became of a payout: by its Wave id when it has one, otherwise by the client reference it
+     * was sent with (the case when the first call timed out and Wave's answer never reached us). Nothing is
+     * changed locally. Outside production there is no real Wave payout to ask about, so the state is unreachable.
+     *
+     * state is one of: succeeded, processing, failed (also covers reversed), not_found (Wave never received
+     * it, so resending is safe) or unreachable (Wave could not be asked or answered something unexpected:
+     * never act on it).
+     *
+     * @return array{state: string, transaction_id: ?string, failure_reason: ?string}
+     */
+    public function fetchPayout(AmbassadorPayout $payout): array
+    {
+        $unreachable = ['state' => 'unreachable', 'transaction_id' => null, 'failure_reason' => null];
+
+        if (! app()->isProduction() || (string) config('app.wave_key') === '') {
+            return $unreachable;
+        }
+
+        $isLookedUpByWaveId = $payout->provider_payout_id !== null;
+
+        try {
+            $request = Http::withHeaders($this->headers())->asJson()->timeout(20);
+            $response = $isLookedUpByWaveId
+                ? $request->get(self::API_BASE_URL.'/payout/'.$payout->provider_payout_id)
+                : $request->get(self::API_BASE_URL.'/payouts/search', ['client_reference' => $this->payoutClientReference($payout)]);
+        } catch (ConnectionException $connectionException) {
+            $this->logger->warning("Wave payout {$payout->id} could not be fetched: {$connectionException->getMessage()}");
+
+            return $unreachable;
+        }
+
+        if ($isLookedUpByWaveId && ($response->status() === 404 || $response->json('code') === 'not-found')) {
+            return ['state' => 'not_found', 'transaction_id' => null, 'failure_reason' => null];
+        }
+
+        if ($response->failed()) {
+            return $unreachable;
+        }
+
+        $wavePayout = $isLookedUpByWaveId
+            ? $response->json()
+            : collect($response->json('result', []))->firstWhere('status', 'succeeded') ?? collect($response->json('result', []))->first();
+
+        if ($wavePayout === null) {
+            return ['state' => 'not_found', 'transaction_id' => null, 'failure_reason' => null];
+        }
+
+        $transactionId = $wavePayout['id'] ?? null;
+
+        return match ($wavePayout['status'] ?? null) {
+            'succeeded' => ['state' => 'succeeded', 'transaction_id' => $transactionId, 'failure_reason' => null],
+            'processing' => ['state' => 'processing', 'transaction_id' => $transactionId, 'failure_reason' => null],
+            'failed' => ['state' => 'failed', 'transaction_id' => $transactionId, 'failure_reason' => $this->describePayoutError($wavePayout['payout_error'] ?? null)],
+            'reversed' => ['state' => 'failed', 'transaction_id' => $transactionId, 'failure_reason' => 'Paiement annulé par Wave (reversed)'],
+            default => $unreachable,
+        };
+    }
+
+    /**
+     * Brings an unconfirmed payout in line with what Wave reports. A succeeded payout is settled exactly like
+     * a direct success, a failed one is marked failed, a processing one keeps waiting (with its Wave id). A
+     * payout Wave never received, or one Wave could not be asked about, is left untouched.
+     */
+    public function reconcilePayout(AmbassadorPayout $payout): AmbassadorPayout
+    {
+        $payout->refresh();
+
+        if ($payout->status === AmbassadorPayoutStatus::Success) {
+            return $payout;
+        }
+
+        $wavePayout = $this->fetchPayout($payout);
+
+        if ($wavePayout['transaction_id'] !== null) {
+            $payout->update(['provider_payout_id' => $wavePayout['transaction_id']]);
+        }
+
+        match ($wavePayout['state']) {
+            'succeeded' => $this->settlePayoutAndNotify($payout),
+            'processing' => $payout->update(['status' => AmbassadorPayoutStatus::Pending, 'failure_reason' => null]),
+            'failed' => $payout->update(['status' => AmbassadorPayoutStatus::Failed, 'failure_reason' => $wavePayout['failure_reason']]),
+            default => null,
+        };
+
+        return $payout;
+    }
+
+    /**
+     * Reconciles every payout Wave may know about without us having confirmed it: the ones Wave accepted but
+     * did not settle yet, and the ones we attempted without ever getting a usable answer.
+     *
+     * @return int number of payouts that were checked against Wave
+     */
+    public function reconcileUnconfirmedPayouts(): int
+    {
+        $checkedPayoutsCount = 0;
+
+        AmbassadorPayout::query()
+            ->where('status', '!=', AmbassadorPayoutStatus::Success)
+            ->where('attempts_count', '>', 0)
+            ->each(function (AmbassadorPayout $payout) use (&$checkedPayoutsCount): void {
+                $this->reconcilePayout($payout);
+                $checkedPayoutsCount++;
+            });
+
+        return $checkedPayoutsCount;
+    }
+
+    private function payoutClientReference(AmbassadorPayout $payout): string
+    {
+        return "ambassador-payout-{$payout->id}";
+    }
+
+    /**
+     * @param  array{error_code?: string, error_message?: string}|null  $payoutError
+     */
+    private function describePayoutError(?array $payoutError): string
+    {
+        if ($payoutError === null) {
+            return 'Paiement refusé par Wave';
+        }
+
+        return trim(($payoutError['error_code'] ?? 'unknown-error').' : '.($payoutError['error_message'] ?? ''), ' :');
+    }
+
+    private function settlePayoutAndNotify(AmbassadorPayout $payout): void
+    {
+        $this->markAsSucceeded($payout);
+
+        $this->notifyAmbassadorWithoutRisk(fn () => $this->notificationService->notifyAmbassadorOfSuccessfulPayout($payout));
     }
 
     /**
@@ -335,6 +468,11 @@ class WaveService
             return $payout;
         }
 
+        // An earlier attempt may have reached Wave although we never got its answer: ask before sending again.
+        if ($payout->attempts_count > 0 && ! $this->reconcilePayout($payout)->canBeSent()) {
+            return $payout;
+        }
+
         $payout->update([
             'status' => AmbassadorPayoutStatus::Pending,
             'attempts_count' => $payout->attempts_count + 1,
@@ -342,15 +480,12 @@ class WaveService
         ]);
 
         $waveResult = $this->sendPayout($payout);
-        // TODO read carefully https://docs.wave.com/business#api-reference about payout responses and errors
         if ($waveResult['transaction_id'] !== null) {
             $payout->update(['provider_payout_id' => $waveResult['transaction_id']]);
         }
 
         if ($waveResult['is_settled']) {
-            $this->markAsSucceeded($payout);
-
-            $this->notifyAmbassadorWithoutRisk(fn () => $this->notificationService->notifyAmbassadorOfSuccessfulPayout($payout));
+            $this->settlePayoutAndNotify($payout);
         } elseif ($waveResult['failure_reason'] !== null) {
             $payout->update([
                 'status' => AmbassadorPayoutStatus::Failed,
@@ -391,6 +526,9 @@ class WaveService
      */
     public function retryUnsettledPayouts(): int
     {
+        // Settle what Wave already processed first, so only payouts Wave really lacks are sent again.
+        $this->reconcileUnconfirmedPayouts();
+
         $retriedPayoutsCount = 0;
 
         AmbassadorPayout::query()
