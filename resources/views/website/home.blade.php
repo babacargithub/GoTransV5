@@ -5,7 +5,7 @@
 >
     <section class="max-w-5xl mx-auto px-4 py-12">
         <header class="mb-8 text-brand-navy">
-            <h1 class="text-4xl font-bold mb-2">Caravanes UGB-DAKAR, DAKAR-UGB Globe One Transports</h1>
+            <h1 class="text-3xl font-bold mb-2">Caravanes UGB-DAKAR, DAKAR-UGB</h1>
             <p class="text-lg">Réservations caravane étudiants UGB.</p>
         </header>
 
