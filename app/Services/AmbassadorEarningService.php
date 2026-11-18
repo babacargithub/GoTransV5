@@ -47,13 +47,13 @@ class AmbassadorEarningService
                 'amount' => $this->appParams()->getAmbassadorAcquisitionAmount(),
                 'status' => AmbassadorEarningStatus::Pending,
                 'booking_id' => $paidBooking->id,
-                'label' => "Nouveau client : ". $customer->full_name. "pour depart : {$paidBooking->depart->identifier(with_trajet_prefix: true)}",
+                'label' => 'Nouveau client : '.$customer->full_name."pour depart : {$paidBooking->depart->identifier(with_trajet_prefix: true)}",
                 'approvable_at' => $paidBooking->depart->date->copy()->addDay(),
             ],
         );
 
         if ($acquisitionEarning->wasRecentlyCreated) {
-            $this->dispatchAccountingOf(new RecordAmbassadorCommissionReserveJob($acquisitionEarning->id), $acquisitionEarning);
+            $this->dispatchAccountingOf(new RecordAmbassadorCommissionReserveJob($acquisitionEarning->id), $acquisitionEarning->id);
             $this->recordSponsorshipBonusIfThresholdReached($customer->ambassador);
         }
 
@@ -93,7 +93,7 @@ class AmbassadorEarningService
         );
 
         if ($sponsorshipBonus->wasRecentlyCreated) {
-            $this->dispatchAccountingOf(new RecordAmbassadorCommissionReserveJob($sponsorshipBonus->id), $sponsorshipBonus);
+            $this->dispatchAccountingOf(new RecordAmbassadorCommissionReserveJob($sponsorshipBonus->id), $sponsorshipBonus->id);
         }
 
         return $sponsorshipBonus;
@@ -135,8 +135,8 @@ class AmbassadorEarningService
             'cancelled_at' => now(),
         ]);
 
-        AmbassadorEarning::query()->whereIn('id', $cancelledEarningIds)->each(
-            fn (AmbassadorEarning $cancelledEarning) => $this->dispatchAccountingOf(new ReleaseAmbassadorCommissionReserveJob($cancelledEarning->id), $cancelledEarning),
+        $cancelledEarningIds->each(
+            fn (int $cancelledEarningId) => $this->dispatchAccountingOf(new ReleaseAmbassadorCommissionReserveJob($cancelledEarningId), $cancelledEarningId),
         );
 
         return $cancelledEarningsCount;
@@ -175,12 +175,12 @@ class AmbassadorEarningService
      * Accounting follows the ledger but must never fail or delay the sale, cancellation or approval it follows:
      * a problem is logged, and ambassador:record-missing-commission-entries can catch up later.
      */
-    private function dispatchAccountingOf(object $accountingJob, AmbassadorEarning $earning): void
+    private function dispatchAccountingOf(object $accountingJob, int $earningId): void
     {
         try {
             dispatch($accountingJob)->afterCommit();
         } catch (Throwable $throwable) {
-            Log::error("Ambassador commission accounting could not be queued for earning {$earning->id}: {$throwable->getMessage()}");
+            Log::error("Ambassador commission accounting could not be queued for earning {$earningId}: {$throwable->getMessage()}");
         }
     }
 

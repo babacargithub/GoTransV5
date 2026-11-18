@@ -11,6 +11,8 @@ use App\Models\AccountTransaction;
 use App\Models\AmbassadorEarning;
 use App\Models\AmbassadorPayout;
 use App\Models\Caisse;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -96,12 +98,14 @@ class AmbassadorCommissionAccountingService
 
     /**
      * Records the cash-out of a settled payout: Wave caisse withdrawal and commissions account debit, as an
-     * expense. The commissions it pays are reserved first when they were not yet, so the account never has to
-     * go negative. Does nothing for an unsettled payout or one already recorded.
+     * expense. The commissions it pays must already be reserved: nothing else is touched here, so a missing
+     * reserve fails the whole recording (to be retried) instead of leaving it half done. Does nothing for an
+     * unsettled payout or one already recorded.
      *
      * @return bool whether the cash-out was recorded now
      *
-     * @throws RuntimeException when the Wave caisse is not configured
+     * @throws RuntimeException when the Wave caisse is not configured or the payout amount differs from its earnings
+     * @throws InsufficientAccountBalanceException when the commissions are not all reserved yet
      */
     public function recordPayout(AmbassadorPayout $payout): bool
     {
@@ -116,7 +120,11 @@ class AmbassadorCommissionAccountingService
             $waveCaisse = Caisse::findByCode(CaisseCode::Wave)
                 ?? throw new RuntimeException('The Wave caisse is not configured: ambassador payout '.$lockedPayout->id.' was not recorded.');
 
-            $lockedPayout->earnings->each(fn (AmbassadorEarning $paidEarning) => $this->reserveEarning($paidEarning));
+            $paidEarningsTotal = (int) $lockedPayout->earnings->sum('amount');
+
+            if ($paidEarningsTotal !== $lockedPayout->amount) {
+                throw new RuntimeException("Ambassador payout {$lockedPayout->id} amount ({$lockedPayout->amount}) differs from the total of its earnings ({$paidEarningsTotal}): it was not recorded.");
+            }
 
             $label = "Paiement ambassadeur {$lockedPayout->ambassador->full_name} (Wave)";
 
@@ -145,17 +153,25 @@ class AmbassadorCommissionAccountingService
     {
         $outcome = ['reserved' => 0, 'released' => 0, 'payouts_recorded' => 0, 'failed' => 0];
 
-        AmbassadorEarning::query()->notCancelled()->orderBy('id')->each(function (AmbassadorEarning $earning) use (&$outcome): void {
-            $this->runCounting(fn (): bool => $this->reserveEarning($earning), 'reserved', $outcome, "earning {$earning->id}");
-        });
+        $this->whereCommissionsTransactionExists(AmbassadorEarning::query()->notCancelled(), self::RESERVE_REFERENCE_TYPE, shouldExist: false)
+            ->lazyById()
+            ->each(function (AmbassadorEarning $earning) use (&$outcome): void {
+                $this->runCounting(fn (): bool => $this->reserveEarning($earning), 'reserved', $outcome, "earning {$earning->id}");
+            });
 
-        AmbassadorEarning::query()->where('status', AmbassadorEarningStatus::Cancelled)->orderBy('id')->each(function (AmbassadorEarning $earning) use (&$outcome): void {
-            $this->runCounting(fn (): bool => $this->releaseEarning($earning), 'released', $outcome, "cancelled earning {$earning->id}");
-        });
+        $cancelledEarningsQuery = AmbassadorEarning::query()->where('status', AmbassadorEarningStatus::Cancelled);
+        $this->whereCommissionsTransactionExists($cancelledEarningsQuery, self::RESERVE_REFERENCE_TYPE, shouldExist: true);
+        $this->whereCommissionsTransactionExists($cancelledEarningsQuery, self::RELEASE_REFERENCE_TYPE, shouldExist: false)
+            ->lazyById()
+            ->each(function (AmbassadorEarning $earning) use (&$outcome): void {
+                $this->runCounting(fn (): bool => $this->releaseEarning($earning), 'released', $outcome, "cancelled earning {$earning->id}");
+            });
 
-        AmbassadorPayout::query()->where('status', AmbassadorPayoutStatus::Success)->orderBy('id')->each(function (AmbassadorPayout $payout) use (&$outcome): void {
-            $this->runCounting(fn (): bool => $this->recordPayout($payout), 'payouts_recorded', $outcome, "payout {$payout->id}");
-        });
+        $this->whereCommissionsTransactionExists(AmbassadorPayout::query()->where('status', AmbassadorPayoutStatus::Success), self::PAYOUT_REFERENCE_TYPE, shouldExist: false)
+            ->lazyById()
+            ->each(function (AmbassadorPayout $payout) use (&$outcome): void {
+                $this->runCounting(fn (): bool => $this->recordPayout($payout), 'payouts_recorded', $outcome, "payout {$payout->id}");
+            });
 
         return $outcome;
     }
@@ -176,12 +192,40 @@ class AmbassadorCommissionAccountingService
         }
     }
 
+    /**
+     * Scoped to the commissions account, so a transaction of another module that happens to share a reference
+     * type and id never counts as ours.
+     */
     private function hasTransaction(string $referenceType, int $referenceId): bool
     {
         return AccountTransaction::query()
+            ->where('account_id', $this->accountService->getOrCreateAmbassadorCommissionsAccount()->id)
             ->where('reference_type', $referenceType)
             ->where('reference_id', $referenceId)
             ->exists();
+    }
+
+    /**
+     * Keeps the rows of $query that have (or, with $shouldExist false, have not) a commissions account
+     * transaction of the given reference type, so the backfill only walks lines that still need work.
+     *
+     * @param  Builder<Model>  $query
+     * @return Builder<Model>
+     */
+    private function whereCommissionsTransactionExists(Builder $query, string $referenceType, bool $shouldExist): Builder
+    {
+        $commissionsAccountId = $this->accountService->getOrCreateAmbassadorCommissionsAccount()->id;
+
+        $existingTransactionQuery = fn ($transactionQuery) => $transactionQuery
+            ->select(DB::raw(1))
+            ->from('account_transactions')
+            ->where('account_transactions.account_id', $commissionsAccountId)
+            ->where('account_transactions.reference_type', $referenceType)
+            ->whereColumn('account_transactions.reference_id', $query->getModel()->getQualifiedKeyName());
+
+        return $shouldExist
+            ? $query->whereExists($existingTransactionQuery)
+            : $query->whereNotExists($existingTransactionQuery);
     }
 
     /**

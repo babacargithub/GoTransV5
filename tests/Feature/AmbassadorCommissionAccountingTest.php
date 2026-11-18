@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\AccountTransactionCategory;
 use App\Enums\AccountTransactionType;
+use App\Enums\AccountType;
 use App\Enums\AmbassadorPayoutStatus;
 use App\Enums\CaisseCode;
 use App\Exceptions\InsufficientAccountBalanceException;
@@ -11,6 +12,7 @@ use App\Jobs\RecordAmbassadorCommissionReserveJob;
 use App\Jobs\RecordAmbassadorPayoutInCaisseJob;
 use App\Jobs\ReleaseAmbassadorCommissionReserveJob;
 use App\Manager\BookingManager;
+use App\Models\Account;
 use App\Models\AccountTransaction;
 use App\Models\Ambassador;
 use App\Models\AmbassadorEarning;
@@ -30,6 +32,7 @@ use App\Services\WaveService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Queue;
+use RuntimeException;
 use Tests\TestCase;
 
 /**
@@ -216,18 +219,78 @@ class AmbassadorCommissionAccountingTest extends TestCase
         $this->assertSame(AccountTransactionType::Debit, $payoutTransaction->transaction_type);
     }
 
-    public function test_a_payout_reserves_its_commissions_first_when_they_were_not_set_aside_yet(): void
+    public function test_a_payout_whose_commissions_are_not_reserved_yet_records_nothing_until_they_are(): void
+    {
+        $payoutAmount = $this->commissionsBalance() + 1500;
+        $this->fundTicketSales($payoutAmount);
+        $ambassador = Ambassador::factory()->create();
+        $earning = AmbassadorEarning::factory()->for($ambassador)->approved()->create(['amount' => $payoutAmount]);
+        $payout = AmbassadorPayout::factory()->for($ambassador)->succeeded()->create(['amount' => $payoutAmount]);
+        $earning->update(['ambassador_payout_id' => $payout->id, 'status' => 'paid']);
+        $waveCaisseBefore = Caisse::findByCode(CaisseCode::Wave)->fresh()->balance;
+        $commissionsBalanceBefore = $this->commissionsBalance();
+
+        try {
+            $this->accounting->recordPayout($payout);
+            $this->fail('The payout should not be recorded while its commissions are not reserved.');
+        } catch (InsufficientAccountBalanceException) {
+            $this->assertCount(0, $this->transactionsOf(AmbassadorCommissionAccountingService::PAYOUT_REFERENCE_TYPE, $payout->id));
+            $this->assertSame($waveCaisseBefore, Caisse::findByCode(CaisseCode::Wave)->fresh()->balance);
+            $this->assertSame($commissionsBalanceBefore, $this->commissionsBalance());
+        }
+
+        $this->accounting->reserveEarning($earning);
+
+        $this->assertTrue($this->accounting->recordPayout($payout));
+        $this->assertSame($commissionsBalanceBefore, $this->commissionsBalance());
+    }
+
+    public function test_a_payout_whose_amount_differs_from_its_earnings_is_not_recorded(): void
     {
         $this->fundTicketSales();
         $ambassador = Ambassador::factory()->create();
         $earning = AmbassadorEarning::factory()->for($ambassador)->approved()->create(['amount' => 1500]);
-        $payout = AmbassadorPayout::factory()->for($ambassador)->succeeded()->create(['amount' => 1500]);
+        $payout = AmbassadorPayout::factory()->for($ambassador)->succeeded()->create(['amount' => 2000]);
         $earning->update(['ambassador_payout_id' => $payout->id, 'status' => 'paid']);
+        $this->accounting->reserveEarning($earning);
+
+        $this->expectException(RuntimeException::class);
 
         $this->accounting->recordPayout($payout);
+    }
 
-        $this->assertCount(2, $this->transactionsOf(AmbassadorCommissionAccountingService::RESERVE_REFERENCE_TYPE, $earning->id));
-        $this->assertSame(0, $this->commissionsBalance());
+    public function test_a_commission_that_could_not_be_reserved_is_reserved_by_a_later_attempt_once_ticket_sales_is_credited(): void
+    {
+        $earning = AmbassadorEarning::factory()->create(['amount' => $this->ticketSalesBalance() + 1]);
+
+        try {
+            $this->accounting->reserveEarning($earning);
+            $this->fail('The reserve should fail while TicketSales is short.');
+        } catch (InsufficientAccountBalanceException) {
+            $this->assertCount(0, $this->transactionsOf(AmbassadorCommissionAccountingService::RESERVE_REFERENCE_TYPE, $earning->id));
+        }
+
+        $this->fundTicketSales($earning->amount);
+
+        $this->assertTrue($this->accounting->reserveEarning($earning));
+    }
+
+    public function test_a_transaction_of_another_account_with_the_same_reference_does_not_count_as_a_reservation(): void
+    {
+        $this->fundTicketSales();
+        $earning = AmbassadorEarning::factory()->create(['amount' => 700]);
+        $foreignAccount = Account::create(['name' => 'Foreign account', 'account_type' => AccountType::Management->value, 'balance' => 0, 'is_active' => true]);
+        AccountTransaction::create([
+            'account_id' => $foreignAccount->id,
+            'amount' => 1,
+            'transaction_type' => AccountTransactionType::Credit,
+            'category' => AccountTransactionCategory::Internal,
+            'label' => 'Foreign module',
+            'reference_type' => AmbassadorCommissionAccountingService::RESERVE_REFERENCE_TYPE,
+            'reference_id' => $earning->id,
+        ]);
+
+        $this->assertTrue($this->accounting->reserveEarning($earning));
     }
 
     public function test_an_unsettled_payout_is_not_recorded(): void
