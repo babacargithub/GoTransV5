@@ -15,6 +15,7 @@ use App\Models\Trajet;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class StudentBookingFormTest extends TestCase
@@ -145,6 +146,42 @@ class StudentBookingFormTest extends TestCase
             ->assertHasErrors('passengers.0.phone_number')
             ->set('passengers.0.phone_number', '771234567')
             ->assertHasNoErrors('passengers.0.phone_number');
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function senegalMobilePrefixPhoneNumbers(): array
+    {
+        return [
+            'prefix 70' => ['701234567'],
+            'prefix 71' => ['711234567'],
+            'prefix 75' => ['751234567'],
+            'prefix 76' => ['761234567'],
+            'prefix 77' => ['771234567'],
+            'prefix 78' => ['781234567'],
+        ];
+    }
+
+    #[DataProvider('senegalMobilePrefixPhoneNumbers')]
+    public function test_every_senegal_mobile_prefix_is_accepted(string $phoneNumber): void
+    {
+        ['depart' => $depart] = $this->createBookableDepart();
+
+        Livewire::test(StudentBooking::class, ['depart' => $depart])
+            ->set('passengersCount', 1)
+            ->set('passengers.0.phone_number', $phoneNumber)
+            ->assertHasNoErrors('passengers.0.phone_number');
+    }
+
+    public function test_an_unknown_mobile_prefix_is_rejected(): void
+    {
+        ['depart' => $depart] = $this->createBookableDepart();
+
+        Livewire::test(StudentBooking::class, ['depart' => $depart])
+            ->set('passengersCount', 1)
+            ->set('passengers.0.phone_number', '731234567')
+            ->assertHasErrors('passengers.0.phone_number');
     }
 
     public function test_full_name_is_validated_as_the_customer_types(): void

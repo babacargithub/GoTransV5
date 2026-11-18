@@ -16,6 +16,7 @@ use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\RateLimiter;
 use Livewire\Livewire;
 use Mockery\MockInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class AmbassadorSponsoredInvitationTest extends TestCase
@@ -225,6 +226,32 @@ class AmbassadorSponsoredInvitationTest extends TestCase
         $invitedAmbassador = Ambassador::query()->where('phone_number', 771112233)->sole();
         $this->assertSame($sponsor->id, $invitedAmbassador->sponsor_ambassador_id);
         $this->assertSame(AmbassadorStatus::Invited, $invitedAmbassador->status);
+    }
+
+    #[DataProvider('newSenegalMobilePrefixPhoneNumbers')]
+    public function test_the_invitation_form_accepts_the_new_75_and_71_mobile_prefixes(string $phoneNumber): void
+    {
+        ['user' => $user] = $this->createLoggedInSponsor();
+        $this->mock(SMSSender::class)->shouldReceive('sendSms')->once();
+
+        Livewire::actingAs($user)
+            ->test(SponsoredAmbassadors::class)
+            ->set('firstName', 'Awa')
+            ->set('lastName', 'Diop')
+            ->set('phoneNumber', $phoneNumber)
+            ->call('inviteAmbassador')
+            ->assertHasNoErrors();
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function newSenegalMobilePrefixPhoneNumbers(): array
+    {
+        return [
+            'prefix 75' => ['751112233'],
+            'prefix 71' => ['711112233'],
+        ];
     }
 
     public function test_the_invitation_form_rejects_an_invalid_phone_number_and_is_rate_limited(): void

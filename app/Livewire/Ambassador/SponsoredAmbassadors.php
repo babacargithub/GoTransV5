@@ -30,7 +30,7 @@ class SponsoredAmbassadors extends Component
     public const MAX_INVITATIONS_PER_HOUR = 10;
 
     /** Mirrors the mobile app's client-side phone check (utils/phone_number_validator.js). */
-    private const SENEGAL_MOBILE_REGEX = '/^7[7680][0-9]{7}$/';
+    private const SENEGAL_MOBILE_REGEX = '/^(77|78|76|70|75|71)[0-9]{7}$/';
 
     public string $firstName = '';
 
