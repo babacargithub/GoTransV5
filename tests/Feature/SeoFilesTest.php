@@ -99,6 +99,34 @@ class SeoFilesTest extends TestCase
         $this->assertSame("User-agent: *\nDisallow: /\n", $response->getContent());
     }
 
+    public function test_the_ambassador_domain_refuses_crawling_and_indexing(): void
+    {
+        $robotsResponse = $this->get($this->urlOnDomain(config('app.ambassador_domain'), '/robots.txt'));
+        $loginResponse = $this->get($this->urlOnDomain(config('app.ambassador_domain'), '/login'));
+        $guestHomeResponse = $this->get($this->urlOnDomain(config('app.ambassador_domain'), '/'));
+
+        $this->assertSame("User-agent: *\nDisallow: /\n", $robotsResponse->getContent());
+        $loginResponse->assertOk()->assertHeader('X-Robots-Tag', 'noindex, nofollow, noarchive, nosnippet');
+        $loginResponse->assertSee('<meta name="robots" content="noindex, nofollow">', false);
+        $guestHomeResponse->assertHeader('X-Robots-Tag', 'noindex, nofollow, noarchive, nosnippet');
+    }
+
+    public function test_the_back_office_host_is_kept_out_of_search_engines_even_on_its_login_page(): void
+    {
+        $this->get($this->urlOnDomain('backoffice.example.test', '/login'))
+            ->assertOk()
+            ->assertHeader('X-Robots-Tag', 'noindex, nofollow, noarchive, nosnippet')
+            ->assertSee('<meta name="robots" content="noindex, nofollow">', false);
+    }
+
+    public function test_the_public_website_and_landing_domains_are_not_given_the_noindex_header(): void
+    {
+        $this->get($this->urlOnDomain(config('app.public_website_domain'), '/aide'))
+            ->assertHeaderMissing('X-Robots-Tag');
+        $this->get($this->urlOnDomain(config('app.concours_domain'), '/robots.txt'))
+            ->assertHeaderMissing('X-Robots-Tag');
+    }
+
     public function test_the_standalone_landing_domains_stay_crawlable(): void
     {
         $response = $this->get($this->urlOnDomain(config('app.concours_domain'), '/robots.txt'));

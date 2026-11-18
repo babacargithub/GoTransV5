@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Middleware\KeepPrivateDomainsOutOfSearchEngines;
 use App\Models\Depart;
 use App\Models\Trajet;
 use Illuminate\Http\Request;
@@ -74,15 +75,12 @@ class SeoFilesController extends Controller
     }
 
     /**
-     * Every other host (the back office, whose pages are also noindex) is kept out of search
-     * engines, except the standalone landing domains which stay fully crawlable.
+     * Every other host (the back office and the ambassador space, whose pages are also noindex) is kept
+     * out of search engines, except the standalone landing domains which stay fully crawlable.
      */
     public function fallbackRobots(Request $request): Response
     {
-        $isCrawlableLandingDomain = in_array($request->getHost(), [
-            config('app.concours_domain'),
-            config('app.gp_domain'),
-        ], true);
+        $isCrawlableLandingDomain = KeepPrivateDomainsOutOfSearchEngines::isSearchEngineFriendlyHost($request->getHost());
 
         return $this->plainTextResponse([
             'User-agent: *',
