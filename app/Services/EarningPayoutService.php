@@ -42,7 +42,7 @@ class EarningPayoutService
         return DB::transaction(function () use ($ambassador, $requestedByUserId, $paymentReason): ?AmbassadorPayout {
             $payableEarnings = $this->payableEarnings($ambassador, lockForUpdate: true);
 
-            $payableAmount = $this->calculatePayableAmount($ambassador);
+            $payableAmount = $this->sumPayableAmount($payableEarnings);
 
             if ($payableAmount === 0) {
                 return null;
@@ -103,9 +103,21 @@ class EarningPayoutService
      */
     public function calculatePayableAmount(Ambassador $ambassador): int
     {
+        return $this->sumPayableAmount($this->payableEarnings($ambassador));
+    }
+
+    /**
+     * Sums the given earnings, so a payout is always worth exactly the earnings attached to it.
+     *
+     * @param  Collection<int, AmbassadorEarning>  $payableEarnings
+     *
+     * @throws InvalidArgumentException when an earning has an invalid amount
+     */
+    private function sumPayableAmount(Collection $payableEarnings): int
+    {
         $payableAmount = 0;
 
-        foreach ($this->payableEarnings($ambassador) as $earning) {
+        foreach ($payableEarnings as $earning) {
             if (! is_int($earning->amount) || $earning->amount <= 0) {
                 throw new InvalidArgumentException("Earning {$earning->id} has an invalid amount and cannot be paid.");
             }

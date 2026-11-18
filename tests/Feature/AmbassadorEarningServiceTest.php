@@ -140,6 +140,26 @@ class AmbassadorEarningServiceTest extends TestCase
         $this->assertSame(self::DEPART_DATE_PLUS_ONE_DAY, $earning->approvable_at->format('Y-m-d H:i:s'));
     }
 
+    public function test_the_acquisition_label_separates_the_customer_name_from_the_depart(): void
+    {
+        $customer = $this->createCustomer(Ambassador::factory()->create());
+        $booking = $this->createBookingFor($customer);
+
+        $earning = $this->lifecycleService()->recordAcquisitionEarning($booking);
+
+        $this->assertStringStartsWith("Nouveau client : {$customer->full_name} pour depart : ", $earning->label);
+    }
+
+    public function test_a_booking_without_depart_creates_no_earning(): void
+    {
+        $customer = $this->createCustomer(Ambassador::factory()->create());
+        $booking = $this->createBookingFor($customer);
+        $booking->setRelation('depart', null);
+
+        $this->assertNull($this->lifecycleService()->recordAcquisitionEarning($booking));
+        $this->assertSame(0, AmbassadorEarning::where('ambassador_id', $customer->ambassador_id)->count());
+    }
+
     public function test_the_acquisition_amount_falls_back_to_500_when_app_params_define_none(): void
     {
         $this->setAmbassadorParams([]);

@@ -29,13 +29,15 @@ class AmbassadorEarningService
      * Records the acquisition prime for a paid booking of a customer brought by an ambassador. Only the
      * first call per customer creates a line (a customer is acquired once); later bookings return it
      * unchanged. The line stays pending until 24h after the departure, then approveDueEarnings() releases it.
-     * Returns null when the customer was not brought by an ambassador.
+     * Returns null when the customer was not brought by an ambassador, or when the booking has no departure
+     * to date the approval from.
      */
     public function recordAcquisitionEarning(Booking $paidBooking): ?AmbassadorEarning
     {
         $customer = $paidBooking->customer;
+        $depart = $paidBooking->depart;
 
-        if ($customer === null || $customer->ambassador_id === null) {
+        if ($customer === null || $customer->ambassador_id === null || $depart === null) {
             return null;
         }
 
@@ -47,8 +49,8 @@ class AmbassadorEarningService
                 'amount' => $this->appParams()->getAmbassadorAcquisitionAmount(),
                 'status' => AmbassadorEarningStatus::Pending,
                 'booking_id' => $paidBooking->id,
-                'label' => 'Nouveau client : '.$customer->full_name."pour depart : {$paidBooking->depart->identifier(with_trajet_prefix: true)}",
-                'approvable_at' => $paidBooking->depart->date->copy()->addDay(),
+                'label' => "Nouveau client : {$customer->full_name} pour depart : {$depart->identifier(with_trajet_prefix: true)}",
+                'approvable_at' => $depart->date->copy()->addDay(),
             ],
         );
 
