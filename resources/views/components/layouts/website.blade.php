@@ -111,9 +111,10 @@
     <footer class="bg-brand-cyan text-brand-navy text-sm">
         <div class="max-w-5xl mx-auto px-4 py-8 flex flex-col gap-6 sm:flex-row sm:justify-between">
             <div class="flex flex-col gap-1">
-                <p class="font-semibold uppercase tracking-wide">Contact</p>
+                <p class="font-semibold uppercase tracking-wide">Numéros contacts Globe One Transports</p>
                 <a href="tel:+221771273535" class="hover:underline">77 127 35 35</a>
                 <a href="tel:+221771163003" class="hover:underline">77 116 30 03</a>
+                <a href="tel:+221771271212" class="hover:underline">77 127 12 12</a>
             </div>
 
             <address class="not-italic flex flex-col gap-1 sm:max-w-xs sm:text-right">

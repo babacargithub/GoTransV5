@@ -1,12 +1,12 @@
 <x-layouts.website
-    title="Globe One Transport — Bus Saint-Louis (UGB) ↔ Dakar"
-    description="Réservez votre trajet en bus entre Saint-Louis (UGB) et Dakar avec Globe One Transport. Départs réguliers, trajets directs et fiables, billets en ligne."
-    keywords="bus UGB Dakar, transport Saint-Louis Dakar, réservation bus Sénégal, Globe One Transport"
+    title="Globe One Transport — Caravanes UGB-DAKAR, DAKAR-UGB"
+    description="Réservation Caravanes étudiants UGB, DAKAR-UGB et UGB-DAKAR avec Globe One Transports"
+    keywords="caravanes ugb, Globe One Transport, caravane dakar ugb, réservation caravane ugb dakar, lien globe one, e-transport, UGB, réservation caravane, caravanes étudiants ugb"
 >
     <section class="max-w-5xl mx-auto px-4 py-12">
         <header class="mb-8 text-brand-navy">
-            <h1 class="text-4xl font-bold mb-2">Nos caravanes</h1>
-            <p class="text-lg">Choisissez votre caravane pour voir les prochains départs.</p>
+            <h1 class="text-4xl font-bold mb-2">Caravanes UGB-DAKAR, DAKAR-UGB Globe One Transports</h1>
+            <p class="text-lg">Réservations caravane étudiants UGB.</p>
         </header>
 
         @if ($trajets->isEmpty())
