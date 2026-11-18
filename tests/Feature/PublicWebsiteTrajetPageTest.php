@@ -67,6 +67,7 @@ class PublicWebsiteTrajetPageTest extends TestCase
 
     public function test_the_home_page_shows_the_ugb_alias_for_a_saint_louis_city(): void
     {
+        Trajet::query()->update(['disabled' => true]);
         $trajet = $this->createTrajet([
             'name' => 'Caravane alias '.uniqid(),
             'departure_city' => 'DAKAR',
@@ -100,7 +101,7 @@ class PublicWebsiteTrajetPageTest extends TestCase
     {
         $trajet = $this->createTrajet(['disabled' => true]);
 
-        $this->getJson('/api/mobile/departs/trajet/'.$trajet->id)->assertStatus(200);
+        $this->getJson('/go_travel_v5/public/api/mobile/departs/trajet/'.$trajet->id)->assertStatus(200);
     }
 
     private function createVisibleUpcomingDepart(Trajet $trajet, array $busOverrides = []): Depart
@@ -343,7 +344,7 @@ class PublicWebsiteTrajetPageTest extends TestCase
     {
         $trajet = $this->createTrajet();
 
-        $response = $this->getJson('/api/mobile/departs/trajet/'.$trajet->id);
+        $response = $this->getJson('/go_travel_v5/public/api/mobile/departs/trajet/'.$trajet->id);
 
         $response->assertStatus(200);
         $response->assertJsonStructure(['id', 'name', 'departs', 'pointDeparts', 'destinations']);

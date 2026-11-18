@@ -941,6 +941,7 @@ class DepartListPageTest extends TestCase
         $farFutureDepart = $this->createUpcomingDepartWithBus();
         $farFutureDepart->update(['date' => now()->addYears(10)]);
         $this->createUpcomingDepartWithBus();
+        $this->createUpcomingDepartWithBus();
 
         $component = Livewire::actingAs($this->createUserWithFullAccess())->test(DepartList::class);
         $firstPage = $component->instance()->departsPage;

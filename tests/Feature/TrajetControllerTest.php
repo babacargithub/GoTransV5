@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Horaire;
 use App\Models\Trajet;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -15,7 +16,7 @@ class TrajetControllerTest extends TestCase
     private function actingAsUser(): void
     {
         Sanctum::actingAs(User::factory()->create([
-            'username' => 'test_user_' . uniqid(),
+            'username' => 'test_user_'.uniqid(),
             'active' => true,
         ]));
     }
@@ -39,7 +40,7 @@ class TrajetControllerTest extends TestCase
                 ['name' => 'Destination 1'],
             ],
             'horaires' => [
-                ['name' => 'Matin', 'bus_leave_time' => '07:00'],
+                ['name' => 'Matin', 'bus_leave_time' => '07:00', 'periode' => Horaire::PERIODE_MATIN],
             ],
         ], $overrides);
     }

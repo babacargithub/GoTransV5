@@ -180,7 +180,7 @@ class BookingControllerRefundTicketTest extends TestCase
         $this->assertNotSoftDeleted($secondPassengerBooking);
         $this->assertNotSoftDeleted($thirdPassengerBooking);
         $this->assertNoWaveRefundWasRequested();
-        $this->assertStringContainsString('Transaction: TX-GROUP-1', $sentSms['message']);
+        $this->assertStringContainsString('Transaction id: TX-GROUP-1', $sentSms['message']);
         $this->assertStringContainsString('Montant à rembourser: 4000 F', $sentSms['message']);
         $this->assertStringContainsString('Client: Awa DIOP', $sentSms['message']);
         $this->assertStringContainsString('Tel: '.$bookingToRefund->customer->phone_number, $sentSms['message']);
@@ -207,7 +207,7 @@ class BookingControllerRefundTicketTest extends TestCase
 
         $this->postJson("/api/bookings/{$bookingToRefund->id}/refund")->assertOk();
 
-        $this->assertStringContainsString('Transaction: cos-group-2', $sentMessage);
+        $this->assertStringContainsString('Transaction id: cos-group-2', $sentMessage);
     }
 
     public function test_refunding_a_booking_paid_alone_still_refunds_the_wave_transaction_without_texting_the_manager(): void
@@ -217,6 +217,8 @@ class BookingControllerRefundTicketTest extends TestCase
         $booking = $this->createWavePaidBooking($this->createBusWithPickupPoint(), 'cos-alone-1');
         $this->actingAsUserAllowedToRefund();
         $this->mock(SMSSender::class)->shouldNotReceive('sendSms');
+        $this->app['env'] = 'production';
+        config(['app.wave_key' => 'test-wave-key']);
 
         $this->postJson("/api/bookings/{$booking->id}/refund")->assertOk();
 
