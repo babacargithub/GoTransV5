@@ -31,6 +31,13 @@ enum AccountType: string
      */
     case Expense = 'EXPENSE';
 
+    /**
+     * Single company-wide account holding the money set aside for ambassador commissions. Each commission
+     * is moved there from TicketSales as soon as it is earned (an internal transfer), and leaves it as an
+     * expense when the manager pays the ambassador. See AmbassadorCommissionAccountingService.
+     */
+    case AmbassadorCommissions = 'AMBASSADOR_COMMISSIONS';
+
     public function label(): string
     {
         return match ($this) {
@@ -38,6 +45,7 @@ enum AccountType: string
             self::TicketSales => 'Ventes de billets',
             self::ParcelService => 'Service de colis',
             self::Expense => 'Charge',
+            self::AmbassadorCommissions => 'Commissions ambassadeurs',
         };
     }
 
@@ -50,7 +58,7 @@ enum AccountType: string
     {
         return match ($this) {
             self::TicketSales, self::ParcelService => AccountNature::Income,
-            self::Expense => AccountNature::Expense,
+            self::Expense, self::AmbassadorCommissions => AccountNature::Expense,
             self::Management => null,
         };
     }

@@ -4,11 +4,16 @@ namespace App\Services;
 
 use App\Enums\AmbassadorEarningStatus;
 use App\Enums\AmbassadorEarningType;
+use App\Jobs\RecordAmbassadorCommissionReserveJob;
+use App\Jobs\ReleaseAmbassadorCommissionReserveJob;
 use App\Models\Ambassador;
 use App\Models\AmbassadorEarning;
 use App\Models\AppParams;
 use App\Models\Booking;
 use App\Models\Customer;
+use App\Models\Depart;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Write side of the ambassador earnings ledger: creates lines, approves them once their waiting
@@ -42,12 +47,13 @@ class AmbassadorEarningService
                 'amount' => $this->appParams()->getAmbassadorAcquisitionAmount(),
                 'status' => AmbassadorEarningStatus::Pending,
                 'booking_id' => $paidBooking->id,
-                'label' => "Nouveau client : {$customer->full_name}",
+                'label' => "Nouveau client : ". $customer->full_name. "pour depart : {$paidBooking->depart->identifier(with_trajet_prefix: true)}",
                 'approvable_at' => $paidBooking->depart->date->copy()->addDay(),
             ],
         );
 
         if ($acquisitionEarning->wasRecentlyCreated) {
+            $this->dispatchAccountingOf(new RecordAmbassadorCommissionReserveJob($acquisitionEarning->id), $acquisitionEarning);
             $this->recordSponsorshipBonusIfThresholdReached($customer->ambassador);
         }
 
@@ -73,7 +79,7 @@ class AmbassadorEarningService
             return null;
         }
 
-        return AmbassadorEarning::query()->firstOrCreate(
+        $sponsorshipBonus = AmbassadorEarning::query()->firstOrCreate(
             ['idempotency_key' => "sponsorship:{$sponsoredAmbassador->id}"],
             [
                 'ambassador_id' => $sponsoredAmbassador->sponsor_ambassador_id,
@@ -85,6 +91,12 @@ class AmbassadorEarningService
                 'approvable_at' => now(),
             ],
         );
+
+        if ($sponsorshipBonus->wasRecentlyCreated) {
+            $this->dispatchAccountingOf(new RecordAmbassadorCommissionReserveJob($sponsorshipBonus->id), $sponsorshipBonus);
+        }
+
+        return $sponsorshipBonus;
     }
 
     /**
@@ -111,14 +123,37 @@ class AmbassadorEarningService
      */
     public function cancelEarningsOfBooking(Booking $booking): int
     {
-        return AmbassadorEarning::query()
+        $owedEarningsQuery = AmbassadorEarning::query()
             ->where('booking_id', $booking->id)
             ->whereIn('status', [AmbassadorEarningStatus::Pending, AmbassadorEarningStatus::Approved])
-            ->whereNull('ambassador_payout_id')
-            ->update([
-                'status' => AmbassadorEarningStatus::Cancelled,
-                'cancelled_at' => now(),
-            ]);
+            ->whereNull('ambassador_payout_id');
+
+        $cancelledEarningIds = (clone $owedEarningsQuery)->pluck('id');
+
+        $cancelledEarningsCount = $owedEarningsQuery->update([
+            'status' => AmbassadorEarningStatus::Cancelled,
+            'cancelled_at' => now(),
+        ]);
+
+        AmbassadorEarning::query()->whereIn('id', $cancelledEarningIds)->each(
+            fn (AmbassadorEarning $cancelledEarning) => $this->dispatchAccountingOf(new ReleaseAmbassadorCommissionReserveJob($cancelledEarning->id), $cancelledEarning),
+        );
+
+        return $cancelledEarningsCount;
+    }
+
+    /**
+     * What the ambassador commissions cost one départ: the acquisition commissions of its bookings, counted as
+     * soon as they are earned (pending included) and left out once cancelled. Computed live, never stored, like
+     * the départ's ticket sales. Sponsorship bonuses belong to no départ and are not included.
+     */
+    public function totalCommissionsOfDepart(Depart $depart): int
+    {
+        return (int) AmbassadorEarning::query()
+            ->where('type', AmbassadorEarningType::Acquisition)
+            ->notCancelled()
+            ->whereHas('booking', fn ($bookingQuery) => $bookingQuery->where('depart_id', $depart->id))
+            ->sum('amount');
     }
 
     /**
@@ -134,6 +169,19 @@ class AmbassadorEarningService
             ->where('booking_id', $transferredBooking->id)
             ->where('status', AmbassadorEarningStatus::Pending)
             ->update(['approvable_at' => $transferredBooking->depart->date->copy()->addDay()]);
+    }
+
+    /**
+     * Accounting follows the ledger but must never fail or delay the sale, cancellation or approval it follows:
+     * a problem is logged, and ambassador:record-missing-commission-entries can catch up later.
+     */
+    private function dispatchAccountingOf(object $accountingJob, AmbassadorEarning $earning): void
+    {
+        try {
+            dispatch($accountingJob)->afterCommit();
+        } catch (Throwable $throwable) {
+            Log::error("Ambassador commission accounting could not be queued for earning {$earning->id}: {$throwable->getMessage()}");
+        }
     }
 
     private function acquisitionIdempotencyKey(Customer $customer): string

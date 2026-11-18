@@ -538,6 +538,21 @@ class AccountService
         );
     }
 
+    /**
+     * Returns the single company-wide "Commissions ambassadeurs" account, creating it if needed.
+     */
+    public function getOrCreateAmbassadorCommissionsAccount(): Account
+    {
+        return Account::firstOrCreate(
+            ['account_type' => AccountType::AmbassadorCommissions->value],
+            [
+                'name' => AccountType::AmbassadorCommissions->label(),
+                'balance' => 0,
+                'is_active' => true,
+            ]
+        );
+    }
+
     // ── Ticket refund ────────────────────────────────────────────────────────
 
     /**

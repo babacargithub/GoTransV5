@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\AmbassadorEarningStatus;
 use App\Enums\AmbassadorPayoutStatus;
 use App\Http\Resources\PaymentResponseResource;
+use App\Jobs\RecordAmbassadorPayoutInCaisseJob;
 use App\Manager\TicketManager;
 use App\Models\AmbassadorPayout;
 use App\Models\Booking;
@@ -422,5 +423,12 @@ class WaveService
                 'paid_at' => now(),
             ]);
         });
+
+        // The manager's payout leaves the Wave caisse: recorded by a queued job that can never undo the payout.
+        try {
+            dispatch(new RecordAmbassadorPayoutInCaisseJob($payout->id))->afterCommit();
+        } catch (Throwable $throwable) {
+            $this->logger->error("Payout {$payout->id} could not be queued for caisse recording: {$throwable->getMessage()}");
+        }
     }
 }

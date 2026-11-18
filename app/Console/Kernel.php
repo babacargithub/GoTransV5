@@ -16,6 +16,8 @@ class Kernel extends ConsoleKernel
         $schedule->command('ambassador:approve-due-earnings')->hourly();
         // Payouts are never automatic: the manager pays from the back-office on the 15th and the last day of the month.
         $schedule->command('ambassador:remind-manager-of-payout-day')->dailyAt('08:00');
+        // Safety net behind the queued accounting jobs: records any commission reserve, release or payout that failed to queue.
+        $schedule->command('ambassador:record-missing-commission-entries')->dailyAt('03:00');
     }
 
     /**
