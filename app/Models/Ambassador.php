@@ -132,6 +132,28 @@ class Ambassador extends Model
     }
 
     /**
+     * Whether the contract has an end date that is already behind us. A contract that is not set yet or has
+     * not started is not expired.
+     */
+    public function hasExpiredContract(): bool
+    {
+        return $this->contract_ends_at !== null && $this->contract_ends_at->lt(today());
+    }
+
+    /**
+     * The French reason why this ambassador may not use their space, or null when they may: a suspended
+     * account or an expired contract. Shown at login and when an open session is cut off.
+     */
+    public function accessRejectionMessage(): ?string
+    {
+        if ($this->status === AmbassadorStatus::Suspended) {
+            return __('auth.ambassador_suspended');
+        }
+
+        return $this->hasExpiredContract() ? __('auth.ambassador_contract_expired') : null;
+    }
+
+    /**
      * Whether this ambassador's code may currently attribute new customers.
      */
     public function canAcquireCustomers(): bool

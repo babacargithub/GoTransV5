@@ -55,6 +55,15 @@ class Login extends Component
             ]);
         }
 
+        // Only once the credentials are right, so a stranger never learns anything about an account.
+        $ambassadorRejectionMessage = $isAmbassadorDomain ? $user->ambassador?->accessRejectionMessage() : null;
+
+        if ($ambassadorRejectionMessage !== null) {
+            throw ValidationException::withMessages([
+                'username' => $ambassadorRejectionMessage,
+            ]);
+        }
+
         RateLimiter::clear($throttleKey);
 
         if ($user->two_factor_secret && $user->two_factor_confirmed_at) {

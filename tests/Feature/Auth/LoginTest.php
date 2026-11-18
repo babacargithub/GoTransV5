@@ -2,10 +2,13 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Enums\AmbassadorStatus;
 use App\Livewire\Auth\Login;
+use App\Models\Ambassador;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Hash;
+use Livewire\Features\SupportTesting\Testable;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -97,5 +100,73 @@ class LoginTest extends TestCase
             ->assertHasErrors('username');
 
         $this->assertGuest();
+    }
+
+    /**
+     * @param  array<string, mixed>  $ambassadorAttributes
+     */
+    private function createAmbassadorAccount(array $ambassadorAttributes = []): User
+    {
+        $user = User::factory()->create([
+            'username' => 'ambassadrice_awa',
+            'password' => Hash::make('password'),
+        ]);
+        $user->assignRole(Ambassador::ACCOUNT_ROLE_NAME);
+        Ambassador::factory()->create(array_merge(['user_account_id' => $user->id], $ambassadorAttributes));
+
+        return $user;
+    }
+
+    private function loginOnAmbassadorDomain(): Testable
+    {
+        config(['app.ambassador_domain' => request()->getHost()]);
+
+        return Livewire::test(Login::class)
+            ->set('username', 'ambassadrice_awa')
+            ->set('password', 'password')
+            ->call('login');
+    }
+
+    public function test_an_active_ambassador_signs_in_to_their_space(): void
+    {
+        $user = $this->createAmbassadorAccount();
+
+        $this->loginOnAmbassadorDomain()
+            ->assertHasNoErrors()
+            ->assertRedirect(route('ambassador.home'));
+
+        $this->assertAuthenticatedAs($user);
+    }
+
+    public function test_a_suspended_ambassador_is_told_their_account_is_suspended(): void
+    {
+        $this->createAmbassadorAccount(['status' => AmbassadorStatus::Suspended]);
+
+        $this->loginOnAmbassadorDomain()
+            ->assertHasErrors(['username' => __('auth.ambassador_suspended')]);
+
+        $this->assertGuest();
+    }
+
+    public function test_an_ambassador_with_an_expired_contract_is_told_their_contract_expired(): void
+    {
+        $this->createAmbassadorAccount(['contract_starts_at' => today()->subYear(), 'contract_ends_at' => today()->subDay()]);
+
+        $this->loginOnAmbassadorDomain()
+            ->assertHasErrors(['username' => __('auth.ambassador_contract_expired')]);
+
+        $this->assertGuest();
+    }
+
+    public function test_a_suspended_ambassador_with_a_wrong_password_only_gets_the_generic_message(): void
+    {
+        $this->createAmbassadorAccount(['status' => AmbassadorStatus::Suspended]);
+        config(['app.ambassador_domain' => request()->getHost()]);
+
+        Livewire::test(Login::class)
+            ->set('username', 'ambassadrice_awa')
+            ->set('password', 'wrong-password')
+            ->call('login')
+            ->assertHasErrors(['username' => __('auth.failed')]);
     }
 }

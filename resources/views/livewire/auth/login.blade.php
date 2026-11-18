@@ -1,6 +1,10 @@
 <div>
     <h2 class="text-xl font-semibold mb-6">Connexion</h2>
 
+    @if (session('login_rejection'))
+        <p class="text-error text-sm mb-4" role="alert">{{ session('login_rejection') }}</p>
+    @endif
+
     <form wire:submit="login" class="space-y-4">
         <div>
             <label for="username" class="label-uppercase block mb-1">Nom d'utilisateur</label>

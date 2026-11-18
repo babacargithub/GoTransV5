@@ -5,6 +5,7 @@ namespace Tests\Feature\Ambassador;
 use App\Enums\AmbassadorEarningStatus;
 use App\Enums\AmbassadorEarningType;
 use App\Enums\AmbassadorPayoutStatus;
+use App\Enums\AmbassadorStatus;
 use App\Livewire\Ambassador\EarningsPage;
 use App\Livewire\Ambassador\PayoutsPage;
 use App\Livewire\Ambassador\SponsoredAmbassadors;
@@ -34,6 +35,32 @@ class AmbassadorPagesTest extends TestCase
     private function pageUrl(string $path): string
     {
         return 'http://'.config('app.ambassador_domain').'/'.$path;
+    }
+
+    public function test_an_ambassador_suspended_while_signed_in_is_signed_out_with_the_reason(): void
+    {
+        ['user' => $user, 'ambassador' => $ambassador] = $this->createLoggedInAmbassador();
+        $ambassador->update(['status' => AmbassadorStatus::Suspended]);
+
+        $this->actingAs($user)
+            ->get($this->pageUrl(''))
+            ->assertRedirect(route('login'))
+            ->assertSessionHas('login_rejection', __('auth.ambassador_suspended'));
+
+        $this->assertGuest();
+    }
+
+    public function test_an_ambassador_whose_contract_expired_while_signed_in_is_signed_out_with_the_reason(): void
+    {
+        ['user' => $user, 'ambassador' => $ambassador] = $this->createLoggedInAmbassador();
+        $ambassador->update(['contract_starts_at' => today()->subYear(), 'contract_ends_at' => today()->subDay()]);
+
+        $this->actingAs($user)
+            ->get($this->pageUrl(''))
+            ->assertRedirect(route('login'))
+            ->assertSessionHas('login_rejection', __('auth.ambassador_contract_expired'));
+
+        $this->assertGuest();
     }
 
     public function test_pages_require_the_ambassador_role(): void
