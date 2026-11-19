@@ -88,6 +88,8 @@ class Login extends Component
 
     public function render()
     {
-        return view('livewire.auth.login');
+        return view('livewire.auth.login', [
+            'isAmbassadorDomain' => request()->getHost() === config('app.ambassador_domain'),
+        ]);
     }
 }

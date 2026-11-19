@@ -14,6 +14,7 @@ use App\Http\Controllers\PointDepController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\TrajetController;
 use App\Http\Controllers\WavePaiementController;
+use App\Http\Middleware\RejectAmbassadorAccounts;
 use App\Models\User;
 use App\Models\Vehicule;
 use Illuminate\Http\Request;
@@ -93,7 +94,7 @@ Route::post('/login', function (Request $request) {
 });
 
 // // =========================== PROTECTED ROUTES ===========================
-Route::group(['middleware' => 'auth:sanctum'], function () {
+Route::group(['middleware' => ['auth:sanctum', RejectAmbassadorAccounts::class]], function () {
     // Accepts the SMS Gateway token (ability "sms-gateway") and full-ability tokens such as the mobile login's.
     Route::middleware(CheckAbilities::class.':'.MessengerController::SMS_GATEWAY_TOKEN_ABILITY)->group(function () {
         Route::get('/contacts_for_sms', [MessengerController::class, 'contactsForSms'])->name('contacts-for-sms');

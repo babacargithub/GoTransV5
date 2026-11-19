@@ -127,6 +127,22 @@ class LoginTest extends TestCase
             ->call('login');
     }
 
+    public function test_an_already_authenticated_ambassador_visiting_the_login_page_lands_in_their_space(): void
+    {
+        $this->actingAs($this->createAmbassadorAccount())
+            ->get('/login')
+            ->assertRedirect(route('ambassador.home'));
+    }
+
+    public function test_the_login_form_announces_the_ambassador_space_on_the_ambassador_domain_only(): void
+    {
+        Livewire::test(Login::class)->assertDontSee('Espace ambassadeur');
+
+        config(['app.ambassador_domain' => request()->getHost()]);
+
+        Livewire::test(Login::class)->assertSee('Espace ambassadeur');
+    }
+
     public function test_an_active_ambassador_signs_in_to_their_space(): void
     {
         $user = $this->createAmbassadorAccount();

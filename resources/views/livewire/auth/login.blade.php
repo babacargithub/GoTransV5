@@ -1,5 +1,10 @@
 <div>
-    <h2 class="text-xl font-semibold mb-6">Connexion</h2>
+    @if ($isAmbassadorDomain)
+        <h2 class="text-xl font-semibold mb-2">Espace ambassadeur</h2>
+        <p class="text-sm mb-6">Connectez-vous avec vos identifiants d'ambassadeur pour suivre vos gains et vos recrues.</p>
+    @else
+        <h2 class="text-xl font-semibold mb-6">Connexion</h2>
+    @endif
 
     @if (session('login_rejection'))
         <p class="text-error text-sm mb-4" role="alert">{{ session('login_rejection') }}</p>

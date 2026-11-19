@@ -172,9 +172,9 @@ Route::withoutMiddleware([
     VerifyCsrfToken::class,
 ])->get('robots.txt', [SeoFilesController::class, 'fallbackRobots'])->name('robots.fallback');
 
-Route::get('/', DepartList::class)->middleware('auth')->name('home');
+Route::get('/', DepartList::class)->middleware(['auth', RejectAmbassadorAccounts::class])->name('home');
 
-Route::middleware(['auth:sanctum', 'verified'])->group(function () {
+Route::middleware(['auth:sanctum', 'verified', RejectAmbassadorAccounts::class])->group(function () {
     Route::get('/dashboard', function () {
         return view('dashboard');
     })->name('dashboard');
