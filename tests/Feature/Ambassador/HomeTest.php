@@ -6,14 +6,15 @@ use App\Enums\AmbassadorEarningStatus;
 use App\Livewire\Ambassador\Home;
 use App\Models\Ambassador;
 use App\Models\AmbassadorEarning;
-use App\Models\Customer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Livewire\Livewire;
+use Tests\Concerns\CreatesCustomersWithBookings;
 use Tests\TestCase;
 
 class HomeTest extends TestCase
 {
+    use CreatesCustomersWithBookings;
     use DatabaseTransactions;
 
     private function ambassadorUrl(): string
@@ -113,13 +114,10 @@ class HomeTest extends TestCase
     {
         ['user' => $user, 'ambassador' => $ambassador] = $this->createLoggedInCapableAmbassador();
         foreach (range(1, 3) as $unused) {
-            Customer::create([
-                'prenom' => 'Test',
-                'nom' => 'Client',
-                'phone_number' => fake()->unique()->numerify('77#######'),
-                'ambassador_id' => $ambassador->id,
-            ]);
+            $this->createBookingOfCustomer($this->createCustomerBroughtBy($ambassador));
         }
+        $this->createCustomerBroughtBy($ambassador);
+        $this->createBookingOfCustomer($this->createCustomerBroughtBy($ambassador), isCancelled: true);
 
         $component = Livewire::actingAs($user)->test(Home::class);
 

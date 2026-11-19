@@ -93,6 +93,15 @@ class Ambassador extends Model
         return $this->hasMany(Customer::class);
     }
 
+    /**
+     * Customers brought by this ambassador who still hold at least one booking: those who never booked,
+     * or whose bookings were all cancelled (soft-deleted), are not counted as acquired.
+     */
+    public function customersWithActiveBooking(): HasMany
+    {
+        return $this->customers()->whereHas('bookings');
+    }
+
     public function bookings(): HasMany
     {
         return $this->hasMany(Booking::class);

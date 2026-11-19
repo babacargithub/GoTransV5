@@ -31,7 +31,7 @@ class AmbassadorService
     ): LengthAwarePaginator {
         return Ambassador::query()
             ->with('sponsor')
-            ->withCount(['customers', 'sponsoredAmbassadors'])
+            ->withCount(['customersWithActiveBooking as customers_count', 'sponsoredAmbassadors'])
             ->when($status, fn (Builder $query) => $query->where('status', $status))
             ->when($searchTerm, function (Builder $query, string $searchTerm): void {
                 $likeTerm = '%'.trim($searchTerm).'%';

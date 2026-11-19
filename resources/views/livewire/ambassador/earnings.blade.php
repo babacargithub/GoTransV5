@@ -31,16 +31,20 @@
                         <div class="text-zinc-500">Votre gain</div>
                         <div class="font-medium">{{ number_format($earning->amount, 0, ',', ' ') }} FCFA</div>
                     </div>
-                    <div>
-                        <div class="text-zinc-500">
-                            @if ($earning->approved_at)
-                                Disponible depuis le
-                            @else
-                                Disponible à partir du
-                            @endif
+                    @if ($earning->status !== \App\Enums\AmbassadorEarningStatus::Cancelled)
+                        <div>
+                            <div class="text-zinc-500">
+                                @if ($earning->approved_at)
+                                    Disponible depuis le
+                                @else
+                                    Disponible à partir du
+                                @endif
+                            </div>
+                            <div class="font-medium">{{ ($earning->approved_at ?? $earning->approvable_at)?->format('d/m/Y H:i') ?? '—' }}</div>
                         </div>
-                        <div class="font-medium">{{ ($earning->approved_at ?? $earning->approvable_at)?->format('d/m/Y H:i') ?? '—' }}</div>
-                    </div>
+                    @else
+                        <div class="font-medium">Reversé</div>
+                    @endif
                 </div>
             </div>
         @empty

@@ -91,6 +91,20 @@ class AmbassadorPagesTest extends TestCase
             ->assertDontSee('987 654');
     }
 
+    public function test_a_cancelled_earning_does_not_show_when_it_becomes_available(): void
+    {
+        ['user' => $user, 'ambassador' => $ambassador] = $this->createLoggedInAmbassador();
+        AmbassadorEarning::factory()->for($ambassador)->create([
+            'status' => AmbassadorEarningStatus::Cancelled,
+            'approved_at' => null,
+            'approvable_at' => now()->addDay(),
+        ]);
+
+        Livewire::actingAs($user)->test(EarningsPage::class)
+            ->assertSee('Annulé')
+            ->assertDontSee('Disponible à partir du');
+    }
+
     public function test_the_earnings_page_can_be_filtered_by_status(): void
     {
         ['user' => $user, 'ambassador' => $ambassador] = $this->createLoggedInAmbassador();

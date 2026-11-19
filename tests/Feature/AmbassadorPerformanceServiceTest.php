@@ -7,13 +7,14 @@ use App\Enums\AmbassadorEarningStatus;
 use App\Models\Ambassador;
 use App\Models\AmbassadorEarning;
 use App\Models\AmbassadorPayout;
-use App\Models\Customer;
 use App\Services\AmbassadorPerformanceService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Tests\Concerns\CreatesCustomersWithBookings;
 use Tests\TestCase;
 
 class AmbassadorPerformanceServiceTest extends TestCase
 {
+    use CreatesCustomersWithBookings;
     use DatabaseTransactions;
 
     private function createEarning(Ambassador $ambassador, AmbassadorEarningStatus $status, int $amount, array $attributes = []): AmbassadorEarning
@@ -141,18 +142,20 @@ class AmbassadorPerformanceServiceTest extends TestCase
         $this->assertSame(10_000_000, $balance->totalBalance);
     }
 
-    public function test_acquired_customers_count_only_counts_customers_of_that_ambassador(): void
+    public function test_acquired_customers_count_only_counts_customers_of_that_ambassador_who_still_have_a_booking(): void
     {
         $ambassador = Ambassador::factory()->create();
         $otherAmbassador = Ambassador::factory()->create();
-        foreach ([$ambassador, $ambassador, $otherAmbassador, null] as $owner) {
-            Customer::create([
-                'prenom' => 'Test',
-                'nom' => 'Client',
-                'phone_number' => fake()->unique()->numerify('77#######'),
-                'ambassador_id' => $owner?->id,
-            ]);
-        }
+
+        $this->createBookingOfCustomer($this->createCustomerBroughtBy($ambassador));
+        $customerWithOnlyCancelledBooking = $this->createCustomerBroughtBy($ambassador);
+        $this->createBookingOfCustomer($customerWithOnlyCancelledBooking, isCancelled: true);
+        $customerWithCancelledAndActiveBookings = $this->createCustomerBroughtBy($ambassador);
+        $this->createBookingOfCustomer($customerWithCancelledAndActiveBookings, isCancelled: true);
+        $this->createBookingOfCustomer($customerWithCancelledAndActiveBookings);
+        $this->createCustomerBroughtBy($ambassador);
+        $this->createBookingOfCustomer($this->createCustomerBroughtBy($otherAmbassador));
+        $this->createBookingOfCustomer($this->createCustomerBroughtBy(null));
 
         $this->assertSame(2, app(AmbassadorPerformanceService::class)->countAcquiredCustomers($ambassador));
         $this->assertSame(0, app(AmbassadorPerformanceService::class)->countAcquiredCustomers(Ambassador::factory()->create()));

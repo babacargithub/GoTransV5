@@ -44,7 +44,7 @@ class AmbassadorPerformanceService
 
     public function countAcquiredCustomers(Ambassador $ambassador): int
     {
-        return $ambassador->customers()->count();
+        return $ambassador->customersWithActiveBooking()->count();
     }
 
     public function countSponsoredAmbassadors(Ambassador $ambassador): int
