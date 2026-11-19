@@ -84,7 +84,7 @@ class HomeTest extends TestCase
         $this->createEarning($ambassador, AmbassadorEarningStatus::Cancelled, 99000);
 
         Livewire::actingAs($user)->test(Home::class)
-            ->assertSeeInOrder(['Solde total', '2 000', 'FCFA', 'Disponible', '1 500 FCFA', 'En attente', '500 FCFA', 'Déjà reçu', '12 000 FCFA'])
+            ->assertSeeInOrder(['Solde total', '2 000', 'FCFA', 'Disponible', '1 500', 'FCFA', 'En attente', '500', 'FCFA', 'Déjà reçu', '12 000', 'FCFA'])
             ->assertDontSee('99 000')
             ->assertDontSee('111 000');
     }
@@ -94,7 +94,7 @@ class HomeTest extends TestCase
         ['user' => $user] = $this->createLoggedInCapableAmbassador();
 
         Livewire::actingAs($user)->test(Home::class)
-            ->assertSeeInOrder(['Solde total', '0', 'FCFA', 'Disponible', '0 FCFA', 'En attente', '0 FCFA', 'Déjà reçu', '0 FCFA']);
+            ->assertSeeInOrder(['Solde total', '0', 'FCFA', 'Disponible', '0', 'FCFA', 'En attente', '0', 'FCFA', 'Déjà reçu', '0', 'FCFA']);
     }
 
     public function test_the_balance_never_includes_the_earnings_of_another_ambassador(): void

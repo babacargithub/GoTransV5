@@ -4,21 +4,24 @@
         <flux:text class="mt-1">Bienvenue dans votre espace ambassadeur.</flux:text>
     </div>
 
-    <div class="rounded-xl bg-zinc-900 p-6 text-center text-white dark:bg-zinc-800">
+    <div class="rounded-xl bg-zinc-900 p-5 text-center sm:p-6 text-white dark:bg-zinc-800">
         <div class="text-sm text-zinc-300">Solde total</div>
         <div class="mt-2 text-4xl font-bold sm:text-5xl">{{ number_format($this->accountBalance->totalBalance, 0, ',', ' ') }} <span class="text-2xl font-medium">FCFA</span></div>
-        <div class="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-3 sm:gap-2">
-            <div>
-                <div class="text-zinc-400">Disponible</div>
-                <div class="font-semibold">{{ number_format($this->accountBalance->availableBalance, 0, ',', ' ') }} FCFA</div>
+        <div class="mt-5 grid grid-cols-3 divide-x divide-zinc-700 border-t border-zinc-700 pt-4 text-sm">
+            <div class="px-1">
+                <div class="text-xs text-zinc-400 sm:text-sm">Disponible</div>
+                <div class="mt-1 font-semibold">{{ number_format($this->accountBalance->availableBalance, 0, ',', ' ') }}</div>
+                <div class="text-xs text-zinc-400">FCFA</div>
             </div>
-            <div>
-                <div class="text-zinc-400">En attente</div>
-                <div class="font-semibold">{{ number_format($this->accountBalance->pendingBalance, 0, ',', ' ') }} FCFA</div>
+            <div class="px-1">
+                <div class="text-xs text-zinc-400 sm:text-sm">En attente</div>
+                <div class="mt-1 font-semibold">{{ number_format($this->accountBalance->pendingBalance, 0, ',', ' ') }}</div>
+                <div class="text-xs text-zinc-400">FCFA</div>
             </div>
-            <div>
-                <div class="text-zinc-400">Déjà reçu</div>
-                <div class="font-semibold">{{ number_format($this->accountBalance->paidBalance, 0, ',', ' ') }} FCFA</div>
+            <div class="px-1">
+                <div class="text-xs text-zinc-400 sm:text-sm">Déjà reçu</div>
+                <div class="mt-1 font-semibold">{{ number_format($this->accountBalance->paidBalance, 0, ',', ' ') }}</div>
+                <div class="text-xs text-zinc-400">FCFA</div>
             </div>
         </div>
         <div class="mt-3 text-xs text-zinc-400">Un gain devient disponible 24h après le départ du client.</div>
