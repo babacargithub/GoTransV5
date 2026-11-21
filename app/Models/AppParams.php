@@ -24,22 +24,6 @@ class AppParams extends Model
     }
 
     /**
-     * Amount (FCFA) paid to an ambassador for each new customer they acquire.
-     */
-    public function getAmbassadorAcquisitionAmount(): int
-    {
-        return (int) ($this->data['ambassador_acquisition_amount'] ?? 500);
-    }
-
-    /**
-     * One-time amount (FCFA) paid to a sponsor when a sponsored ambassador reaches the threshold.
-     */
-    public function getAmbassadorSponsorshipBonusAmount(): int
-    {
-        return (int) ($this->data['ambassador_sponsorship_bonus_amount'] ?? 2000);
-    }
-
-    /**
      * Number of acquired customers a sponsored ambassador must reach to trigger the sponsor's bonus.
      */
     public function getAmbassadorSponsorshipThreshold(): int

@@ -2,13 +2,17 @@
 
 namespace App\Livewire\BackOffice;
 
+use App\Enums\AmbassadorEarningType;
 use App\Enums\AmbassadorStatus;
 use App\Enums\PermissionName;
 use App\Models\Ambassador;
+use App\Models\AmbassadorRewardRule;
+use App\Services\AmbassadorEarningService;
 use App\Services\AmbassadorService;
 use DomainException;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Contracts\View\View;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
@@ -62,6 +66,27 @@ class AmbassadorList extends Component
 
     public ?int $approvingAmbassadorId = null;
 
+    public bool $showEarningsModal = false;
+
+    public ?int $earningsAmbassadorId = null;
+
+    public bool $showRewardRulesModal = false;
+
+    public ?int $rewardRulesAmbassadorId = null;
+
+    public bool $showPromotionModal = false;
+
+    public ?int $promotionAmbassadorId = null;
+
+    public string $promotionType = '';
+
+    public string $promotionNote = '';
+
+    public string $promotionProofUrl = '';
+
+    /** Identifies one submission of the form, so a double click records the promotion only once. */
+    public string $promotionSubmissionToken = '';
+
     public bool $showDeleteModal = false;
 
     public ?int $deletingAmbassadorId = null;
@@ -99,7 +124,7 @@ class AmbassadorList extends Component
     /**
      * What the current user may do, resolved once per render instead of once per row.
      *
-     * @return array{create: bool, createAccount: bool, edit: bool, approve: bool, suspend: bool, delete: bool}
+     * @return array{create: bool, createAccount: bool, edit: bool, approve: bool, suspend: bool, delete: bool, recordPromotion: bool}
      */
     #[Computed]
     public function abilities(): array
@@ -111,6 +136,7 @@ class AmbassadorList extends Component
             'approve' => PermissionName::ApproveAmbassador->allowedForCurrentUser(),
             'suspend' => PermissionName::SuspendAmbassador->allowedForCurrentUser(),
             'delete' => PermissionName::DeleteAmbassador->allowedForCurrentUser(),
+            'recordPromotion' => PermissionName::RecordAmbassadorPromotionRewards->allowedForCurrentUser(),
         ];
     }
 
@@ -301,6 +327,122 @@ class AmbassadorList extends Component
 
         $this->deletingAmbassadorId = $ambassadorId;
         $this->showDeleteModal = true;
+    }
+
+    /**
+     * @return array<string, string> earning type value => French label, for the rewards recorded by hand
+     */
+    #[Computed]
+    public function promotionTypeOptions(): array
+    {
+        return collect(AmbassadorEarningType::cases())
+            ->filter(fn (AmbassadorEarningType $earningType): bool => $earningType->isRecordedManually())
+            ->mapWithKeys(fn (AmbassadorEarningType $earningType): array => [$earningType->value => $earningType->label()])
+            ->all();
+    }
+
+    /**
+     * What recording the chosen promotion would pay the ambassador right now, or null when no rule applies.
+     */
+    public function promotionAmountToPay(): ?int
+    {
+        $promotionType = AmbassadorEarningType::tryFrom($this->promotionType);
+
+        if ($promotionType === null || $this->promotionAmbassadorId === null) {
+            return null;
+        }
+
+        return AmbassadorRewardRule::findApplicableRule($promotionType, Ambassador::findOrFail($this->promotionAmbassadorId))?->amount;
+    }
+
+    public function promotionAmbassadorLabel(): ?string
+    {
+        return $this->promotionAmbassadorId === null
+            ? null
+            : Ambassador::findOrFail($this->promotionAmbassadorId)->full_name;
+    }
+
+    public function openPromotionReward(int $ambassadorId): void
+    {
+        if (! $this->allowed(PermissionName::RecordAmbassadorPromotionRewards)) {
+            return;
+        }
+
+        $this->reset(['promotionType', 'promotionNote', 'promotionProofUrl']);
+        $this->resetValidation();
+        $this->promotionAmbassadorId = Ambassador::findOrFail($ambassadorId)->id;
+        $this->promotionSubmissionToken = (string) Str::uuid();
+        $this->showPromotionModal = true;
+    }
+
+    public function closePromotionModal(): void
+    {
+        $this->showPromotionModal = false;
+        $this->promotionAmbassadorId = null;
+    }
+
+    public function recordPromotionReward(AmbassadorEarningService $earningService): void
+    {
+        if (! $this->allowed(PermissionName::RecordAmbassadorPromotionRewards)) {
+            return;
+        }
+
+        $validated = $this->validate([
+            'promotionType' => ['required', Rule::in(array_keys($this->promotionTypeOptions))],
+            'promotionNote' => ['nullable', 'string', 'max:150'],
+            'promotionProofUrl' => ['nullable', 'url', 'max:500'],
+        ], attributes: [
+            'promotionType' => 'type de promotion',
+            'promotionNote' => 'note',
+            'promotionProofUrl' => 'lien de preuve',
+        ]);
+
+        $ambassadorId = $this->promotionAmbassadorId;
+        $submissionToken = $this->promotionSubmissionToken;
+
+        $this->closePromotionModal();
+
+        if ($ambassadorId === null) {
+            return;
+        }
+
+        $this->runLifecycleAction(function () use ($earningService, $ambassadorId, $submissionToken, $validated): string {
+            $ambassador = Ambassador::findOrFail($ambassadorId);
+            $earning = $earningService->recordPromotionReward(
+                ambassador: $ambassador,
+                promotionType: AmbassadorEarningType::from($validated['promotionType']),
+                submissionToken: $submissionToken,
+                note: filled($validated['promotionNote']) ? $validated['promotionNote'] : null,
+                proofUrl: filled($validated['promotionProofUrl']) ? $validated['promotionProofUrl'] : null,
+                recordedBy: auth()->user(),
+            );
+
+            return "{$earning->type->label()} enregistré pour {$ambassador->full_name} : {$earning->amount} FCFA.";
+        });
+    }
+
+    public function openEarnings(int $ambassadorId): void
+    {
+        $this->earningsAmbassadorId = Ambassador::findOrFail($ambassadorId)->id;
+        $this->showEarningsModal = true;
+    }
+
+    public function closeEarningsModal(): void
+    {
+        $this->showEarningsModal = false;
+        $this->earningsAmbassadorId = null;
+    }
+
+    public function openRewardRules(int $ambassadorId): void
+    {
+        $this->rewardRulesAmbassadorId = Ambassador::findOrFail($ambassadorId)->id;
+        $this->showRewardRulesModal = true;
+    }
+
+    public function closeRewardRulesModal(): void
+    {
+        $this->showRewardRulesModal = false;
+        $this->rewardRulesAmbassadorId = null;
     }
 
     public function closeDeleteModal(): void

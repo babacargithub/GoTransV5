@@ -5,11 +5,17 @@
             <flux:text class="mt-1">Les ambassadeurs, leur contrat et leur statut</flux:text>
         </div>
 
-        @if ($this->abilities['create'])
-            <flux:button variant="primary" icon="plus" wire:click="openCreateAmbassador">
-                Ajouter un ambassadeur
+        <div class="flex flex-wrap items-center justify-end gap-2">
+            <flux:button icon="adjustments-horizontal" :href="route('back-office.ambassador-reward-rules.index')" wire:navigate>
+                Règles de récompense
             </flux:button>
-        @endif
+
+            @if ($this->abilities['create'])
+                <flux:button variant="primary" icon="plus" wire:click="openCreateAmbassador">
+                    Ajouter un ambassadeur
+                </flux:button>
+            @endif
+        </div>
     </div>
 
     <x-flash-toasts />
@@ -97,6 +103,20 @@
                                             </flux:tooltip>
                                         @endif
                                     @endif
+
+                                    @if ($this->abilities['recordPromotion'] && $ambassador->status === \App\Enums\AmbassadorStatus::Active)
+                                        <flux:tooltip content="Enregistrer un partage ou une vidéo">
+                                            <flux:button variant="filled" size="sm" icon="video-camera" aria-label="Enregistrer un partage ou une vidéo de l'ambassadeur" wire:click="openPromotionReward({{ $ambassador->id }})" />
+                                        </flux:tooltip>
+                                    @endif
+
+                                    <flux:tooltip content="Gains">
+                                        <flux:button variant="filled" size="sm" icon="currency-dollar" aria-label="Gains de l'ambassadeur" wire:click="openEarnings({{ $ambassador->id }})" />
+                                    </flux:tooltip>
+
+                                    <flux:tooltip content="Règles de récompense">
+                                        <flux:button variant="filled" size="sm" icon="adjustments-horizontal" aria-label="Règles de récompense de l'ambassadeur" wire:click="openRewardRules({{ $ambassador->id }})" />
+                                    </flux:tooltip>
 
                                     @if ($this->abilities['edit'])
                                         <x-back-office.edit-button wire:click="openEditAmbassador({{ $ambassador->id }})" label="Modifier l'ambassadeur" />
@@ -232,6 +252,71 @@
                 </flux:button>
             </div>
         </form>
+    </flux:modal>
+
+    {{-- Gains d'un ambassadeur, avec approbation manuelle avant échéance --}}
+    <flux:modal wire:model.self="showEarningsModal" wire:key="ambassador-earnings-modal" class="w-full max-w-4xl">
+        @if ($showEarningsModal && $earningsAmbassadorId)
+            <livewire:back-office.ambassador-earnings-dialog :ambassador-id="$earningsAmbassadorId" :key="'earnings-'.$earningsAmbassadorId" />
+        @endif
+    </flux:modal>
+
+    {{-- Règles de récompense d'un ambassadeur : le même composant que la page des règles, restreint à lui --}}
+    <flux:modal wire:model.self="showRewardRulesModal" wire:key="ambassador-reward-rules-modal" class="w-full max-w-4xl">
+        @if ($showRewardRulesModal && $rewardRulesAmbassadorId)
+            <livewire:back-office.ambassador-reward-rule-list :ambassador-id="$rewardRulesAmbassadorId" :key="'reward-rules-'.$rewardRulesAmbassadorId" />
+        @endif
+    </flux:modal>
+
+    {{-- Enregistrer un partage de publicité ou une vidéo de promotion --}}
+    <flux:modal wire:model.self="showPromotionModal" wire:key="ambassador-promotion-modal" class="w-full max-w-lg">
+        @if ($showPromotionModal)
+            <form wire:submit="recordPromotionReward" class="space-y-6">
+                <div>
+                    <flux:heading size="lg">Enregistrer une promotion</flux:heading>
+                    <flux:text class="mt-2">Pour {{ $this->promotionAmbassadorLabel() }}. La récompense suit la règle en vigueur et reste en attente d'approbation.</flux:text>
+                </div>
+
+                <flux:field>
+                    <flux:label>Type de promotion</flux:label>
+                    <flux:select wire:model.live="promotionType" placeholder="Choisir un type">
+                        @foreach ($this->promotionTypeOptions as $promotionTypeValue => $promotionTypeLabel)
+                            <flux:select.option :value="$promotionTypeValue">{{ $promotionTypeLabel }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                    <flux:error name="promotionType" />
+                </flux:field>
+
+                @if ($promotionType !== '')
+                    @if ($this->promotionAmountToPay() === null)
+                        <flux:callout icon="exclamation-triangle" variant="warning">
+                            <flux:callout.text>Aucune règle de récompense ne s'applique à cet ambassadeur pour ce type : rien ne sera enregistré.</flux:callout.text>
+                        </flux:callout>
+                    @else
+                        <flux:callout icon="banknotes">
+                            <flux:callout.text>Montant : {{ number_format($this->promotionAmountToPay(), 0, ',', ' ') }} FCFA</flux:callout.text>
+                        </flux:callout>
+                    @endif
+                @endif
+
+                <flux:field>
+                    <flux:label>Lien de la publication (optionnel)</flux:label>
+                    <flux:input type="url" wire:model="promotionProofUrl" placeholder="https://" />
+                    <flux:error name="promotionProofUrl" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>Note (optionnel)</flux:label>
+                    <flux:input wire:model="promotionNote" placeholder="Ex. groupe Facebook UCAD" />
+                    <flux:error name="promotionNote" />
+                </flux:field>
+
+                <div class="flex items-center justify-end gap-2">
+                    <flux:button variant="ghost" wire:click="closePromotionModal">Annuler</flux:button>
+                    <flux:button type="submit" variant="primary" wire:loading.attr="disabled" wire:target="recordPromotionReward">Enregistrer</flux:button>
+                </div>
+            </form>
+        @endif
     </flux:modal>
 
     {{-- Supprimer un ambassadeur --}}

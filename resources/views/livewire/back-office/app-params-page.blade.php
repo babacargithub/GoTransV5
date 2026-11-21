@@ -119,24 +119,10 @@
 
             <div class="grid gap-6 sm:grid-cols-2">
                 <flux:field>
-                    <flux:label>Prime d'acquisition (FCFA)</flux:label>
-                    <flux:input type="number" wire:model="ambassadorAcquisitionAmount" placeholder="500" />
-                    <flux:description>Versée pour chaque nouveau client amené.</flux:description>
-                    <flux:error name="ambassadorAcquisitionAmount" />
-                </flux:field>
-
-                <flux:field>
                     <flux:label>Montant minimum de paiement (FCFA)</flux:label>
                     <flux:input type="number" wire:model="ambassadorMinimumPayoutAmount" placeholder="1000" />
                     <flux:description>Solde approuvé minimum pour un paiement Wave.</flux:description>
                     <flux:error name="ambassadorMinimumPayoutAmount" />
-                </flux:field>
-
-                <flux:field>
-                    <flux:label>Bonus de parrainage (FCFA)</flux:label>
-                    <flux:input type="number" wire:model="ambassadorSponsorshipBonusAmount" placeholder="2000" />
-                    <flux:description>Versé une fois au parrain quand son filleul atteint le seuil.</flux:description>
-                    <flux:error name="ambassadorSponsorshipBonusAmount" />
                 </flux:field>
 
                 <flux:field>

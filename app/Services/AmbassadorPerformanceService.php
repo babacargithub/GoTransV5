@@ -65,7 +65,7 @@ class AmbassadorPerformanceService
                 'depart.heuresDeparts',
                 'bus.heuresDeparts',
                 'seat.seat',
-                'ambassadorAcquisitionEarning',
+                'ambassadorBookingEarning',
             ])
             ->latest()
             ->paginate($perPage);

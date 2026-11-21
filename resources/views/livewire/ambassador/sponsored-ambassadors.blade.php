@@ -2,8 +2,12 @@
     <div>
         <flux:heading size="xl" level="1">Mon équipe</flux:heading>
         <flux:text class="mt-1">
-            Vous recevez {{ number_format($this->sponsorshipBonusAmount, 0, ',', ' ') }} FCFA quand un ambassadeur que vous parrainez
-            atteint {{ $this->sponsorshipThreshold }} clients amenés.
+            @if ($this->sponsorshipBonusAmount !== null)
+                Vous recevez {{ number_format($this->sponsorshipBonusAmount, 0, ',', ' ') }} FCFA quand un ambassadeur que vous parrainez
+                atteint {{ $this->sponsorshipThreshold }} clients amenés.
+            @else
+                Parrainez des ambassadeurs et suivez leurs clients amenés.
+            @endif
         </flux:text>
     </div>
 

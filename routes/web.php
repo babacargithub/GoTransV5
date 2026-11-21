@@ -20,6 +20,7 @@ use App\Livewire\BackOffice\AccountListPage;
 use App\Livewire\BackOffice\AddBusToDepart;
 use App\Livewire\BackOffice\AmbassadorList;
 use App\Livewire\BackOffice\AmbassadorPayoutList;
+use App\Livewire\BackOffice\AmbassadorRewardRuleList;
 use App\Livewire\BackOffice\AppParamsPage;
 use App\Livewire\BackOffice\BusBookings;
 use App\Livewire\BackOffice\CaisseBalancesPage;
@@ -203,6 +204,7 @@ Route::middleware(['auth', RejectAmbassadorAccounts::class])->prefix('back-offic
     Route::get('trajets', TrajetList::class)->name('trajets.index');
     Route::get('ambassadeurs', AmbassadorList::class)->name('ambassadors.index');
     Route::get('ambassadeurs/paiements', AmbassadorPayoutList::class)->name('ambassador-payouts.index');
+    Route::get('ambassadeurs/regles-de-recompense', AmbassadorRewardRuleList::class)->name('ambassador-reward-rules.index');
     Route::get('employes', EmployeList::class)->name('employes.index');
     Route::get('users', UserAccessManagement::class)->name('users.index');
     Route::get('vehicules', VehiculeList::class)->name('vehicules.index');

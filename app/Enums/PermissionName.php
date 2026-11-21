@@ -50,6 +50,9 @@ enum PermissionName: string
     case SuspendAmbassador = 'suspend-ambassador';
     case DeleteAmbassador = 'delete-ambassador';
     case PayAmbassadors = 'pay-ambassadors';
+    case ManageAmbassadorRewardRules = 'manage-ambassador-reward-rules';
+    case RecordAmbassadorPromotionRewards = 'record-ambassador-promotion-rewards';
+    case ApproveAmbassadorEarnings = 'approve-ambassador-earnings';
     case ManageDepartCostReport = 'manage-depart-cost-report';
 
     /**
@@ -91,6 +94,9 @@ enum PermissionName: string
             self::SuspendAmbassador => 'Suspendre ou réactiver un ambassadeur',
             self::DeleteAmbassador => 'Supprimer un ambassadeur',
             self::PayAmbassadors => 'Payer les ambassadeurs (envoi d\'argent via Wave)',
+            self::ManageAmbassadorRewardRules => 'Gérer les règles de récompense des ambassadeurs',
+            self::RecordAmbassadorPromotionRewards => 'Enregistrer les partages de publicité et vidéos des ambassadeurs',
+            self::ApproveAmbassadorEarnings => 'Approuver les gains des ambassadeurs avant leur échéance',
             self::ManageDepartCostReport => 'Enregistrer et modifier le bilan d\'un départ',
         };
     }

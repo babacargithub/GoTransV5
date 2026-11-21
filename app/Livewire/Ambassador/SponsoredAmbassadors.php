@@ -2,7 +2,9 @@
 
 namespace App\Livewire\Ambassador;
 
+use App\Enums\AmbassadorEarningType;
 use App\Livewire\Ambassador\Concerns\ResolvesLoggedInAmbassador;
+use App\Models\AmbassadorRewardRule;
 use App\Models\AppParams;
 use App\Services\AmbassadorPerformanceService;
 use App\Services\AmbassadorService;
@@ -57,9 +59,9 @@ class SponsoredAmbassadors extends Component
     }
 
     #[Computed]
-    public function sponsorshipBonusAmount(): int
+    public function sponsorshipBonusAmount(): ?int
     {
-        return (AppParams::query()->first() ?? new AppParams(['data' => []]))->getAmbassadorSponsorshipBonusAmount();
+        return AmbassadorRewardRule::findApplicableRule(AmbassadorEarningType::SponsorshipBonus, $this->ambassador)?->amount;
     }
 
     public function inviteAmbassador(AmbassadorService $ambassadorService, NotificationService $notificationService): void

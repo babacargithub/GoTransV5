@@ -134,7 +134,7 @@
         <flux:heading size="lg" level="2">Mes réservations</flux:heading>
 
         @forelse ($this->referredBookings as $booking)
-            @php($commission = $booking->ambassadorAcquisitionEarning)
+            @php($commission = $booking->ambassadorBookingEarning)
             <div wire:key="referred-booking-{{ $booking->id }}" class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
                 <div class="flex items-start justify-between gap-3">
                     <div class="font-semibold">{{ $booking->customer->full_name }}</div>

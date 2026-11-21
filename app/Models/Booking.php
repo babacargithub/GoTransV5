@@ -71,11 +71,15 @@ class Booking extends Model
     }
 
     /**
-     * The commission the booking's ambassador earned for bringing in its customer, if this booking triggered it.
+     * The commission the booking's ambassador earned from this booking, if any: either for bringing in
+     * its customer or for a booking made by an existing customer.
      */
-    public function ambassadorAcquisitionEarning(): HasOne
+    public function ambassadorBookingEarning(): HasOne
     {
-        return $this->hasOne(AmbassadorEarning::class)->where('type', AmbassadorEarningType::Acquisition);
+        return $this->hasOne(AmbassadorEarning::class)->whereIn('type', [
+            AmbassadorEarningType::Acquisition,
+            AmbassadorEarningType::ExistingCustomerBooking,
+        ]);
     }
 
     public function bus(): BelongsTo

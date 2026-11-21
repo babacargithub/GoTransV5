@@ -4,9 +4,11 @@ namespace Tests\Feature;
 
 use App\Enums\AmbassadorEarningStatus;
 use App\Enums\AmbassadorEarningType;
+use App\Enums\AmbassadorStatus;
 use App\Models\Ambassador;
 use App\Models\AmbassadorEarning;
 use App\Models\AmbassadorPayout;
+use App\Models\AmbassadorRewardRule;
 use App\Models\AppParams;
 use App\Models\Booking;
 use App\Models\Customer;
@@ -14,6 +16,7 @@ use App\Models\Depart;
 use App\Models\Destination;
 use App\Models\PointDep;
 use App\Models\Trajet;
+use App\Models\User;
 use App\Services\AmbassadorEarningService;
 use App\Services\AmbassadorPerformanceService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -29,6 +32,13 @@ class AmbassadorEarningServiceTest extends TestCase
 
     private const DEPART_DATE_PLUS_ONE_DAY = '2030-01-16 08:00:00';
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->setGeneralSponsorshipBonusAmount(2000);
+    }
+
     private function lifecycleService(): AmbassadorEarningService
     {
         return app(AmbassadorEarningService::class);
@@ -41,12 +51,22 @@ class AmbassadorEarningServiceTest extends TestCase
     {
         $appParams = AppParams::query()->first() ?? new AppParams(['data' => []]);
         $data = collect($appParams->data ?? [])->except([
-            'ambassador_acquisition_amount',
-            'ambassador_sponsorship_bonus_amount',
             'ambassador_sponsorship_threshold',
         ])->merge($ambassadorParams)->all();
         $appParams->data = $data;
         $appParams->save();
+    }
+
+    private function setGeneralSponsorshipBonusAmount(int $amount): void
+    {
+        AmbassadorRewardRule::query()->where('earning_type', AmbassadorEarningType::SponsorshipBonus)->delete();
+        AmbassadorRewardRule::factory()->create(['earning_type' => AmbassadorEarningType::SponsorshipBonus, 'amount' => $amount]);
+    }
+
+    private function setGeneralAcquisitionAmount(int $amount): void
+    {
+        AmbassadorRewardRule::query()->where('earning_type', AmbassadorEarningType::Acquisition)->delete();
+        AmbassadorRewardRule::factory()->create(['amount' => $amount]);
     }
 
     private function createDepart(string $date = self::DEPART_DATE): Depart
@@ -109,7 +129,7 @@ class AmbassadorEarningServiceTest extends TestCase
     public function test_a_paid_booking_of_a_referred_customer_creates_one_pending_acquisition_earning(): void
     {
         $this->travelTo(self::NOW);
-        $this->setAmbassadorParams(['ambassador_acquisition_amount' => 600]);
+        $this->setGeneralAcquisitionAmount(600);
         $ambassador = Ambassador::factory()->create();
         $customer = $this->createCustomer($ambassador);
         $booking = $this->createBookingFor($customer);
@@ -160,23 +180,21 @@ class AmbassadorEarningServiceTest extends TestCase
         $this->assertSame(0, AmbassadorEarning::where('ambassador_id', $customer->ambassador_id)->count());
     }
 
-    public function test_the_acquisition_amount_falls_back_to_500_when_app_params_define_none(): void
+    public function test_no_acquisition_earning_is_created_when_no_reward_rule_applies(): void
     {
-        $this->setAmbassadorParams([]);
+        AmbassadorRewardRule::query()->where('earning_type', AmbassadorEarningType::Acquisition)->delete();
         $booking = $this->createBookingFor($this->createCustomer(Ambassador::factory()->create()));
 
-        $earning = $this->lifecycleService()->recordAcquisitionEarning($booking);
-
-        $this->assertSame(500, $earning->amount);
+        $this->assertNull($this->lifecycleService()->recordAcquisitionEarning($booking));
     }
 
     public function test_changing_the_global_rate_never_rewrites_an_existing_earning(): void
     {
-        $this->setAmbassadorParams(['ambassador_acquisition_amount' => 500]);
+        $this->setGeneralAcquisitionAmount(500);
         $booking = $this->createBookingFor($this->createCustomer(Ambassador::factory()->create()));
         $earning = $this->lifecycleService()->recordAcquisitionEarning($booking);
 
-        $this->setAmbassadorParams(['ambassador_acquisition_amount' => 900]);
+        $this->setGeneralAcquisitionAmount(900);
         $sameEarning = $this->lifecycleService()->recordAcquisitionEarning($booking);
 
         $this->assertTrue($sameEarning->is($earning));
@@ -305,7 +323,8 @@ class AmbassadorEarningServiceTest extends TestCase
     public function test_the_sponsor_gets_one_pending_bonus_when_the_sponsored_ambassador_reaches_the_threshold(): void
     {
         $this->travelTo(self::NOW);
-        $this->setAmbassadorParams(['ambassador_sponsorship_threshold' => 15, 'ambassador_sponsorship_bonus_amount' => 2500]);
+        $this->setAmbassadorParams(['ambassador_sponsorship_threshold' => 15]);
+        $this->setGeneralSponsorshipBonusAmount(2500);
         $sponsor = Ambassador::factory()->create();
         $sponsored = Ambassador::factory()->sponsoredBy($sponsor)->create();
         $this->createAcquisitionEarningsFor($sponsored, 15);
@@ -323,7 +342,7 @@ class AmbassadorEarningServiceTest extends TestCase
         $this->assertSame(self::NOW, $bonus->approvable_at->format('Y-m-d H:i:s'));
     }
 
-    public function test_the_sponsorship_bonus_amount_and_threshold_fall_back_to_2000_and_15(): void
+    public function test_the_sponsorship_threshold_falls_back_to_15_and_the_amount_comes_from_the_rule(): void
     {
         $this->setAmbassadorParams([]);
         $sponsor = Ambassador::factory()->create();
@@ -433,7 +452,7 @@ class AmbassadorEarningServiceTest extends TestCase
 
     public function test_the_acquisition_that_reaches_the_threshold_triggers_the_sponsors_bonus(): void
     {
-        $this->setAmbassadorParams(['ambassador_sponsorship_threshold' => 3, 'ambassador_sponsorship_bonus_amount' => 2000]);
+        $this->setAmbassadorParams(['ambassador_sponsorship_threshold' => 3]);
         $sponsor = Ambassador::factory()->create();
         $sponsored = Ambassador::factory()->sponsoredBy($sponsor)->create();
         $this->createAcquisitionEarningsFor($sponsored, 2);
@@ -819,5 +838,126 @@ class AmbassadorEarningServiceTest extends TestCase
         $rescheduledCount = $this->lifecycleService()->rescheduleEarningsOfTransferredBooking($booking);
 
         $this->assertSame(0, $rescheduledCount);
+    }
+
+    public function test_a_rule_dedicated_to_the_sponsor_sets_their_sponsorship_bonus(): void
+    {
+        $this->setAmbassadorParams(['ambassador_sponsorship_threshold' => 1]);
+        $sponsor = Ambassador::factory()->create();
+        AmbassadorRewardRule::factory()->forAmbassador($sponsor)->create(['earning_type' => AmbassadorEarningType::SponsorshipBonus, 'amount' => 3500]);
+        $sponsored = Ambassador::factory()->sponsoredBy($sponsor)->create();
+        $this->createAcquisitionEarningsFor($sponsored, 1);
+
+        $bonus = $this->lifecycleService()->recordSponsorshipBonusIfThresholdReached($sponsored);
+
+        $this->assertSame(3500, $bonus->amount);
+    }
+
+    public function test_no_sponsorship_bonus_is_created_when_no_sponsorship_rule_applies(): void
+    {
+        $this->setAmbassadorParams(['ambassador_sponsorship_threshold' => 1]);
+        AmbassadorRewardRule::query()->where('earning_type', AmbassadorEarningType::SponsorshipBonus)->delete();
+        $sponsored = Ambassador::factory()->sponsoredBy(Ambassador::factory()->create())->create();
+        $this->createAcquisitionEarningsFor($sponsored, 1);
+
+        $this->assertNull($this->lifecycleService()->recordSponsorshipBonusIfThresholdReached($sponsored));
+    }
+
+    // ---------------------------------------------------------------- recordPromotionReward
+
+    public function test_a_promotion_reward_is_recorded_as_a_pending_line_at_the_rule_amount(): void
+    {
+        $this->travelTo(self::NOW);
+        AmbassadorRewardRule::factory()->create(['earning_type' => AmbassadorEarningType::VideoContent, 'amount' => 700]);
+        $ambassador = Ambassador::factory()->create();
+
+        $earning = $this->lifecycleService()->recordPromotionReward($ambassador, AmbassadorEarningType::VideoContent, 'token-1', 'TikTok', 'https://tiktok.com/v/1', null);
+
+        $this->assertSame(AmbassadorEarningType::VideoContent, $earning->type);
+        $this->assertSame(AmbassadorEarningStatus::Pending, $earning->status);
+        $this->assertSame(700, $earning->amount);
+        $this->assertSame('https://tiktok.com/v/1', $earning->proof_url);
+        $this->assertSame('Vidéo de promotion : TikTok', $earning->label);
+        $this->assertNull($earning->booking_id);
+        $this->assertSame(self::NOW, $earning->approvable_at->format('Y-m-d H:i:s'));
+    }
+
+    public function test_the_same_submission_token_records_a_promotion_only_once(): void
+    {
+        AmbassadorRewardRule::factory()->create(['earning_type' => AmbassadorEarningType::AdvertisementShare, 'amount' => 100]);
+        $ambassador = Ambassador::factory()->create();
+
+        $this->lifecycleService()->recordPromotionReward($ambassador, AmbassadorEarningType::AdvertisementShare, 'same-token', null, null, null);
+        $this->lifecycleService()->recordPromotionReward($ambassador, AmbassadorEarningType::AdvertisementShare, 'same-token', null, null, null);
+
+        $this->assertSame(1, AmbassadorEarning::where('ambassador_id', $ambassador->id)->count());
+    }
+
+    public function test_a_promotion_reward_needs_an_applicable_rule_an_active_ambassador_and_a_manual_type(): void
+    {
+        AmbassadorRewardRule::factory()->create(['earning_type' => AmbassadorEarningType::VideoContent]);
+        $ambassador = Ambassador::factory()->create();
+        $suspendedAmbassador = Ambassador::factory()->create(['status' => AmbassadorStatus::Suspended]);
+
+        $attempts = [
+            [$ambassador, AmbassadorEarningType::AdvertisementShare],
+            [$suspendedAmbassador, AmbassadorEarningType::VideoContent],
+            [$ambassador, AmbassadorEarningType::Acquisition],
+        ];
+
+        foreach ($attempts as $attemptIndex => [$attemptedAmbassador, $attemptedType]) {
+            try {
+                $this->lifecycleService()->recordPromotionReward($attemptedAmbassador, $attemptedType, "token-{$attemptIndex}", null, null, null);
+                $this->fail("Attempt {$attemptIndex} should have been refused.");
+            } catch (\DomainException) {
+                $this->addToAssertionCount(1);
+            }
+        }
+
+        $this->assertSame(0, AmbassadorEarning::whereIn('ambassador_id', [$ambassador->id, $suspendedAmbassador->id])->count());
+    }
+
+    // ---------------------------------------------------------------- approveEarningsEarly
+
+    public function test_pending_earnings_can_be_approved_early_with_who_and_why(): void
+    {
+        $this->travelTo(self::NOW);
+        $ambassador = Ambassador::factory()->create();
+        $firstEarning = $this->createEarning($ambassador, AmbassadorEarningStatus::Pending, ['approvable_at' => now()->addDays(3)]);
+        $secondEarning = $this->createEarning($ambassador, AmbassadorEarningStatus::Pending, ['approvable_at' => now()->addDays(3)]);
+        $approver = User::factory()->create();
+
+        $approvedCount = $this->lifecycleService()->approveEarningsEarly($ambassador, [$firstEarning->id, $secondEarning->id], $approver, 'test beta');
+
+        $this->assertSame(2, $approvedCount);
+        $firstEarning->refresh();
+        $this->assertSame(AmbassadorEarningStatus::Approved, $firstEarning->status);
+        $this->assertSame(self::NOW, $firstEarning->approved_at->format('Y-m-d H:i:s'));
+        $this->assertSame($approver->id, $firstEarning->approved_by_user_id);
+        $this->assertSame('test beta', $firstEarning->early_approval_reason);
+    }
+
+    public function test_early_approval_skips_cancelled_paid_approved_and_foreign_earnings(): void
+    {
+        $ambassador = Ambassador::factory()->create();
+        $untouchedEarnings = [
+            $this->createEarning($ambassador, AmbassadorEarningStatus::Cancelled),
+            $this->createEarning($ambassador, AmbassadorEarningStatus::Paid),
+            $this->createEarning($ambassador, AmbassadorEarningStatus::Approved, ['approved_at' => now()->subDay()]),
+            $this->createEarning(Ambassador::factory()->create(), AmbassadorEarningStatus::Pending),
+        ];
+
+        $approvedCount = $this->lifecycleService()->approveEarningsEarly(
+            $ambassador,
+            collect($untouchedEarnings)->pluck('id')->all(),
+            User::factory()->create(),
+            'motif',
+        );
+
+        $this->assertSame(0, $approvedCount);
+        $this->assertSame(
+            [AmbassadorEarningStatus::Cancelled, AmbassadorEarningStatus::Paid, AmbassadorEarningStatus::Approved, AmbassadorEarningStatus::Pending],
+            collect($untouchedEarnings)->map(fn (AmbassadorEarning $earning) => $earning->fresh()->status)->all(),
+        );
     }
 }

@@ -298,6 +298,7 @@ class BookingManager
     {
         try {
             app(AmbassadorEarningService::class)->recordAcquisitionEarning($paidBooking);
+            app(AmbassadorEarningService::class)->recordExistingCustomerBookingEarning($paidBooking);
         } catch (\Throwable $exception) {
             report($exception);
         }

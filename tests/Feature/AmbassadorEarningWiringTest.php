@@ -10,7 +10,7 @@ use App\Manager\BookingManager;
 use App\Models\Ambassador;
 use App\Models\AmbassadorEarning;
 use App\Models\AmbassadorPayout;
-use App\Models\AppParams;
+use App\Models\AmbassadorRewardRule;
 use App\Models\Booking;
 use App\Models\Bus;
 use App\Models\Customer;
@@ -553,12 +553,11 @@ class AmbassadorEarningWiringTest extends TestCase
         $this->assertSame([500, 500, 0, 0], [$balanceAfterWaitingPeriod->totalBalance, $balanceAfterWaitingPeriod->availableBalance, $balanceAfterWaitingPeriod->pendingBalance, $balanceAfterWaitingPeriod->paidBalance]);
     }
 
-    public function test_the_acquisition_amount_set_in_app_params_is_what_the_ambassador_earns(): void
+    public function test_the_acquisition_amount_of_the_reward_rule_is_what_the_ambassador_earns(): void
     {
         Queue::fake([RecordTicketPaymentInCaisse::class]);
-        $appParams = AppParams::query()->first() ?? new AppParams(['data' => []]);
-        $appParams->data = array_merge($appParams->data ?? [], ['ambassador_acquisition_amount' => 750]);
-        $appParams->save();
+        AmbassadorRewardRule::query()->where('earning_type', AmbassadorEarningType::Acquisition)->delete();
+        AmbassadorRewardRule::factory()->create(['amount' => 750]);
         $ambassador = Ambassador::factory()->create();
         $booking = $this->createUnpaidBooking($this->createCustomer($ambassador), $this->createDepartWithBus(self::FIRST_DEPART_DATE));
 

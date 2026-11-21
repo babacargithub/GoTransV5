@@ -46,10 +46,6 @@ class AppParamsPage extends Component
 
     public string $warningMessageBeforeBooking = '';
 
-    public ?int $ambassadorAcquisitionAmount = null;
-
-    public ?int $ambassadorSponsorshipBonusAmount = null;
-
     public ?int $ambassadorSponsorshipThreshold = null;
 
     public ?int $ambassadorMinimumPayoutAmount = null;
@@ -61,8 +57,6 @@ class AppParamsPage extends Component
      */
     private array $integerPropertyNames = [
         'discountPrice',
-        'ambassadorAcquisitionAmount',
-        'ambassadorSponsorshipBonusAmount',
         'ambassadorSponsorshipThreshold',
         'ambassadorMinimumPayoutAmount',
     ];
@@ -87,8 +81,6 @@ class AppParamsPage extends Component
         'discount_price' => 'discountPrice',
         'discount_condition' => 'discountCondition',
         'warning_message_before_booking' => 'warningMessageBeforeBooking',
-        'ambassador_acquisition_amount' => 'ambassadorAcquisitionAmount',
-        'ambassador_sponsorship_bonus_amount' => 'ambassadorSponsorshipBonusAmount',
         'ambassador_sponsorship_threshold' => 'ambassadorSponsorshipThreshold',
         'ambassador_minimum_payout_amount' => 'ambassadorMinimumPayoutAmount',
     ];
@@ -126,8 +118,6 @@ class AppParamsPage extends Component
             'discountPrice' => ['nullable', 'integer', 'min:0'],
             'discountCondition' => ['nullable', 'string', 'max:255'],
             'warningMessageBeforeBooking' => ['nullable', 'string', 'max:2000'],
-            'ambassadorAcquisitionAmount' => ['nullable', 'integer', 'min:0'],
-            'ambassadorSponsorshipBonusAmount' => ['nullable', 'integer', 'min:0'],
             'ambassadorSponsorshipThreshold' => ['nullable', 'integer', 'min:1'],
             'ambassadorMinimumPayoutAmount' => ['nullable', 'integer', 'min:0'],
         ], attributes: [
@@ -144,8 +134,6 @@ class AppParamsPage extends Component
             'discountPrice' => 'montant de la réduction',
             'discountCondition' => 'condition de la réduction',
             'warningMessageBeforeBooking' => "message d'avertissement avant réservation",
-            'ambassadorAcquisitionAmount' => "prime d'acquisition",
-            'ambassadorSponsorshipBonusAmount' => 'bonus de parrainage',
             'ambassadorSponsorshipThreshold' => 'seuil de parrainage',
             'ambassadorMinimumPayoutAmount' => 'montant minimum de paiement',
         ]);
