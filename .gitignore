@@ -21,3 +21,7 @@ yarn-error.log
 !/.env.example
 app/Utils/NotificationSender/SMSSender/tokens/orange_sms_token.json
 /deploy.sh
+
+# Local demo data seeders
+/database/seeders/AmbassadorDemoSeeder.php
+/database/seeders/AmbassadorPendingEarningsSeeder.php
