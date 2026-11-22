@@ -418,6 +418,30 @@ class StudentBookingFormTest extends TestCase
         $this->assertTrue(Customer::where('phone_number', '771234567')->exists());
     }
 
+    public function test_the_wave_checkout_of_a_website_booking_returns_to_the_reservation_result_pages(): void
+    {
+        $this->fakeWaveCheckout();
+        ['depart' => $depart, 'pointDep' => $pointDep] = $this->createBookableDepart();
+
+        Livewire::test(StudentBooking::class, ['depart' => $depart])
+            ->set('passengersCount', 2)
+            ->set('passengers.0.full_name', 'Awa Diop')
+            ->set('passengers.0.phone_number', '771234567')
+            ->set('passengers.0.point_dep_id', $pointDep->id)
+            ->set('passengers.1.full_name', 'Modou Fall')
+            ->set('passengers.1.phone_number', '781234567')
+            ->set('passengers.1.point_dep_id', $pointDep->id)
+            ->set('paymentMethod', 'wave')
+            ->call('reviewBooking')
+            ->call('acknowledgeSummary')
+            ->call('confirmBooking');
+
+        $bookingUuid = Booking::where('depart_id', $depart->id)->firstOrFail()->uuid;
+        Http::assertSent(fn ($request): bool => str_contains($request->url(), 'checkout/sessions')
+            && $request['success_url'] === route('website.bookings.payment-success', ['uuid' => $bookingUuid])
+            && $request['error_url'] === route('website.bookings.payment-error', ['uuid' => $bookingUuid]));
+    }
+
     public function test_a_two_passenger_booking_is_typed_group_with_the_first_passenger_as_its_only_main_booking(): void
     {
         $this->fakeWaveCheckout();

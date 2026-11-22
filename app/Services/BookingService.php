@@ -421,14 +421,23 @@ class BookingService
         $totalTicketPrice = $this->ticketManager->calculatePriceForMultipleBookings($bookings, $payment_method, $platform)['totalPrice'];
         $payment_method = strtolower($payment_method);
         if ($payment_method == 'wave') {
+            $mobileAppGroupUrl = WavePaiementController::getEndpointForRedirect().'/#/multiple_bookings/'.$group_id;
+            // Website customers come back to the public website's payment result pages, not to the mobile
+            // app's hash route (which lands on the website home page and loses their referral code).
+            $isWebsiteGroup = $bookings[0]->booked_with_platform === 'website';
+            $websiteBookingUuid = $isWebsiteGroup ? BookingManager::ensureGroupHasUuid((string) $group_id) : null;
             $metadata = [
                 'amount' => ''.$totalTicketPrice,
                 'client_reference' => [
                     'type' => 'multiple_booking',
                     'group_id' => $group_id,
                     'depart_id' => $depart->id],
-                'error_url' => WavePaiementController::getEndpointForRedirect().'/#/multiple_bookings/'.$group_id,
-                'success_url' => WavePaiementController::getEndpointForRedirect().'/#/multiple_bookings/'.$group_id,
+                'error_url' => $websiteBookingUuid !== null
+                    ? route('website.bookings.payment-error', ['uuid' => $websiteBookingUuid])
+                    : $mobileAppGroupUrl,
+                'success_url' => $websiteBookingUuid !== null
+                    ? route('website.bookings.payment-success', ['uuid' => $websiteBookingUuid])
+                    : $mobileAppGroupUrl,
             ];
 
             $wavePaiementResponse = $waveController->getPaymentUrl($metadata);

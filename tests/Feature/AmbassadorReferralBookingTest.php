@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\RecordTicketPaymentInCaisse;
 use App\Livewire\Website\StudentBooking;
+use App\Manager\BookingManager;
 use App\Models\Ambassador;
 use App\Models\AmbassadorEarning;
 use App\Models\Booking;
@@ -11,11 +13,14 @@ use App\Models\Depart;
 use App\Models\Destination;
 use App\Models\PointDep;
 use App\Models\Trajet;
+use App\Services\NotificationService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Livewire\Features\SupportTesting\Testable;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Psr\Log\LoggerInterface;
 use Tests\TestCase;
 
 class AmbassadorReferralBookingTest extends TestCase
@@ -235,6 +240,21 @@ class AmbassadorReferralBookingTest extends TestCase
         $this->assertSame($ambassador->id, Customer::where('phone_number', $firstPhoneNumber)->firstOrFail()->ambassador_id);
         $this->assertSame($ambassador->id, Customer::where('phone_number', $secondPhoneNumber)->firstOrFail()->ambassador_id);
         $this->assertSame(2, Booking::where('depart_id', $depart->id)->where('ambassador_id', $ambassador->id)->count());
+    }
+
+    public function test_paying_a_group_booking_made_through_a_ref_link_rewards_the_ambassador_for_each_new_passenger(): void
+    {
+        Queue::fake([RecordTicketPaymentInCaisse::class]);
+        $this->mock(NotificationService::class)->shouldIgnoreMissing();
+        ['depart' => $depart, 'pointDep' => $pointDep] = $this->createBookableDepart();
+        $ambassador = Ambassador::factory()->create(['code' => 'AWA10']);
+        $this->bookWithPhoneNumbers($depart, $pointDep, [$this->unusedPassengerPhoneNumber(), $this->unusedPassengerPhoneNumber()], 'awa10');
+        $groupBookings = Booking::where('depart_id', $depart->id)->get();
+
+        app(BookingManager::class)->saveTicketPaymentMultipleBooking($depart, null, $groupBookings, app(LoggerInterface::class), 'wave', []);
+
+        $this->assertSame(2, $groupBookings->count());
+        $this->assertSame(2, AmbassadorEarning::where('ambassador_id', $ambassador->id)->count());
     }
 
     public function test_a_new_customer_booking_without_ref_has_no_ambassador(): void

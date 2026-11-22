@@ -7,6 +7,7 @@ use App\Http\Controllers\MobileAppController;
 use App\Http\Requests\MobileMultipleBookingRequest;
 use App\Http\Resources\MobileTrajetDepartsResource;
 use App\Http\Resources\PaymentResponseResource;
+use App\Manager\BookingManager;
 use App\Models\AppParams;
 use App\Models\Booking;
 use App\Models\Depart;
@@ -670,13 +671,7 @@ class StudentBooking extends Component
      */
     private function tagGroupBookingsWithUuid(int $groupId): string
     {
-        $bookingUuid = (string) Str::uuid();
-
-        Booking::where('group_id', $groupId)
-            ->whereNull('uuid')
-            ->update(['uuid' => $bookingUuid]);
-
-        return $bookingUuid;
+        return BookingManager::ensureGroupHasUuid((string) $groupId);
     }
 
     /**
