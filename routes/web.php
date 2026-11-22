@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AmbassadorProgramDocumentController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\BusController;
 use App\Http\Controllers\DepartController;
@@ -91,6 +92,22 @@ Route::domain(config('app.ambassador_domain'))
         Route::get('filleuls', SponsoredAmbassadors::class)->name('sponsored-ambassadors');
         Route::get('paiements', AmbassadorPayouts::class)->name('payouts');
     });
+
+/*
+ * One-time link to the ambassador program document, shared with candidates (who have no account).
+ * No session/cookies: nothing to remember, and the response must never be cached or indexed.
+ */
+Route::domain(config('app.ambassador_domain'))
+    ->withoutMiddleware([
+        EncryptCookies::class,
+        AddQueuedCookiesToResponse::class,
+        StartSession::class,
+        ShareErrorsFromSession::class,
+        VerifyCsrfToken::class,
+    ])
+    ->get('programme/{link}', [AmbassadorProgramDocumentController::class, 'show'])
+    ->middleware('throttle:30,1')
+    ->name('ambassador-program-document');
 
 /*
  * Public website (customer-facing). Its files live under resources/views/website/
