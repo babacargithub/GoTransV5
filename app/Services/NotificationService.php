@@ -104,18 +104,51 @@ class NotificationService
      */
     public function notifyAdministratorsOfAmbassadorAwaitingApproval(Ambassador $acceptedAmbassador): void
     {
-        $administratorUserIds = User::permission(PermissionName::FullAccess->value)->pluck('users.id');
-
-        $administratorPhoneNumbers = Employe::query()
-            ->whereIn('user_account_id', $administratorUserIds)
-            ->pluck('tel');
-
-        foreach ($administratorPhoneNumbers as $administratorPhoneNumber) {
+        foreach ($this->administratorPhoneNumbers() as $administratorPhoneNumber) {
             $this->smsSender->sendSms(
                 (string) $administratorPhoneNumber,
                 self::STUDENT_BRAND_NAME." : le nouvel ambassadeur {$acceptedAmbassador->full_name} (parrainé par {$acceptedAmbassador->sponsor->full_name}) attend votre validation.",
             );
         }
+    }
+
+    /**
+     * Sends an ambassador the code that confirms their signature of the contract.
+     */
+    public function notifyAmbassadorOfContractSigningCode(Ambassador $signingAmbassador, string $signingCode): void
+    {
+        $this->smsSender->sendSms(
+            (string) $signingAmbassador->phone_number,
+            self::STUDENT_BRAND_NAME." : votre code pour signer le contrat ambassadeur est {$signingCode}. Ne le communiquez à personne.",
+        );
+    }
+
+    /**
+     * Tells every full-access user that an ambassador signed the contract.
+     */
+    public function notifyAdministratorsOfSignedAmbassadorContract(Ambassador $signedAmbassador): void
+    {
+        foreach ($this->administratorPhoneNumbers() as $administratorPhoneNumber) {
+            $this->smsSender->sendSms(
+                (string) $administratorPhoneNumber,
+                self::STUDENT_BRAND_NAME." : l'ambassadeur {$signedAmbassador->full_name} a signé son contrat.",
+            );
+        }
+    }
+
+    /**
+     * Phone numbers of the users holding the full-access permission: the one of the employee linked to their user
+     * account. A full-access user without an employee record cannot be reached and is skipped.
+     *
+     * @return Collection<int, mixed>
+     */
+    private function administratorPhoneNumbers(): Collection
+    {
+        $administratorUserIds = User::permission(PermissionName::FullAccess->value)->pluck('users.id');
+
+        return Employe::query()
+            ->whereIn('user_account_id', $administratorUserIds)
+            ->pluck('tel');
     }
 
     /**

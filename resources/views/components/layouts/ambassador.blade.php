@@ -33,6 +33,7 @@
             <flux:button size="sm" variant="ghost" class="shrink-0" :href="route('ambassador.earnings')" wire:navigate :class="request()->routeIs('ambassador.earnings') ? 'bg-zinc-200/70 dark:bg-zinc-700' : ''">Mes gains</flux:button>
             <flux:button size="sm" variant="ghost" class="shrink-0" :href="route('ambassador.sponsored-ambassadors')" wire:navigate :class="request()->routeIs('ambassador.sponsored-ambassadors') ? 'bg-zinc-200/70 dark:bg-zinc-700' : ''">Mon équipe</flux:button>
             <flux:button size="sm" variant="ghost" class="shrink-0" :href="route('ambassador.payouts')" wire:navigate :class="request()->routeIs('ambassador.payouts') ? 'bg-zinc-200/70 dark:bg-zinc-700' : ''">Mes paiements</flux:button>
+            <flux:button size="sm" variant="ghost" class="shrink-0" :href="route('ambassador.contract')" wire:navigate :class="request()->routeIs('ambassador.contract') ? 'bg-zinc-200/70 dark:bg-zinc-700' : ''">Mon contrat</flux:button>
         </nav>
     </header>
 

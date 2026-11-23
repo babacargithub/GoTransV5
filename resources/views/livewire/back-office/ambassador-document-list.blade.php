@@ -10,7 +10,7 @@
 
     <flux:callout class="mt-6" icon="information-circle">
         <flux:callout.text>
-            Le contenu s'édite comme dans un traitement de texte. Une modification s'applique à tous les liens pas encore ouverts.
+            Le contenu s'édite comme dans un traitement de texte. Une modification de la présentation s'applique à tous les liens pas encore ouverts. Modifier le contrat crée une nouvelle version, proposée uniquement aux ambassadeurs qui n'ont pas encore signé : les contrats déjà signés ne changent pas.
             Le bouton « Générer un lien » crée un lien qui expire dès qu'il est ouvert une fois.
         </flux:callout.text>
     </flux:callout>
@@ -30,7 +30,7 @@
                 @foreach ($this->documents as $document)
                     <flux:table.row wire:key="ambassador-document-{{ $document->id }}">
                         <flux:table.cell variant="strong">{{ $document->type->label() }}</flux:table.cell>
-                        <flux:table.cell>{{ $document->title }}</flux:table.cell>
+                        <flux:table.cell>{{ $document->title }} @if ($document->type === \App\Enums\AmbassadorProgramDocumentType::Contract)<flux:badge size="sm">v{{ $document->version }}</flux:badge>@endif</flux:table.cell>
                         <flux:table.cell>{{ $document->updated_at->format('d/m/Y H:i') }}</flux:table.cell>
                         <flux:table.cell>
                             @if ($this->canManageDocuments())

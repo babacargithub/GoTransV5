@@ -2,6 +2,7 @@
 
 namespace App\Livewire\BackOffice;
 
+use App\Enums\AmbassadorProgramDocumentType;
 use App\Enums\PermissionName;
 use App\Models\AmbassadorProgramDocument;
 use Illuminate\Contracts\View\View;
@@ -13,7 +14,8 @@ use Livewire\Component;
 
 /**
  * Back office "Documents": the markdown documents (presentation, contract) shared with ambassador candidates
- * through one-time links. Each document is edited in place; a new text applies to every link not yet opened.
+ * through one-time links. The presentation is edited in place; editing the contract creates a new version for the
+ * ambassadors who have not signed yet, the signed versions staying untouched.
  */
 #[Layout('components.layouts.back-office')]
 class AmbassadorDocumentList extends Component
@@ -43,7 +45,7 @@ class AmbassadorDocumentList extends Component
     #[Computed]
     public function documents(): Collection
     {
-        return AmbassadorProgramDocument::query()->orderBy('id')->get();
+        return AmbassadorProgramDocument::query()->currentVersions()->orderBy('id')->get();
     }
 
     public function canManageDocuments(): bool
@@ -86,12 +88,19 @@ class AmbassadorDocumentList extends Component
             'documentContent' => 'contenu',
         ]);
 
-        AmbassadorProgramDocument::findOrFail($this->editingDocumentId)->update([
-            'title' => $validated['documentTitle'],
-            'content' => $validated['documentContent'],
-        ]);
+        $editedDocument = AmbassadorProgramDocument::findOrFail($this->editingDocumentId);
 
-        session()->flash('status', 'Le document a été modifié.');
+        if ($editedDocument->type === AmbassadorProgramDocumentType::Contract) {
+            $this->saveContractAsNewVersion($editedDocument, $validated['documentTitle'], $validated['documentContent']);
+        } else {
+            $editedDocument->update([
+                'title' => $validated['documentTitle'],
+                'content' => $validated['documentContent'],
+            ]);
+
+            session()->flash('status', 'Le document a été modifié.');
+        }
+
         $this->closeDocumentModal();
     }
 
@@ -148,6 +157,27 @@ class AmbassadorDocumentList extends Component
         session()->flash('error', PermissionName::ManageAmbassadorDocuments->unauthorizedMessage());
 
         return false;
+    }
+
+    /**
+     * Stores the edited contract as the next version, unless nothing changed. Ambassadors who already signed keep the version they signed.
+     */
+    private function saveContractAsNewVersion(AmbassadorProgramDocument $currentContract, string $title, string $content): void
+    {
+        if ($title === $currentContract->title && $content === $currentContract->content) {
+            session()->flash('status', 'Aucune modification : la version du contrat reste inchangée.');
+
+            return;
+        }
+
+        $newVersion = AmbassadorProgramDocument::query()->create([
+            'type' => AmbassadorProgramDocumentType::Contract,
+            'version' => $currentContract->version + 1,
+            'title' => $title,
+            'content' => $content,
+        ]);
+
+        session()->flash('status', "Version {$newVersion->version} du contrat enregistrée : elle sera proposée aux ambassadeurs qui n'ont pas encore signé. Les contrats déjà signés ne changent pas.");
     }
 
     private function resetDocumentForm(): void

@@ -80,6 +80,11 @@
                                 @else
                                     —
                                 @endif
+                                @if ($ambassador->status !== \App\Enums\AmbassadorStatus::Invited && $ambassador->status !== \App\Enums\AmbassadorStatus::PendingApproval)
+                                    <div>
+                                        <flux:badge size="sm" :color="$ambassador->hasSignedContract() ? 'green' : 'amber'">{{ $ambassador->hasSignedContract() ? 'Signé' : 'Non signé' }}</flux:badge>
+                                    </div>
+                                @endif
                             </flux:table.cell>
                             <flux:table.cell align="center">{{ $ambassador->customers_count }}</flux:table.cell>
                             <flux:table.cell align="center">

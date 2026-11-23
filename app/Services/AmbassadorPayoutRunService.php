@@ -29,13 +29,17 @@ class AmbassadorPayoutRunService
      * Pays one ambassador everything that is payable to them. Active and suspended ambassadors are paid (earned money is owed even after a suspension), and only when
      * the payable amount reached the minimum payout amount.
      *
-     * @throws DomainException when the ambassador cannot be paid now (not payable status, nothing payable, below the minimum)
+     * @throws DomainException when the ambassador cannot be paid now (not payable status, contract not signed, nothing payable, below the minimum)
      * @throws Throwable when the debt could not be recorded; nothing was sent to Wave in that case
      */
     public function payAmbassador(Ambassador $ambassador, ?int $requestedByUserId = null): AmbassadorPayout
     {
         if (! in_array($ambassador->status, AmbassadorStatus::payableStatuses(), true)) {
             throw new DomainException("L'ambassadeur {$ambassador->full_name} ne peut pas être payé (statut : {$ambassador->status->label()}).");
+        }
+
+        if (! $ambassador->hasSignedContract()) {
+            throw new DomainException("L'ambassadeur {$ambassador->full_name} n'a pas signé son contrat : aucun paiement possible.");
         }
 
         $payableAmount = $this->earningPayoutService->calculatePayableAmount($ambassador);
@@ -79,6 +83,7 @@ class AmbassadorPayoutRunService
 
         Ambassador::query()
             ->whereIn('status', AmbassadorStatus::payableStatuses())
+            ->withSignedContract()
             ->whereHas('earnings', fn ($earningsQuery) => $earningsQuery->payable())
             ->each(function (Ambassador $ambassador) use ($minimumPayoutAmount, &$summary): void {
                 try {
