@@ -2,6 +2,9 @@
 
 namespace Tests\Feature\Ambassador;
 
+use App\Enums\AmbassadorProgramDocumentType;
+use App\Models\AmbassadorProgramDocument;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
@@ -9,28 +12,22 @@ use Tests\TestCase;
 
 class ProgramDocumentLinkTest extends TestCase
 {
-    private string $temporaryDocumentPath;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {
         parent::setUp();
 
         Cache::flush();
-        $this->temporaryDocumentPath = tempnam(sys_get_temp_dir(), 'program-document');
-        file_put_contents($this->temporaryDocumentPath, "# Programme secret\n\nContenu <script>alert(1)</script> réservé.");
-        config(['app.ambassador_program_document_path' => $this->temporaryDocumentPath]);
+        AmbassadorProgramDocument::query()->updateOrCreate(
+            ['type' => AmbassadorProgramDocumentType::Presentation],
+            ['title' => 'Titre confidentiel', 'content' => "# Programme secret\n\nContenu <script>alert(1)</script> réservé."],
+        );
     }
 
-    protected function tearDown(): void
+    private function oneTimeUrl(int $daysBeforeExpiry = 7, string $documentType = 'presentation'): string
     {
-        @unlink($this->temporaryDocumentPath);
-
-        parent::tearDown();
-    }
-
-    private function oneTimeUrl(int $daysBeforeExpiry = 7): string
-    {
-        return URL::temporarySignedRoute('ambassador-program-document', now()->addDays($daysBeforeExpiry), ['link' => Str::uuid()->toString()]);
+        return URL::temporarySignedRoute('ambassador-program-document', now()->addDays($daysBeforeExpiry), ['documentType' => $documentType, 'link' => Str::uuid()->toString()]);
     }
 
     public function test_first_open_shows_the_protected_document_and_second_open_is_expired(): void
@@ -64,7 +61,7 @@ class ProgramDocumentLinkTest extends TestCase
 
     public function test_unsigned_url_is_expired(): void
     {
-        $this->get('http://'.config('app.ambassador_domain').'/programme/'.Str::uuid())
+        $this->get('http://'.config('app.ambassador_domain').'/programme/presentation/'.Str::uuid())
             ->assertStatus(410)
             ->assertSee('Document expiré');
     }
@@ -93,21 +90,31 @@ class ProgramDocumentLinkTest extends TestCase
             ->assertSee('Programme secret');
     }
 
-    public function test_missing_document_file_does_not_burn_the_link(): void
+    public function test_missing_document_does_not_burn_the_link(): void
     {
-        $oneTimeUrl = $this->oneTimeUrl();
-        config(['app.ambassador_program_document_path' => '/nonexistent/file.md']);
+        $oneTimeUrl = $this->oneTimeUrl(documentType: 'contract');
+        AmbassadorProgramDocument::query()->where('type', AmbassadorProgramDocumentType::Contract)->delete();
 
         $this->get($oneTimeUrl)->assertStatus(503);
 
-        config(['app.ambassador_program_document_path' => $this->temporaryDocumentPath]);
-        $this->get($oneTimeUrl)->assertOk()->assertSee('Programme secret');
+        AmbassadorProgramDocument::factory()->contract()->create(['title' => 'Contrat signé', 'content' => 'Clauses du contrat']);
+        $this->get($oneTimeUrl)->assertOk()->assertSee('Clauses du contrat')->assertSee('Contrat signé');
+    }
+
+    public function test_document_type_in_the_url_selects_the_document(): void
+    {
+        $this->get($this->oneTimeUrl())->assertOk()->assertSee('Titre confidentiel')->assertDontSee('Clauses du contrat');
+    }
+
+    public function test_unknown_document_type_is_unavailable_without_burning_the_link(): void
+    {
+        $this->get($this->oneTimeUrl(documentType: 'unknown'))->assertStatus(503);
     }
 
     public function test_command_prints_a_signed_one_time_url(): void
     {
         $this->artisan('ambassador:create-program-document-link', ['--days' => 3])
-            ->expectsOutputToContain('/programme/')
+            ->expectsOutputToContain('/programme/presentation/')
             ->assertSuccessful();
     }
 }

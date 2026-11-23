@@ -69,9 +69,6 @@ return [
     'public_website_domain' => env('DOMAIN_PUBLIC_WEBSITE', 'globeonetransport.app'),
     'ambassador_domain' => env('DOMAIN_AMBASSADOR', 'ambassadeurs.globeonetransport.app'),
 
-    // Markdown file served (once per link) to ambassador candidates, see AmbassadorProgramDocumentController.
-    'ambassador_program_document_path' => env('AMBASSADOR_PROGRAM_DOCUMENT_PATH', resource_path('markdown/ambassador-program.md')),
-
     /*
      * Full-HTML response cache for the read-only public website pages (caravane list, home).
      * Served by App\Http\Middleware\CachePublicHtmlResponse; invalidated on any Départ / Bus /

@@ -2,13 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\AmbassadorProgramDocumentType;
+use App\Models\AmbassadorProgramDocument;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
 /**
- * Serves the ambassador program document through a one-time URL. The URL is a temporary signed route (tamper-proof
+ * Serves an ambassador program document (presentation, contract) through a one-time URL. The URL is a temporary signed route (tamper-proof
  * and time-limited); the "already opened" flag lives in the cache. The first open shows the document, any later
  * open (reload included), a tampered URL or an expired one shows "Document expiré".
  */
@@ -20,7 +22,7 @@ class AmbassadorProgramDocumentController extends Controller
      */
     private const LINK_PREVIEW_USER_AGENT_PATTERN = '/bot|crawler|spider|preview|facebookexternalhit|whatsapp|telegram|slack|discord|linkedin|embedly|curl|wget/i';
 
-    public function show(Request $request, string $link): Response
+    public function show(Request $request, string $documentType, string $link): Response
     {
         if ($request->isMethod('HEAD') || preg_match(self::LINK_PREVIEW_USER_AGENT_PATTERN, (string) $request->userAgent())) {
             return $this->withoutCaching(response(view('ambassador-program-document.preview-placeholder')));
@@ -30,10 +32,12 @@ class AmbassadorProgramDocumentController extends Controller
             return $this->withoutCaching(response(view('ambassador-program-document.expired'), 410));
         }
 
-        $documentPath = config('app.ambassador_program_document_path');
+        $document = AmbassadorProgramDocument::query()
+            ->where('type', AmbassadorProgramDocumentType::tryFrom($documentType)?->value)
+            ->first();
 
-        // Checked before consuming: a missing file must not burn a link.
-        if (! is_file($documentPath)) {
+        // Checked before consuming: a missing document must not burn a link.
+        if ($document === null) {
             return $this->withoutCaching(response(view('ambassador-program-document.expired'), 503));
         }
 
@@ -46,12 +50,13 @@ class AmbassadorProgramDocumentController extends Controller
             return $this->withoutCaching(response(view('ambassador-program-document.expired'), 410));
         }
 
-        $documentHtml = Str::markdown(file_get_contents($documentPath), [
+        $documentHtml = Str::markdown($document->content, [
             'html_input' => 'strip',
             'allow_unsafe_links' => false,
         ]);
 
         return $this->withoutCaching(response(view('ambassador-program-document.show', [
+            'documentTitle' => $document->title,
             'documentHtml' => $documentHtml,
         ])));
     }

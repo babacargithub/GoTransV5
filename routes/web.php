@@ -19,6 +19,7 @@ use App\Livewire\Ambassador\PayoutsPage as AmbassadorPayouts;
 use App\Livewire\Ambassador\SponsoredAmbassadors;
 use App\Livewire\BackOffice\AccountListPage;
 use App\Livewire\BackOffice\AddBusToDepart;
+use App\Livewire\BackOffice\AmbassadorDocumentList;
 use App\Livewire\BackOffice\AmbassadorList;
 use App\Livewire\BackOffice\AmbassadorPayoutList;
 use App\Livewire\BackOffice\AmbassadorRewardRuleList;
@@ -105,7 +106,7 @@ Route::domain(config('app.ambassador_domain'))
         ShareErrorsFromSession::class,
         VerifyCsrfToken::class,
     ])
-    ->get('programme/{link}', [AmbassadorProgramDocumentController::class, 'show'])
+    ->get('programme/{documentType}/{link}', [AmbassadorProgramDocumentController::class, 'show'])
     ->middleware('throttle:30,1')
     ->name('ambassador-program-document');
 
@@ -222,6 +223,7 @@ Route::middleware(['auth', RejectAmbassadorAccounts::class])->prefix('back-offic
     Route::get('ambassadeurs', AmbassadorList::class)->name('ambassadors.index');
     Route::get('ambassadeurs/paiements', AmbassadorPayoutList::class)->name('ambassador-payouts.index');
     Route::get('ambassadeurs/regles-de-recompense', AmbassadorRewardRuleList::class)->name('ambassador-reward-rules.index');
+    Route::get('ambassadeurs/documents', AmbassadorDocumentList::class)->name('ambassador-documents.index');
     Route::get('employes', EmployeList::class)->name('employes.index');
     Route::get('users', UserAccessManagement::class)->name('users.index');
     Route::get('vehicules', VehiculeList::class)->name('vehicules.index');

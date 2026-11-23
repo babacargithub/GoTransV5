@@ -1,4 +1,4 @@
-<x-ambassador-program-document.layout title="Programme Ambassadeurs — Globe One Transport">
+<x-ambassador-program-document.layout :title="$documentTitle.' — Globe One Transport'">
     <x-slot:head>
         <style>
             /* Copy protection: nothing can be selected, dragged or long-press-saved. */
