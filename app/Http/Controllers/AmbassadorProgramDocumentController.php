@@ -32,9 +32,9 @@ class AmbassadorProgramDocumentController extends Controller
             return $this->withoutCaching(response(view('ambassador-program-document.expired'), 410));
         }
 
-        $document = AmbassadorProgramDocument::query()
-            ->where('type', AmbassadorProgramDocumentType::tryFrom($documentType)?->value)
-            ->first();
+        $document = ($type = AmbassadorProgramDocumentType::tryFrom($documentType)) !== null
+            ? AmbassadorProgramDocument::current($type)
+            : null;
 
         // Checked before consuming: a missing document must not burn a link.
         if ($document === null) {

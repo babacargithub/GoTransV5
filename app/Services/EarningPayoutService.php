@@ -7,6 +7,7 @@ use App\Enums\AmbassadorPayoutStatus;
 use App\Models\Ambassador;
 use App\Models\AmbassadorEarning;
 use App\Models\AmbassadorPayout;
+use DomainException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -28,11 +29,16 @@ class EarningPayoutService
      * Groups every payable earning of the ambassador under a new pending payout. Returns null when nothing
      * is payable. A null or blank payment reason falls back to PAYMENT_REASON.
      *
+     * @throws DomainException when the ambassador has not signed the current contract
      * @throws InvalidArgumentException when the payment reason is longer than MAX_PAYMENT_REASON_LENGTH
      * @throws RuntimeException|\Throwable when the earnings counted in the amount could not all be attached to the payout
      */
     public function createPayoutForPayableEarnings(Ambassador $ambassador, ?int $requestedByUserId = null, ?string $paymentReason = null): ?AmbassadorPayout
     {
+        if (! $ambassador->hasSignedContract()) {
+            throw new DomainException("L'ambassadeur {$ambassador->full_name} n'a pas signé son contrat : aucun paiement possible.");
+        }
+
         $paymentReason = trim((string) $paymentReason) !== '' ? trim($paymentReason) : self::PAYMENT_REASON;
 
         if (mb_strlen($paymentReason) > self::MAX_PAYMENT_REASON_LENGTH) {

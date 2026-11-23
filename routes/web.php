@@ -13,6 +13,7 @@ use App\Http\Middleware\EncryptCookies;
 use App\Http\Middleware\EnsureUserIsAmbassador;
 use App\Http\Middleware\RejectAmbassadorAccounts;
 use App\Http\Middleware\VerifyCsrfToken;
+use App\Livewire\Ambassador\ContractSigning as AmbassadorContractSigning;
 use App\Livewire\Ambassador\EarningsPage as AmbassadorEarnings;
 use App\Livewire\Ambassador\Home as AmbassadorHome;
 use App\Livewire\Ambassador\PayoutsPage as AmbassadorPayouts;
@@ -92,6 +93,7 @@ Route::domain(config('app.ambassador_domain'))
         Route::get('gains', AmbassadorEarnings::class)->name('earnings');
         Route::get('filleuls', SponsoredAmbassadors::class)->name('sponsored-ambassadors');
         Route::get('paiements', AmbassadorPayouts::class)->name('payouts');
+        Route::get('contrat', AmbassadorContractSigning::class)->name('contract');
     });
 
 /*

@@ -45,6 +45,16 @@ class Home extends Component
         return 'https://wa.me/?text='.rawurlencode("Réserve ton billet de bus Globe One Transport avec mon lien : {$this->shareUrl}");
     }
 
+    /**
+     * Whether the ambassador signed the current contract version: without it their code attributes no customer
+     * and their earnings are not paid.
+     */
+    #[Computed]
+    public function hasSignedContract(): bool
+    {
+        return $this->ambassador->hasSignedContract();
+    }
+
     #[Computed]
     public function acquiredCustomersCount(): int
     {

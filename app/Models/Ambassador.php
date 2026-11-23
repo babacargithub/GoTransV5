@@ -120,6 +120,28 @@ class Ambassador extends Model
         return $this->hasMany(AmbassadorEarning::class, 'source_ambassador_id');
     }
 
+    public function contractSignatures(): HasMany
+    {
+        return $this->hasMany(AmbassadorContractSignature::class);
+    }
+
+    /**
+     * Whether this ambassador signed a contract. The version they signed stays theirs: a later version of the
+     * contract only concerns ambassadors who have not signed yet.
+     */
+    public function hasSignedContract(): bool
+    {
+        return $this->contractSignatures()->exists();
+    }
+
+    /**
+     * The signature of the contract version this ambassador agreed to, if any.
+     */
+    public function signedContract(): ?AmbassadorContractSignature
+    {
+        return $this->contractSignatures()->latest('signed_at')->first();
+    }
+
     public function payouts(): HasMany
     {
         return $this->hasMany(AmbassadorPayout::class);
@@ -167,20 +189,32 @@ class Ambassador extends Model
      */
     public function canAcquireCustomers(): bool
     {
-        return $this->status === AmbassadorStatus::Active && $this->hasRunningContractOn();
+        return $this->status === AmbassadorStatus::Active
+            && $this->hasRunningContractOn()
+            && $this->hasSignedContract();
     }
 
     /**
-     * Active ambassadors whose contract covers today: the only ones whose code attributes new customers.
+     * Active ambassadors whose contract covers today and who signed their contract: the only ones whose code
+     * attributes new customers.
      */
     public function scopeAcquiringCustomers(Builder $query): Builder
     {
         return $query
             ->where('status', AmbassadorStatus::Active)
+            ->withSignedContract()
             ->whereDate('contract_ends_at', '>=', today())
             ->where(fn (Builder $contractStartQuery) => $contractStartQuery
                 ->whereNull('contract_starts_at')
                 ->orWhereDate('contract_starts_at', '<=', today()));
+    }
+
+    /**
+     * Ambassadors who signed the contract, whichever version they signed.
+     */
+    public function scopeWithSignedContract(Builder $query): Builder
+    {
+        return $query->whereHas('contractSignatures');
     }
 
     public function scopeWithCode(Builder $query, string $enteredCode): Builder

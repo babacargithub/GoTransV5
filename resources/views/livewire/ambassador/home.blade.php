@@ -105,6 +105,15 @@
         </div>
     @endif
 
+    @unless ($this->hasSignedContract)
+        <flux:callout variant="warning" icon="exclamation-triangle" heading="Contrat à signer">
+            <flux:callout.text>Signez votre contrat pour que votre code attribue de nouveaux clients et que vos gains soient payés.</flux:callout.text>
+            <x-slot name="actions">
+                <flux:button :href="route('ambassador.contract')" wire:navigate>Lire et signer</flux:button>
+            </x-slot>
+        </flux:callout>
+    @endunless
+
     <div class="grid gap-4 sm:grid-cols-2">
         <div class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
             <flux:text class="text-sm">Statut</flux:text>
@@ -121,6 +130,7 @@
                 @else
                     —
                 @endif
+                <flux:badge size="sm" :color="$this->hasSignedContract ? 'green' : 'amber'">{{ $this->hasSignedContract ? 'Signé' : 'Non signé' }}</flux:badge>
             </div>
         </div>
 
