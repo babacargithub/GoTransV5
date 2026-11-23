@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AmbassadorProgramDocumentController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\BusController;
 use App\Http\Controllers\DepartController;
@@ -18,6 +19,7 @@ use App\Livewire\Ambassador\PayoutsPage as AmbassadorPayouts;
 use App\Livewire\Ambassador\SponsoredAmbassadors;
 use App\Livewire\BackOffice\AccountListPage;
 use App\Livewire\BackOffice\AddBusToDepart;
+use App\Livewire\BackOffice\AmbassadorDocumentList;
 use App\Livewire\BackOffice\AmbassadorList;
 use App\Livewire\BackOffice\AmbassadorPayoutList;
 use App\Livewire\BackOffice\AmbassadorRewardRuleList;
@@ -91,6 +93,22 @@ Route::domain(config('app.ambassador_domain'))
         Route::get('filleuls', SponsoredAmbassadors::class)->name('sponsored-ambassadors');
         Route::get('paiements', AmbassadorPayouts::class)->name('payouts');
     });
+
+/*
+ * One-time link to the ambassador program document, shared with candidates (who have no account).
+ * No session/cookies: nothing to remember, and the response must never be cached or indexed.
+ */
+Route::domain(config('app.ambassador_domain'))
+    ->withoutMiddleware([
+        EncryptCookies::class,
+        AddQueuedCookiesToResponse::class,
+        StartSession::class,
+        ShareErrorsFromSession::class,
+        VerifyCsrfToken::class,
+    ])
+    ->get('programme/{documentType}/{link}', [AmbassadorProgramDocumentController::class, 'show'])
+    ->middleware('throttle:30,1')
+    ->name('ambassador-program-document');
 
 /*
  * Public website (customer-facing). Its files live under resources/views/website/
@@ -205,6 +223,7 @@ Route::middleware(['auth', RejectAmbassadorAccounts::class])->prefix('back-offic
     Route::get('ambassadeurs', AmbassadorList::class)->name('ambassadors.index');
     Route::get('ambassadeurs/paiements', AmbassadorPayoutList::class)->name('ambassador-payouts.index');
     Route::get('ambassadeurs/regles-de-recompense', AmbassadorRewardRuleList::class)->name('ambassador-reward-rules.index');
+    Route::get('ambassadeurs/documents', AmbassadorDocumentList::class)->name('ambassador-documents.index');
     Route::get('employes', EmployeList::class)->name('employes.index');
     Route::get('users', UserAccessManagement::class)->name('users.index');
     Route::get('vehicules', VehiculeList::class)->name('vehicules.index');

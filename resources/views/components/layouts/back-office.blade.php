@@ -67,7 +67,7 @@
                     <flux:navbar.item
                         icon="megaphone"
                         icon:trailing="chevron-down"
-                        :current="request()->routeIs('back-office.ambassadors.*', 'back-office.ambassador-payouts.*', 'back-office.ambassador-reward-rules.*')"
+                        :current="request()->routeIs('back-office.ambassadors.*', 'back-office.ambassador-payouts.*', 'back-office.ambassador-reward-rules.*', 'back-office.ambassador-documents.*')"
                     >
                         Ambassadeurs
                     </flux:navbar.item>
@@ -75,6 +75,7 @@
                         <flux:navmenu.item icon="list-bullet" :href="route('back-office.ambassadors.index')" :current="request()->routeIs('back-office.ambassadors.*')">Listes</flux:navmenu.item>
                         <flux:navmenu.item icon="banknotes" :href="route('back-office.ambassador-payouts.index')" :current="request()->routeIs('back-office.ambassador-payouts.*')">Commissions</flux:navmenu.item>
                         <flux:navmenu.item icon="adjustments-horizontal" :href="route('back-office.ambassador-reward-rules.index')" :current="request()->routeIs('back-office.ambassador-reward-rules.*')">Règles de récompense</flux:navmenu.item>
+                        <flux:navmenu.item icon="document-text" :href="route('back-office.ambassador-documents.index')" :current="request()->routeIs('back-office.ambassador-documents.*')">Documents</flux:navmenu.item>
                     </flux:navmenu>
                 </flux:dropdown>
             @endif
@@ -142,6 +143,7 @@
                         <flux:menu.item icon="list-bullet" :href="route('back-office.ambassadors.index')">Liste des ambassadeurs</flux:menu.item>
                         <flux:menu.item icon="banknotes" :href="route('back-office.ambassador-payouts.index')">Commissions ambassadeurs</flux:menu.item>
                         <flux:menu.item icon="adjustments-horizontal" :href="route('back-office.ambassador-reward-rules.index')">Règles de récompense</flux:menu.item>
+                        <flux:menu.item icon="document-text" :href="route('back-office.ambassador-documents.index')">Documents</flux:menu.item>
                     </flux:menu.group>
                 @endif
 
