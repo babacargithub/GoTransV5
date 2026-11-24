@@ -59,6 +59,12 @@
                     <flux:navmenu.item icon="map-pin" :href="route('back-office.point-deps.index')" :current="request()->routeIs('back-office.point-deps.*')">Points de départ</flux:navmenu.item>
                     <flux:navmenu.item icon="map" :href="route('back-office.itineraires.index')" :current="request()->routeIs('back-office.itineraires.*')">Itinéraires</flux:navmenu.item>
                     <flux:navmenu.item icon="clock" :href="route('back-office.horaires.index')" :current="request()->routeIs('back-office.horaires.*')">Horaires</flux:navmenu.item>
+                    @if (\App\Enums\PermissionName::ConductDepartFeedbackCalls->allowedForCurrentUser())
+                        <flux:navmenu.item icon="phone" :href="route('back-office.depart-feedbacks.calls')" :current="request()->routeIs('back-office.depart-feedbacks.calls')">Appels à passer</flux:navmenu.item>
+                    @endif
+                    @if (\App\Enums\PermissionName::ViewDepartFeedback->allowedForCurrentUser())
+                        <flux:navmenu.item icon="star" :href="route('back-office.depart-feedbacks.report')" :current="request()->routeIs('back-office.depart-feedbacks.report')">Avis clients</flux:navmenu.item>
+                    @endif
                 </flux:navmenu>
             </flux:dropdown>
 
@@ -136,6 +142,12 @@
                     <flux:menu.item icon="map-pin" :href="route('back-office.point-deps.index')">Points de départ</flux:menu.item>
                     <flux:menu.item icon="map" :href="route('back-office.itineraires.index')">Itinéraires</flux:menu.item>
                     <flux:menu.item icon="clock" :href="route('back-office.horaires.index')">Horaires</flux:menu.item>
+                    @if (\App\Enums\PermissionName::ConductDepartFeedbackCalls->allowedForCurrentUser())
+                        <flux:menu.item icon="phone" :href="route('back-office.depart-feedbacks.calls')">Appels à passer</flux:menu.item>
+                    @endif
+                    @if (\App\Enums\PermissionName::ViewDepartFeedback->allowedForCurrentUser())
+                        <flux:menu.item icon="star" :href="route('back-office.depart-feedbacks.report')">Avis clients</flux:menu.item>
+                    @endif
                 </flux:menu.group>
 
                 @if (\App\Enums\PermissionName::ViewAmbassadors->allowedForCurrentUser())

@@ -106,6 +106,37 @@
                                 >
                                     Envoi des rendez-vous
                                 </flux:menu.item>
+                                @if (! in_array((int) $depart['id'], $this->arrivedDepartIds, true) && \App\Enums\PermissionName::MarkDepartArrived->allowedForCurrentUser())
+                                    <flux:menu.item
+                                        icon="flag"
+                                        class="py-2 [&_[data-flux-menu-item-icon]]:!text-teal-500"
+                                        wire:click="askToMarkDepartArrived({{ $depart['id'] }})"
+                                    >
+                                        Marquer comme arrivé
+                                    </flux:menu.item>
+                                @endif
+                                @if (in_array((int) $depart['id'], $this->arrivedDepartIds, true))
+                                    @if (\App\Enums\PermissionName::ConductDepartFeedbackCalls->allowedForCurrentUser())
+                                        <flux:menu.item
+                                            icon="phone"
+                                            class="py-2 [&_[data-flux-menu-item-icon]]:!text-teal-500"
+                                            :href="route('back-office.depart-feedbacks.calls', ['depart' => $depart['id']])"
+                                            wire:navigate
+                                        >
+                                            Appels d'avis clients
+                                        </flux:menu.item>
+                                    @endif
+                                    @if (\App\Enums\PermissionName::ViewDepartFeedback->allowedForCurrentUser())
+                                        <flux:menu.item
+                                            icon="chart-bar"
+                                            class="py-2 [&_[data-flux-menu-item-icon]]:!text-teal-500"
+                                            :href="route('back-office.depart-feedbacks.report', ['depart' => $depart['id']])"
+                                            wire:navigate
+                                        >
+                                            Résultats des avis
+                                        </flux:menu.item>
+                                    @endif
+                                @endif
                                 <flux:menu.separator />
                                 <flux:menu.group heading="Exporter les réservations">
                                     <flux:menu.item
@@ -501,6 +532,30 @@
                     <flux:button variant="ghost" wire:click="closeScheduleManagement">Fermer</flux:button>
                 </div>
             @endif
+        </div>
+    </flux:modal>
+
+    {{-- Marquer comme arrivé --}}
+    <flux:modal wire:model.self="showMarkDepartArrivedModal" wire:key="mark-depart-arrived-modal" class="min-w-[22rem] max-w-md">
+        <div class="space-y-6">
+            <div>
+                <flux:heading size="lg">Marquer ce départ comme arrivé ?</flux:heading>
+                <flux:text class="mt-2">
+                    Le départ {{ $this->markDepartArrivedLabel() }} sera marqué comme arrivé et ses clients seront ajoutés à la liste des appels d'avis.
+                </flux:text>
+            </div>
+
+            <div class="flex items-center justify-end gap-2">
+                <flux:button variant="ghost" wire:click="closeMarkDepartArrivedModal">Retour</flux:button>
+                <flux:button
+                    variant="primary"
+                    wire:click="confirmMarkDepartArrived"
+                    wire:loading.attr="disabled"
+                    wire:target="confirmMarkDepartArrived"
+                >
+                    Marquer comme arrivé
+                </flux:button>
+            </div>
         </div>
     </flux:modal>
 

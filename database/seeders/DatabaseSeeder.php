@@ -14,6 +14,7 @@ class DatabaseSeeder extends Seeder
     {
         $this->call(PermissionCatalogueSeeder::class);
         $this->call(AmbassadorRewardRuleSeeder::class);
+        $this->call(FeedbackCriterionSeeder::class);
 
         // \App\Models\User::factory(10)->create();
 
