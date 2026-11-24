@@ -4,6 +4,7 @@ use App\Http\Controllers\AmbassadorProgramDocumentController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\BusController;
 use App\Http\Controllers\DepartController;
+use App\Http\Controllers\DepartFeedbackRecordingController;
 use App\Http\Controllers\MobileAppController;
 use App\Http\Controllers\PaymentProofController;
 use App\Http\Controllers\SeoFilesController;
@@ -30,6 +31,8 @@ use App\Livewire\BackOffice\CaisseBalancesPage;
 use App\Livewire\BackOffice\CreateDepart;
 use App\Livewire\BackOffice\DepartCostReportList;
 use App\Livewire\BackOffice\DepartCostReportPage;
+use App\Livewire\BackOffice\DepartFeedbackCallQueue;
+use App\Livewire\BackOffice\DepartFeedbackReport;
 use App\Livewire\BackOffice\DepartList;
 use App\Livewire\BackOffice\DepartScheduleNotifications;
 use App\Livewire\BackOffice\EditBus;
@@ -217,6 +220,11 @@ Route::middleware(['auth', RejectAmbassadorAccounts::class])->prefix('back-offic
         ->name('departs.schedule-notifications');
     Route::get('departs/{depart}/bookings-export', [DepartController::class, 'bookingsForExport'])
         ->name('departs.bookings-export');
+
+    Route::get('avis-clients', DepartFeedbackReport::class)->name('depart-feedbacks.report');
+    Route::get('avis-clients/appels', DepartFeedbackCallQueue::class)->name('depart-feedbacks.calls');
+    Route::get('avis-clients/{departFeedback}/enregistrement', [DepartFeedbackRecordingController::class, 'show'])
+        ->name('depart-feedbacks.recording');
 
     Route::get('point-deps', PointDepList::class)->name('point-deps.index');
     Route::get('itineraires', ItineraireList::class)->name('itineraires.index');

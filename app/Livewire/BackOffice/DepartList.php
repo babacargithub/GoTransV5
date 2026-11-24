@@ -11,6 +11,7 @@ use App\Models\Depart;
 use App\Models\DepartCostReport;
 use App\Models\Trajet;
 use App\Services\BusService;
+use App\Services\DepartFeedbackService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
@@ -101,6 +102,10 @@ class DepartList extends Component
     public bool $showCancelDepartModal = false;
 
     public ?int $cancelDepartId = null;
+
+    public bool $showMarkDepartArrivedModal = false;
+
+    public ?int $markDepartArrivedId = null;
 
     public bool $showDeleteBusModal = false;
 
@@ -206,6 +211,22 @@ class DepartList extends Component
         return DepartCostReport::query()
             ->whereIn('depart_id', $this->departsPage->getCollection()->modelKeys())
             ->pluck('depart_id')
+            ->map(fn ($departId): int => (int) $departId)
+            ->all();
+    }
+
+    /**
+     * Ids, among the listed départs, already marked as arrived.
+     *
+     * @return array<int, int>
+     */
+    #[Computed]
+    public function arrivedDepartIds(): array
+    {
+        return Depart::query()
+            ->whereIn('id', $this->departsPage->getCollection()->modelKeys())
+            ->whereNotNull('arrived_at')
+            ->pluck('id')
             ->map(fn ($departId): int => (int) $departId)
             ->all();
     }
@@ -565,6 +586,59 @@ class DepartList extends Component
         $this->busSeatsFlashMessage = $freeSeatsResponse->getData(true)['message'] ?? 'Sièges libérés.';
         $this->selectedBusSeatIds = [];
         unset($this->busSeatRows, $this->departRows);
+    }
+
+    public function askToMarkDepartArrived(int $departId): void
+    {
+        $this->markDepartArrivedId = $departId;
+        $this->showMarkDepartArrivedModal = true;
+    }
+
+    public function closeMarkDepartArrivedModal(): void
+    {
+        $this->showMarkDepartArrivedModal = false;
+        $this->markDepartArrivedId = null;
+    }
+
+    public function markDepartArrivedLabel(): ?string
+    {
+        if ($this->markDepartArrivedId === null) {
+            return null;
+        }
+
+        return Depart::findOrFail($this->markDepartArrivedId)->identifier(with_trajet_prefix: true);
+    }
+
+    /**
+     * Marks the pending départ as arrived, which creates the customer feedback calls to make.
+     */
+    public function confirmMarkDepartArrived(): void
+    {
+        $departId = $this->markDepartArrivedId;
+
+        $this->closeMarkDepartArrivedModal();
+
+        if ($departId === null) {
+            return;
+        }
+
+        if (! PermissionName::MarkDepartArrived->allowedForCurrentUser()) {
+            session()->flash('error', PermissionName::MarkDepartArrived->unauthorizedMessage());
+            $this->redirectRoute('back-office.departs.index', navigate: true);
+
+            return;
+        }
+
+        $depart = Depart::findOrFail($departId);
+
+        try {
+            $callsCount = app(DepartFeedbackService::class)->markDepartArrived($depart, auth()->user());
+            session()->flash('status', 'Le départ '.$depart->identifier(with_trajet_prefix: true).' est marqué comme arrivé : '.$callsCount.' appel(s) client à passer.');
+        } catch (\Throwable $exception) {
+            session()->flash('error', $exception->getMessage());
+        }
+
+        $this->redirectRoute('back-office.departs.index', navigate: true);
     }
 
     public function askToCancelDepart(int $departId): void

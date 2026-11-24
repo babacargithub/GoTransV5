@@ -42,6 +42,9 @@ class Depart extends Model
         'updated_at',
         'allows_seat_selection',
         'should_show_seat_numbers',
+        'arrived_at',
+        'arrived_marked_by',
+        'feedback_conclusion',
 
     ];
 
@@ -65,6 +68,7 @@ class Depart extends Model
         'date' => 'datetime',
         'closed' => 'boolean',
         'locked' => 'boolean',
+        'arrived_at' => 'datetime',
         'shouldShowSeatNumbers' => 'boolean',
     ];
 
@@ -102,6 +106,16 @@ class Depart extends Model
     public function bookings(): HasManyThrough
     {
         return $this->hasManyThrough(Booking::class, Bus::class);
+    }
+
+    public function feedbacks(): HasMany
+    {
+        return $this->hasMany(DepartFeedback::class);
+    }
+
+    public function hasArrived(): bool
+    {
+        return $this->arrived_at !== null;
     }
 
     public function costReport(): HasOne

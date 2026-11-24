@@ -55,6 +55,11 @@ enum PermissionName: string
     case RecordAmbassadorPromotionRewards = 'record-ambassador-promotion-rewards';
     case ApproveAmbassadorEarnings = 'approve-ambassador-earnings';
     case ManageDepartCostReport = 'manage-depart-cost-report';
+    case MarkDepartArrived = 'mark-depart-arrived';
+    case ConductDepartFeedbackCalls = 'conduct-depart-feedback-calls';
+    case ViewDepartFeedback = 'view-depart-feedback';
+    case ListenDepartFeedbackRecordings = 'listen-depart-feedback-recordings';
+    case ManageFeedbackCriteria = 'manage-feedback-criteria';
 
     /**
      * The French label seeded into the editable `permissions.label` column.
@@ -100,6 +105,11 @@ enum PermissionName: string
             self::RecordAmbassadorPromotionRewards => 'Enregistrer les partages de publicité et vidéos des ambassadeurs',
             self::ApproveAmbassadorEarnings => 'Approuver les gains des ambassadeurs avant leur échéance',
             self::ManageDepartCostReport => 'Enregistrer et modifier le bilan d\'un départ',
+            self::MarkDepartArrived => 'Marquer un départ comme arrivé',
+            self::ConductDepartFeedbackCalls => 'Passer les appels d\'avis clients',
+            self::ViewDepartFeedback => 'Consulter les avis clients',
+            self::ListenDepartFeedbackRecordings => 'Écouter les enregistrements des appels d\'avis clients',
+            self::ManageFeedbackCriteria => 'Gérer les critères d\'avis clients',
         };
     }
 

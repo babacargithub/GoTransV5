@@ -1041,6 +1041,8 @@ class DepartListPageTest extends TestCase
             return count(DB::getQueryLog());
         };
 
+        // Warm-up render: the first one lazily loads the user's permissions, a one-off cost unrelated to the bus count.
+        $countQueriesToRenderTheList();
         $queriesWithOneBus = $countQueriesToRenderTheList();
         foreach (range(1, 5) as $extraBusNumber) {
             $depart->buses()->create([
