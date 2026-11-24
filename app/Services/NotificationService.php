@@ -113,6 +113,24 @@ class NotificationService
     }
 
     /**
+     * Tells an ambassador their request was approved. When their login account was created with the approval,
+     * the message carries the address of their space and their credentials.
+     *
+     * @param  array{username: string, password: string}|null  $accountCredentials
+     */
+    public function notifyAmbassadorOfApproval(Ambassador $approvedAmbassador, ?array $accountCredentials = null): void
+    {
+        $message = self::STUDENT_BRAND_NAME." : {$approvedAmbassador->first_name}, votre compte ambassadeur est validé. Votre code : {$approvedAmbassador->code}.";
+
+        if ($accountCredentials !== null) {
+            $message .= ' Connectez-vous à votre espace : '.route('ambassador.home')
+                ." Identifiant : {$accountCredentials['username']} Mot de passe : {$accountCredentials['password']}";
+        }
+
+        $this->smsSender->sendSms((string) $approvedAmbassador->phone_number, $message);
+    }
+
+    /**
      * Sends an ambassador the code that confirms their signature of the contract.
      */
     public function notifyAmbassadorOfContractSigningCode(Ambassador $signingAmbassador, string $signingCode): void

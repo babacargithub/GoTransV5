@@ -7,8 +7,10 @@ use App\Enums\AmbassadorStatus;
 use App\Enums\PermissionName;
 use App\Models\Ambassador;
 use App\Models\AmbassadorRewardRule;
+use App\Models\User;
 use App\Services\AmbassadorEarningService;
 use App\Services\AmbassadorService;
+use App\Services\NotificationService;
 use DomainException;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Contracts\View\View;
@@ -19,6 +21,7 @@ use Livewire\Attributes\Layout;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Throwable;
 
 /**
  * Back office "Ambassadeurs" list.
@@ -253,10 +256,16 @@ class AmbassadorList extends Component
             return;
         }
 
-        $this->approvingAmbassadorId = $ambassadorId;
+        $ambassador = Ambassador::findOrFail($ambassadorId);
+
+        $this->approvingAmbassadorId = $ambassador->id;
         $this->contractStartsAt = today()->toDateString();
         $this->contractEndsAt = today()->addYear()->toDateString();
         $this->resetValidation();
+
+        $this->createUserAccount = $ambassador->user_account_id === null && $this->allowed(PermissionName::CreateUser);
+        $this->accountUsername = $this->createUserAccount ? $this->suggestUsernameFor($ambassador) : '';
+        $this->accountPassword = $this->createUserAccount ? Str::lower(Str::random(8)) : '';
         $this->showApprovalModal = true;
     }
 
@@ -273,20 +282,42 @@ class AmbassadorList extends Component
             return;
         }
 
+        $shouldCreateAccount = $this->createUserAccount && $this->allowed(PermissionName::CreateUser);
+
+        $accountRules = $shouldCreateAccount ? [
+            'accountUsername' => ['required', 'string', 'max:190', 'regex:/^[A-Za-z0-9._-]+$/', Rule::unique('users', 'username')],
+            'accountPassword' => ['required', 'string', 'min:8', 'max:255'],
+        ] : [];
+
         $validated = $this->validate([
+            ...$accountRules,
             'contractStartsAt' => ['required', 'date'],
             'contractEndsAt' => ['required', 'date', 'after_or_equal:contractStartsAt'],
         ], attributes: $this->validationAttributes());
 
-        $this->runLifecycleAction(function () use ($ambassadorService, $validated): string {
+        $accountCredentials = $shouldCreateAccount
+            ? ['username' => $validated['accountUsername'], 'password' => $validated['accountPassword']]
+            : null;
+
+        $this->runLifecycleAction(function () use ($ambassadorService, $validated, $accountCredentials): string {
             $ambassador = $ambassadorService->approveAmbassador(
                 Ambassador::findOrFail($this->approvingAmbassadorId),
                 auth()->user(),
                 $validated['contractStartsAt'],
                 $validated['contractEndsAt'],
+                $accountCredentials,
             );
 
-            return "L'ambassadeur « {$ambassador->full_name} » a été validé.";
+            try {
+                app(NotificationService::class)->notifyAmbassadorOfApproval($ambassador, $accountCredentials);
+            } catch (Throwable $smsFailure) {
+                report($smsFailure);
+
+                return "L'ambassadeur « {$ambassador->full_name} » a été validé, mais le SMS n'a pas pu être envoyé : communiquez-lui lui-même ses accès.";
+            }
+
+            return "L'ambassadeur « {$ambassador->full_name} » a été validé"
+                .($accountCredentials !== null ? ', son compte a été créé et ses accès lui ont été envoyés par SMS.' : '.');
         });
 
         $this->closeApprovalModal();
@@ -502,6 +533,21 @@ class AmbassadorList extends Component
         session()->flash('error', $permission->unauthorizedMessage());
 
         return false;
+    }
+
+    /**
+     * A free username built from the ambassador's first name, suffixed with digits until it is unique.
+     */
+    private function suggestUsernameFor(Ambassador $ambassador): string
+    {
+        $baseUsername = Str::slug($ambassador->first_name, '') ?: 'ambassadeur';
+        $candidateUsername = $baseUsername;
+
+        while (User::where('username', $candidateUsername)->exists()) {
+            $candidateUsername = $baseUsername.random_int(10, 99);
+        }
+
+        return $candidateUsername;
     }
 
     private function resetAmbassadorForm(): void

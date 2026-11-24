@@ -250,6 +250,28 @@
                 </flux:field>
             </div>
 
+            @if ($this->abilities['createAccount'])
+                <div class="space-y-4 rounded-lg border border-zinc-200 p-4 dark:border-zinc-700">
+                    <flux:switch wire:model.live="createUserAccount" label="Créer son compte utilisateur" description="Ses accès et l'adresse de son espace lui sont envoyés par SMS." />
+
+                    @if ($createUserAccount)
+                        <div class="grid gap-6 sm:grid-cols-2">
+                            <flux:field>
+                                <flux:label>Identifiant</flux:label>
+                                <flux:input wire:model="accountUsername" autocomplete="off" />
+                                <flux:error name="accountUsername" />
+                            </flux:field>
+
+                            <flux:field>
+                                <flux:label>Mot de passe</flux:label>
+                                <flux:input type="text" wire:model="accountPassword" autocomplete="off" />
+                                <flux:error name="accountPassword" />
+                            </flux:field>
+                        </div>
+                    @endif
+                </div>
+            @endif
+
             <div class="flex items-center justify-end gap-2">
                 <flux:button variant="ghost" wire:click="closeApprovalModal">Annuler</flux:button>
                 <flux:button type="submit" variant="primary" wire:loading.attr="disabled" wire:target="approveAmbassador">
