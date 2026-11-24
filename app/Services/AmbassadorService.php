@@ -226,25 +226,42 @@ class AmbassadorService
     }
 
     /**
-     * Approve a pending ambassador, setting the contract that makes them able to acquire customers.
+     * Approve a pending ambassador, setting the contract that makes them able to acquire customers. When login
+     * credentials are given, their user account is created in the same transaction, so an approval never
+     * leaves an ambassador half set up.
      *
-     * @throws DomainException when the ambassador is not pending approval
+     * @param  array{username: string, password: string}|null  $accountCredentials
+     *
+     * @throws DomainException when the ambassador is not pending approval or already has a login account
      */
     public function approveAmbassador(
         Ambassador $ambassador,
         User $approver,
         mixed $contractStartsAt,
         mixed $contractEndsAt,
+        ?array $accountCredentials = null,
     ): Ambassador {
         $this->assertStatus($ambassador, AmbassadorStatus::PendingApproval, 'validé');
 
-        $ambassador->update([
-            'status' => AmbassadorStatus::Active,
-            'contract_starts_at' => $contractStartsAt,
-            'contract_ends_at' => $contractEndsAt,
-            'approved_by_user_id' => $approver->id,
-            'approved_at' => now(),
-        ]);
+        if ($accountCredentials !== null && $ambassador->user_account_id !== null) {
+            throw new DomainException('Cet ambassadeur a déjà un compte utilisateur.');
+        }
+
+        DB::transaction(function () use ($ambassador, $approver, $contractStartsAt, $contractEndsAt, $accountCredentials): void {
+            $attributes = [
+                'status' => AmbassadorStatus::Active,
+                'contract_starts_at' => $contractStartsAt,
+                'contract_ends_at' => $contractEndsAt,
+                'approved_by_user_id' => $approver->id,
+                'approved_at' => now(),
+            ];
+
+            if ($accountCredentials !== null) {
+                $attributes['user_account_id'] = $this->createAccountForAmbassador($ambassador->full_name, $accountCredentials)->id;
+            }
+
+            $ambassador->update($attributes);
+        });
 
         return $ambassador;
     }

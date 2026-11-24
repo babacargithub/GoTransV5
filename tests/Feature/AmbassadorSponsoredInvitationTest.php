@@ -3,7 +3,9 @@
 namespace Tests\Feature;
 
 use App\Enums\AmbassadorStatus;
+use App\Enums\PermissionName;
 use App\Livewire\Ambassador\SponsoredAmbassadors;
+use App\Livewire\BackOffice\AmbassadorList;
 use App\Livewire\Website\AmbassadorInvitation;
 use App\Models\Ambassador;
 use App\Models\Employe;
@@ -307,5 +309,82 @@ class AmbassadorSponsoredInvitationTest extends TestCase
         $this->assertContains('770000001', $sentToPhoneNumbers);
         $this->assertNotContains('770000002', $sentToPhoneNumbers);
         $this->assertNotNull($fullAccessAdministratorWithoutEmploye);
+    }
+
+    public function test_approving_an_ambassador_creates_their_account_and_sms_them_their_credentials(): void
+    {
+        $approver = $this->createUserWithPermissions([
+            PermissionName::ViewAmbassadors->value,
+            PermissionName::ApproveAmbassador->value,
+            PermissionName::CreateUser->value,
+        ]);
+        $pendingAmbassador = Ambassador::factory()->pendingApproval()->create();
+
+        $this->mock(SMSSender::class)
+            ->shouldReceive('sendSms')
+            ->once()
+            ->withArgs(fn (string $phoneNumber, string $message): bool => $phoneNumber === (string) $pendingAmbassador->phone_number
+                && str_contains($message, route('ambassador.home'))
+                && str_contains($message, 'Identifiant : awa.test')
+                && str_contains($message, 'Mot de passe : secret1234'));
+
+        Livewire::actingAs($approver)->test(AmbassadorList::class)
+            ->call('openApproval', $pendingAmbassador->id)
+            ->assertSet('createUserAccount', true)
+            ->set('accountUsername', 'awa.test')
+            ->set('accountPassword', 'secret1234')
+            ->call('approveAmbassador')
+            ->assertHasNoErrors();
+
+        $pendingAmbassador->refresh();
+        $this->assertSame(AmbassadorStatus::Active, $pendingAmbassador->status);
+        $this->assertSame('awa.test', $pendingAmbassador->userAccount->username);
+        $this->assertTrue($pendingAmbassador->userAccount->hasRole(Ambassador::ACCOUNT_ROLE_NAME));
+    }
+
+    public function test_approving_without_account_creation_only_tells_the_ambassador_they_are_validated(): void
+    {
+        $approver = $this->createUserWithPermissions([
+            PermissionName::ViewAmbassadors->value,
+            PermissionName::ApproveAmbassador->value,
+            PermissionName::CreateUser->value,
+        ]);
+        $pendingAmbassador = Ambassador::factory()->pendingApproval()->create();
+
+        $this->mock(SMSSender::class)
+            ->shouldReceive('sendSms')
+            ->once()
+            ->withArgs(fn (string $phoneNumber, string $message): bool => ! str_contains($message, 'Mot de passe'));
+
+        Livewire::actingAs($approver)->test(AmbassadorList::class)
+            ->call('openApproval', $pendingAmbassador->id)
+            ->set('createUserAccount', false)
+            ->call('approveAmbassador');
+
+        $pendingAmbassador->refresh();
+        $this->assertSame(AmbassadorStatus::Active, $pendingAmbassador->status);
+        $this->assertNull($pendingAmbassador->user_account_id);
+    }
+
+    public function test_approval_with_an_already_used_username_is_refused_and_leaves_the_ambassador_pending(): void
+    {
+        $approver = $this->createUserWithPermissions([
+            PermissionName::ViewAmbassadors->value,
+            PermissionName::ApproveAmbassador->value,
+            PermissionName::CreateUser->value,
+        ]);
+        $existingUser = User::factory()->create();
+        $pendingAmbassador = Ambassador::factory()->pendingApproval()->create();
+
+        $this->mock(SMSSender::class)->shouldReceive('sendSms')->never();
+
+        Livewire::actingAs($approver)->test(AmbassadorList::class)
+            ->call('openApproval', $pendingAmbassador->id)
+            ->set('accountUsername', $existingUser->username)
+            ->set('accountPassword', 'secret1234')
+            ->call('approveAmbassador')
+            ->assertHasErrors(['accountUsername']);
+
+        $this->assertSame(AmbassadorStatus::PendingApproval, $pendingAmbassador->refresh()->status);
     }
 }
