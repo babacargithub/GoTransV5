@@ -232,7 +232,9 @@ class MobileMultipleBookingRequest extends FormRequest
     protected function recordWaitingCustomers(array $bookings, Depart $depart, ?Bus $bus, string $reason): void
     {
         $waitingCustomerService = app(WaitingCustomerService::class);
-        $data = $this->validated();
+        // validated() throws once the validator holds an error, and recording happens precisely
+        // because a rejection error was just added — so keep only the declared fields of the input.
+        $data = $this->only(array_keys($this->rules()));
         foreach ($bookings as $booking) {
             $customer = Customer::find($booking->customer_id);
             if ($customer == null) {
