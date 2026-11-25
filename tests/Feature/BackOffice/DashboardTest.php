@@ -138,4 +138,27 @@ class DashboardTest extends TestCase
             ->get(route('back-office.dashboard', ['date_from' => '2026-11-20', 'date_to' => '2026-11-10']))
             ->assertSessionHasErrors('date_to');
     }
+
+    public function test_the_daily_trend_lists_every_day_of_the_period_with_zero_for_quiet_days(): void
+    {
+        [$trajet, $depart, $bus] = $this->createTrajetWithDepartAndBus();
+        $firstDay = now()->startOfMonth();
+        $busyBooking = $this->createBookingForNewCustomer($trajet, $depart, $bus->id);
+        $this->createBookingForNewCustomer($trajet, $depart, $bus->id);
+        $busyBooking->forceFill(['created_at' => $firstDay->copy()->addDays(2)->setTime(10, 0)])->save();
+
+        $response = $this->actingAs($this->createUserWithFullAccess())->get(route('back-office.dashboard', [
+            'trajet_id' => $trajet->id,
+            'date_from' => $firstDay->toDateString(),
+            'date_to' => $firstDay->copy()->addDays(4)->toDateString(),
+        ]));
+
+        $response->assertOk();
+        /** @var DashboardDTO $dashboard */
+        $dashboard = $response->viewData('dashboard');
+        $trend = collect($dashboard->dailyTrend());
+        $this->assertCount(5, $trend);
+        $this->assertSame(1, $trend->firstWhere('date', $firstDay->copy()->addDays(2)->toDateString())['bookings']);
+        $this->assertSame(0, $trend->firstWhere('date', $firstDay->toDateString())['bookings']);
+    }
 }

@@ -3,6 +3,21 @@
         $formatCount = fn (int $count): string => number_format($count, 0, ',', ' ');
         $formatAmount = fn (int $amount): string => number_format($amount, 0, ',', ' ').' FCFA';
         $formatPercentage = fn (float $percentage): string => number_format($percentage, 1, ',', ' ').' %';
+        $trendDays = $dashboard->dailyTrend();
+        $trendDayCount = count($trendDays);
+        $trendMaximum = max(4, ...array_map(fn (array $day): int => max($day['bookings'], $day['newCustomers']), $trendDays));
+        $trendWidth = 800;
+        $trendHeight = 260;
+        $trendPadding = ['left' => 36, 'right' => 12, 'top' => 12, 'bottom' => 28];
+        $trendPlotWidth = $trendWidth - $trendPadding['left'] - $trendPadding['right'];
+        $trendPlotHeight = $trendHeight - $trendPadding['top'] - $trendPadding['bottom'];
+        $trendX = fn (int $dayIndex): float => $trendPadding['left'] + ($trendDayCount > 1 ? $dayIndex / ($trendDayCount - 1) : 0.5) * $trendPlotWidth;
+        $trendY = fn (int $value): float => $trendPadding['top'] + (1 - $value / $trendMaximum) * $trendPlotHeight;
+        $trendPointsOf = fn (string $series): string => collect($trendDays)
+            ->map(fn (array $day, int $dayIndex): string => round($trendX($dayIndex), 1).','.round($trendY($day[$series]), 1))
+            ->implode(' ');
+        $trendBaselineY = $trendPadding['top'] + $trendPlotHeight;
+        $trendLabelEvery = max(1, (int) ceil($trendDayCount / 7));
         $ambassadorShareRings = [
             [
                 'label' => 'Clients amenés',
@@ -86,6 +101,41 @@
                 <div class="mt-5 text-3xl font-bold">{{ $formatCount($dashboard->busesCount) }}</div>
                 <div class="mt-3 text-base font-semibold text-white/60">Bus</div>
             </div>
+        </div>
+
+        <div class="rounded-3xl bg-[#202b3f] p-6">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <h2 class="text-lg font-bold">Réservations et nouveaux clients par jour</h2>
+                <div class="flex gap-4 rounded-full bg-[#1a2332] px-4 py-2 text-xs font-semibold">
+                    <span class="flex items-center gap-2"><span class="size-2.5 rounded-full bg-[#00a3ff]"></span>Réservations</span>
+                    <span class="flex items-center gap-2"><span class="size-2.5 rounded-full bg-[#3fb950]"></span>Nouveaux clients</span>
+                </div>
+            </div>
+
+            <svg viewBox="0 0 {{ $trendWidth }} {{ $trendHeight }}" class="mt-4 h-auto w-full" role="img" aria-label="Réservations et nouveaux clients par jour">
+                @foreach ([0, 1, 2, 3, 4] as $gridStep)
+                    @php($gridValue = (int) round($trendMaximum * $gridStep / 4))
+                    <line x1="{{ $trendPadding['left'] }}" x2="{{ $trendWidth - $trendPadding['right'] }}" y1="{{ $trendY($gridValue) }}" y2="{{ $trendY($gridValue) }}" stroke="#3a4863" stroke-dasharray="4 4" />
+                    <text x="{{ $trendPadding['left'] - 8 }}" y="{{ $trendY($gridValue) + 4 }}" text-anchor="end" font-size="11" fill="#8d99b3">{{ $gridValue }}</text>
+                @endforeach
+
+                @if ($trendDayCount > 1)
+                    <polygon points="{{ $trendX(0) }},{{ $trendBaselineY }} {{ $trendPointsOf('bookings') }} {{ $trendX($trendDayCount - 1) }},{{ $trendBaselineY }}" fill="#00a3ff" fill-opacity="0.18" />
+                    <polyline points="{{ $trendPointsOf('bookings') }}" fill="none" stroke="#00a3ff" stroke-width="2.5" stroke-linejoin="round" />
+                    <polyline points="{{ $trendPointsOf('newCustomers') }}" fill="none" stroke="#3fb950" stroke-width="2.5" stroke-linejoin="round" />
+                @endif
+
+                @foreach ($trendDays as $dayIndex => $day)
+                    @if ($dayIndex % $trendLabelEvery === 0)
+                        <text x="{{ $trendX($dayIndex) }}" y="{{ $trendHeight - 8 }}" text-anchor="middle" font-size="11" fill="#8d99b3">{{ \Illuminate\Support\Carbon::parse($day['date'])->format('d/m') }}</text>
+                    @endif
+                    <circle cx="{{ $trendX($dayIndex) }}" cy="{{ $trendY($day['bookings']) }}" r="{{ $trendDayCount > 31 ? 2 : 3.5 }}" fill="#00a3ff" />
+                    <circle cx="{{ $trendX($dayIndex) }}" cy="{{ $trendY($day['newCustomers']) }}" r="{{ $trendDayCount > 31 ? 2 : 3.5 }}" fill="#3fb950" />
+                    <rect x="{{ $trendX($dayIndex) - 6 }}" y="{{ $trendPadding['top'] }}" width="12" height="{{ $trendPlotHeight }}" fill="transparent">
+                        <title>{{ \Illuminate\Support\Carbon::parse($day['date'])->format('d/m/Y') }} — {{ $day['bookings'] }} réservation(s), {{ $day['newCustomers'] }} nouveau(x) client(s)</title>
+                    </rect>
+                @endforeach
+            </svg>
         </div>
 
         <div class="grid gap-4 lg:grid-cols-3">

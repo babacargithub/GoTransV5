@@ -29,6 +29,22 @@ class CustomerService
     }
 
     /**
+     * New customers of the period (same scope as countNewCustomers()) grouped by the day they were created.
+     * Days without any new customer are absent.
+     *
+     * @return array<string, int> count keyed by Y-m-d date
+     */
+    public function countNewCustomersPerDay(CarbonInterface $periodStart, CarbonInterface $periodEnd, ?Trajet $trajet = null): array
+    {
+        return $this->newCustomersQuery($periodStart, $periodEnd, $trajet)
+            ->selectRaw('DATE(created_at) as day, COUNT(*) as total')
+            ->groupBy('day')
+            ->pluck('total', 'day')
+            ->map(fn ($total): int => (int) $total)
+            ->all();
+    }
+
+    /**
      * @return Builder<Customer>
      */
     private function newCustomersQuery(CarbonInterface $periodStart, CarbonInterface $periodEnd, ?Trajet $trajet): Builder

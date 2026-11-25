@@ -52,6 +52,8 @@ class DashboardController extends Controller
             departsCount: $this->departService->countDeparts($periodStart, $periodEnd, $trajet),
             busesCount: $this->busService->countBuses($periodStart, $periodEnd, $trajet),
             amountDueToAmbassadors: $this->ambassadorPerformanceService->getAllAmbassadorsBalance($periodStart, $periodEnd, $trajet),
+            bookingsPerDay: $this->bookingService->countBookingsPerDay($periodStart, $periodEnd, $trajet),
+            newCustomersPerDay: $this->customerService->countNewCustomersPerDay($periodStart, $periodEnd, $trajet),
         );
 
         return view('back-office.dashboard', [

@@ -54,6 +54,22 @@ class BookingService
     }
 
     /**
+     * Bookings made in the period (same scope as countBookings()) grouped by the day they were made.
+     * Days without any booking are absent.
+     *
+     * @return array<string, int> count keyed by Y-m-d date
+     */
+    public function countBookingsPerDay(CarbonInterface $periodStart, CarbonInterface $periodEnd, ?Trajet $trajet = null): array
+    {
+        return $this->bookingsMadeInPeriodQuery($periodStart, $periodEnd, $trajet)
+            ->selectRaw('DATE(created_at) as day, COUNT(*) as total')
+            ->groupBy('day')
+            ->pluck('total', 'day')
+            ->map(fn ($total): int => (int) $total)
+            ->all();
+    }
+
+    /**
      * @return Builder<Booking>
      */
     private function bookingsMadeInPeriodQuery(CarbonInterface $periodStart, CarbonInterface $periodEnd, ?Trajet $trajet): Builder
