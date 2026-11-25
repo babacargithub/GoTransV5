@@ -10,8 +10,10 @@ use App\Models\Bus;
 use App\Models\Depart;
 use App\Models\DepartCostReport;
 use App\Models\Trajet;
+use App\Models\WaitingCustomer;
 use App\Services\BusService;
 use App\Services\DepartFeedbackService;
+use App\Services\WaitingCustomerService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
@@ -66,6 +68,10 @@ class DepartList extends Component
      * the départ instead of counting every booking of the départ.
      */
     public ?int $bookingsRepartitionBusId = null;
+
+    public bool $showWaitingCustomersModal = false;
+
+    public ?int $waitingCustomersDepartId = null;
 
     public bool $showBusSeatsModal = false;
 
@@ -260,6 +266,18 @@ class DepartList extends Component
         $this->showTicketSalesModal = false;
         $this->ticketSalesDepartId = null;
         $this->ticketSalesBusId = null;
+    }
+
+    public function openWaitingCustomers(int $departId): void
+    {
+        $this->waitingCustomersDepartId = $departId;
+        $this->showWaitingCustomersModal = true;
+    }
+
+    public function closeWaitingCustomers(): void
+    {
+        $this->showWaitingCustomersModal = false;
+        $this->waitingCustomersDepartId = null;
     }
 
     public function openBookingsRepartition(int $departId, ?int $busId = null): void
@@ -881,6 +899,53 @@ class DepartList extends Component
         }
 
         return Depart::findOrFail($this->ticketSalesDepartId)->identifier(with_trajet_prefix: true);
+    }
+
+    public function waitingCustomersDepartLabel(): ?string
+    {
+        if ($this->waitingCustomersDepartId === null) {
+            return null;
+        }
+
+        return Depart::findOrFail($this->waitingCustomersDepartId)->identifier(with_trajet_prefix: true);
+    }
+
+    /**
+     * Customers whose booking attempt failed (bus full/closed...) and who sit on the
+     * départ's waiting list, oldest attempt first. A customer who tried several times
+     * appears once per attempt, each with its own time.
+     *
+     * @return array<int, array{id: int, fullName: string, phoneNumber: string|null, busName: string|null, reasonLabel: string|null, bookedAt: string}>
+     */
+    #[Computed]
+    public function waitingCustomerRows(): array
+    {
+        if ($this->waitingCustomersDepartId === null) {
+            return [];
+        }
+
+        $reasonLabels = [
+            WaitingCustomerService::REASON_BUS_FULL => 'Bus complet',
+            WaitingCustomerService::REASON_BUS_CLOSED => 'Bus clôturé',
+            WaitingCustomerService::REASON_DEPART_CLOSED => 'Départ clôturé',
+            WaitingCustomerService::REASON_NO_BUS_AVAILABLE => 'Aucun bus disponible',
+        ];
+
+        return WaitingCustomer::query()
+            ->where('depart_id', $this->waitingCustomersDepartId)
+            ->with(['customer', 'bus'])
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get()
+            ->map(fn (WaitingCustomer $waitingCustomer): array => [
+                'id' => $waitingCustomer->id,
+                'fullName' => $waitingCustomer->customer?->full_name ?? 'Client supprimé',
+                'phoneNumber' => $waitingCustomer->customer?->phone_number,
+                'busName' => $waitingCustomer->bus?->name,
+                'reasonLabel' => $reasonLabels[$waitingCustomer->data['reason'] ?? null] ?? null,
+                'bookedAt' => $waitingCustomer->created_at->format('d/m/Y à H:i'),
+            ])
+            ->all();
     }
 
     public function bookingsRepartitionDepartLabel(): ?string

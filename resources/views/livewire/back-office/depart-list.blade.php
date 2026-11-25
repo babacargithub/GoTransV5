@@ -92,6 +92,13 @@
                                     Répartition des clients
                                 </flux:menu.item>
                                 <flux:menu.item
+                                    icon="queue-list"
+                                    class="py-2 [&_[data-flux-menu-item-icon]]:!text-rose-500"
+                                    wire:click="openWaitingCustomers({{ $depart['id'] }})"
+                                >
+                                    Listes d'attente
+                                </flux:menu.item>
+                                <flux:menu.item
                                     icon="clock"
                                     class="py-2 [&_[data-flux-menu-item-icon]]:!text-amber-500"
                                     wire:click="openScheduleManagement({{ $depart['id'] }})"
@@ -391,6 +398,52 @@
 
             <div class="flex justify-end">
                 <flux:button variant="ghost" wire:click="closeBusSeats">Fermer</flux:button>
+            </div>
+        </div>
+    </flux:modal>
+
+    {{-- Listes d'attente --}}
+    <flux:modal wire:model.self="showWaitingCustomersModal" wire:key="waiting-customers-modal" class="w-full max-w-3xl">
+        <div class="space-y-6">
+            <div>
+                <flux:heading size="lg">Liste d'attente</flux:heading>
+                <flux:text class="mt-1">{{ $this->waitingCustomersDepartLabel() }}</flux:text>
+            </div>
+
+            @php($waitingCustomerRows = $this->waitingCustomerRows)
+
+            @if (count($waitingCustomerRows) === 0)
+                <flux:callout icon="information-circle">
+                    <flux:callout.text>Aucun client en liste d'attente pour ce départ.</flux:callout.text>
+                </flux:callout>
+            @else
+                <div class="overflow-x-auto">
+                    <flux:table>
+                        <flux:table.columns>
+                            <flux:table.column>Client</flux:table.column>
+                            <flux:table.column>Téléphone</flux:table.column>
+                            <flux:table.column>Bus</flux:table.column>
+                            <flux:table.column>Motif</flux:table.column>
+                            <flux:table.column>Inscrit le</flux:table.column>
+                        </flux:table.columns>
+
+                        <flux:table.rows>
+                            @foreach ($waitingCustomerRows as $waitingCustomerRow)
+                                <flux:table.row wire:key="waiting-customer-{{ $waitingCustomerRow['id'] }}">
+                                    <flux:table.cell variant="strong">{{ $waitingCustomerRow['fullName'] }}</flux:table.cell>
+                                    <flux:table.cell>{{ $waitingCustomerRow['phoneNumber'] ?? '—' }}</flux:table.cell>
+                                    <flux:table.cell>{{ $waitingCustomerRow['busName'] ?? '—' }}</flux:table.cell>
+                                    <flux:table.cell>{{ $waitingCustomerRow['reasonLabel'] ?? '—' }}</flux:table.cell>
+                                    <flux:table.cell class="whitespace-nowrap">{{ $waitingCustomerRow['bookedAt'] }}</flux:table.cell>
+                                </flux:table.row>
+                            @endforeach
+                        </flux:table.rows>
+                    </flux:table>
+                </div>
+            @endif
+
+            <div class="flex justify-end">
+                <flux:button variant="ghost" wire:click="closeWaitingCustomers">Fermer</flux:button>
             </div>
         </div>
     </flux:modal>
