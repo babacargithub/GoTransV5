@@ -9,7 +9,10 @@ use App\Enums\AmbassadorPayoutStatus;
 use App\Models\Ambassador;
 use App\Models\AmbassadorEarning;
 use App\Models\AmbassadorPayout;
+use App\Models\Trajet;
+use Carbon\CarbonInterface;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 
 /**
  * Read-only queries about an ambassador's earnings and performance. It never writes anything.
@@ -23,8 +26,32 @@ class AmbassadorPerformanceService
      */
     public function getAccountBalance(Ambassador $ambassador): AmbassadorBalanceDTO
     {
-        $amountsByStatus = AmbassadorEarning::query()
-            ->where('ambassador_id', $ambassador->id)
+        return $this->balanceOfEarnings(AmbassadorEarning::query()->where('ambassador_id', $ambassador->id));
+    }
+
+    /**
+     * What is owed to all ambassadors together for the earnings recorded in the period (same available /
+     * pending / total / paid breakdown as getAccountBalance()); with a trajet, only the earnings of
+     * bookings on its départs.
+     */
+    public function getAllAmbassadorsBalance(CarbonInterface $periodStart, CarbonInterface $periodEnd, ?Trajet $trajet = null): AmbassadorBalanceDTO
+    {
+        return $this->balanceOfEarnings(
+            AmbassadorEarning::query()
+                ->whereBetween('created_at', [$periodStart, $periodEnd])
+                ->when($trajet, fn (Builder $earnings) => $earnings->whereHas(
+                    'booking.depart',
+                    fn (Builder $departs) => $departs->where('trajet_id', $trajet->id),
+                )),
+        );
+    }
+
+    /**
+     * @param  Builder<AmbassadorEarning>  $earningsQuery
+     */
+    private function balanceOfEarnings(Builder $earningsQuery): AmbassadorBalanceDTO
+    {
+        $amountsByStatus = $earningsQuery
             ->whereIn('status', [AmbassadorEarningStatus::Approved, AmbassadorEarningStatus::Pending, AmbassadorEarningStatus::Paid])
             ->selectRaw('status, SUM(amount) as total_amount')
             ->groupBy('status')

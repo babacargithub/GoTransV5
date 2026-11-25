@@ -3,6 +3,7 @@
 use App\Http\Controllers\AmbassadorProgramDocumentController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\BusController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DepartController;
 use App\Http\Controllers\DepartFeedbackRecordingController;
 use App\Http\Controllers\MobileAppController;
@@ -211,6 +212,8 @@ Route::middleware(['auth:sanctum', 'verified', RejectAmbassadorAccounts::class])
  * these routes reuse the same controllers and render the data into Flux pages instead.
  */
 Route::middleware(['auth', RejectAmbassadorAccounts::class])->prefix('back-office')->name('back-office.')->group(function () {
+    Route::get('tableau-de-bord', [DashboardController::class, 'index'])->name('dashboard');
+
     Route::get('departs', DepartList::class)->name('departs.index');
     Route::get('departs/create', CreateDepart::class)->name('departs.create');
     Route::get('departs/{depart}/edit', EditDepart::class)->name('departs.edit');

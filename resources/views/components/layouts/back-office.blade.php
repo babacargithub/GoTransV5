@@ -24,6 +24,7 @@
         {{-- Desktop: horizontal navigation to the main sections --}}
         <flux:navbar class="max-lg:hidden">
             @if (\App\Enums\PermissionName::FullAccess->allowedForCurrentUser())
+                <flux:navbar.item icon="presentation-chart-line" :href="route('back-office.dashboard')" :current="request()->routeIs('back-office.dashboard')">Tableau de bord</flux:navbar.item>
                 <flux:dropdown>
                     <flux:navbar.item
                         icon="banknotes"
@@ -124,6 +125,7 @@
             <flux:button variant="subtle" size="sm" icon="bars-3" square aria-label="Menu de navigation" />
             <flux:menu>
                 @if (\App\Enums\PermissionName::FullAccess->allowedForCurrentUser())
+                    <flux:menu.item icon="presentation-chart-line" :href="route('back-office.dashboard')">Tableau de bord</flux:menu.item>
                     <flux:menu.group heading="Finances">
                         <flux:menu.item icon="wallet" :href="route('back-office.caisses.index')">Caisses</flux:menu.item>
                         <flux:menu.item icon="banknotes" :href="route('back-office.comptes.index')">Comptes</flux:menu.item>
