@@ -17,8 +17,10 @@ use App\Models\Destination;
 use App\Models\PointDep;
 use App\Models\TicketPayment;
 use App\Models\Trajet;
+use Carbon\CarbonInterface;
 use DB;
 use GuzzleHttp\Exception\GuzzleException;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
@@ -34,6 +36,35 @@ class BookingService
         private readonly TicketManager $ticketManager,
         private readonly TrajetService $trajetService,
     ) {}
+
+    /**
+     * Bookings (one per passenger) made in the period; with a trajet, only those on its départs.
+     */
+    public function countBookings(CarbonInterface $periodStart, CarbonInterface $periodEnd, ?Trajet $trajet = null): int
+    {
+        return $this->bookingsMadeInPeriodQuery($periodStart, $periodEnd, $trajet)->count();
+    }
+
+    /**
+     * Same scope as countBookings(), restricted to the bookings made with an ambassador's code.
+     */
+    public function countBookingsBroughtByAmbassadors(CarbonInterface $periodStart, CarbonInterface $periodEnd, ?Trajet $trajet = null): int
+    {
+        return $this->bookingsMadeInPeriodQuery($periodStart, $periodEnd, $trajet)->whereNotNull('ambassador_id')->count();
+    }
+
+    /**
+     * @return Builder<Booking>
+     */
+    private function bookingsMadeInPeriodQuery(CarbonInterface $periodStart, CarbonInterface $periodEnd, ?Trajet $trajet): Builder
+    {
+        return Booking::query()
+            ->whereBetween('created_at', [$periodStart, $periodEnd])
+            ->when($trajet, fn (Builder $bookings) => $bookings->whereHas(
+                'depart',
+                fn (Builder $departs) => $departs->where('trajet_id', $trajet->id),
+            ));
+    }
 
     /**
      * Handles a GP multi-passenger booking request, including the optional round-trip leg.
