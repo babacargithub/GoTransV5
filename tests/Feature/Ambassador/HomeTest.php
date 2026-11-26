@@ -135,20 +135,17 @@ class HomeTest extends TestCase
         $this->assertStringContainsString(config('app.public_website_domain'), $component->instance()->shareUrl());
     }
 
-    public function test_the_share_button_opens_whatsapp_with_a_message_containing_the_share_link(): void
+    public function test_the_share_button_opens_a_message_dialog_with_the_default_message_and_the_share_link(): void
     {
         ['user' => $user] = $this->createLoggedInCapableAmbassador(['code' => 'AWA10']);
 
         $component = Livewire::actingAs($user)->test(Home::class);
-        $whatsappUrl = $component->instance()->whatsappShareUrl();
 
-        $this->assertStringStartsWith('https://wa.me/?text=', $whatsappUrl);
-        $message = rawurldecode(substr($whatsappUrl, strlen('https://wa.me/?text=')));
-        $this->assertStringContainsString($component->instance()->shareUrl(), $message);
-        $this->assertStringContainsString('ref=awa10', $message);
         $component->assertSee('Partager le lien')
-            ->assertSeeHtml('href="'.e($whatsappUrl).'"')
-            ->assertSeeHtml('target="_blank"');
+            ->assertSee('Votre message de partage')
+            ->assertSee('Envoyer sur WhatsApp')
+            ->assertSeeHtml(e(Home::DEFAULT_SHARE_MESSAGE))
+            ->assertSeeHtml('ref=awa10');
     }
 
     public function test_the_copy_button_is_rendered_with_the_share_link(): void

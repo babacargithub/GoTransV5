@@ -27,11 +27,13 @@
         <div class="mt-3 text-xs text-white/70">Un gain devient disponible 24h après le départ du client.</div>
     </div>
 
-    <flux:modal.trigger name="payout-reminder">
-        <flux:button variant="primary" icon="banknotes" class="w-full !h-14 !bg-brand-cyan !text-base !font-semibold !text-white hover:!bg-brand-cyan/90">
-            Retirer mes gains
-        </flux:button>
-    </flux:modal.trigger>
+    <div class="-mt-3">
+        <flux:modal.trigger name="payout-reminder">
+            <flux:button variant="primary" icon="banknotes" class="w-full !h-14 !bg-brand-cyan !text-base !font-semibold !text-white hover:!bg-brand-cyan/90">
+                Retirer mes gains
+            </flux:button>
+        </flux:modal.trigger>
+    </div>
 
     <flux:modal name="payout-reminder" class="w-full max-w-md">
         <div class="space-y-4">
@@ -54,8 +56,41 @@
             x-data="{
                 linkWasCopied: false,
                 linkCopyFailed: false,
+                shareUrl: @js($this->shareUrl),
+                linkPlaceholder: @js(\App\Livewire\Ambassador\Home::SHARE_LINK_PLACEHOLDER),
+                shareMessage: '',
+                init() {
+                    // The last message used is remembered in this browser.
+                    try {
+                        this.shareMessage = localStorage.getItem('ambassadorShareMessage') || @js(\App\Livewire\Ambassador\Home::DEFAULT_SHARE_MESSAGE);
+                    } catch (storageError) {
+                        this.shareMessage = @js(\App\Livewire\Ambassador\Home::DEFAULT_SHARE_MESSAGE);
+                    }
+                },
+                get hasLinkPlaceholder() {
+                    return this.shareMessage.includes(this.linkPlaceholder);
+                },
+                get sharePreview() {
+                    return this.shareMessage.replaceAll(this.linkPlaceholder, this.shareUrl);
+                },
+                get whatsappShareUrl() {
+                    return 'https://wa.me/?text=' + encodeURIComponent(this.sharePreview);
+                },
+                rememberShareMessage(clickEvent) {
+                    if (! this.hasLinkPlaceholder) {
+                        clickEvent.preventDefault();
+
+                        return;
+                    }
+
+                    try {
+                        localStorage.setItem('ambassadorShareMessage', this.shareMessage);
+                    } catch (storageError) {
+                        // Remembering the message is a convenience: sharing still works without it.
+                    }
+                },
                 async copyLink() {
-                    const shareUrl = @js($this->shareUrl);
+                    const shareUrl = this.shareUrl;
                     this.linkCopyFailed = false;
 
                     try {
@@ -90,9 +125,11 @@
             class="mt-4 space-y-3"
         >
             <div class="flex flex-wrap justify-center gap-2">
-                <flux:button variant="primary" icon="share" href="{{ $this->whatsappShareUrl }}" target="_blank" rel="noopener">
-                    Partager le lien
-                </flux:button>
+                <flux:modal.trigger name="share-message">
+                    <flux:button type="button" variant="primary" icon="share">
+                        Partager le lien
+                    </flux:button>
+                </flux:modal.trigger>
                 <flux:button type="button" icon="clipboard-document" x-on:click="copyLink()">
                     <span x-show="! linkWasCopied">Copier le lien</span>
                     <span x-show="linkWasCopied" x-cloak>Lien copié ✓</span>
@@ -110,6 +147,27 @@
                     x-on:focus="$el.select()"
                 >
             </div>
+
+            <flux:modal name="share-message" class="w-full max-w-md text-left">
+                <div class="space-y-4">
+                    <div>
+                        <flux:heading size="lg" level="2">Votre message de partage</flux:heading>
+                        <flux:text class="mt-1 text-sm">Modifiez le message à envoyer. <span class="font-mono font-semibold">@{{lien}}</span> sera remplacé par votre vrai lien.</flux:text>
+                    </div>
+
+                    <flux:textarea x-model="shareMessage" rows="4" maxlength="500" />
+                    <p x-show="! hasLinkPlaceholder" x-cloak class="text-sm text-red-600">Le message doit contenir <span class="font-mono font-semibold">@{{lien}}</span>, remplacé par votre lien.</p>
+
+                    <div>
+                        <div class="mb-1 text-sm text-zinc-600">Aperçu</div>
+                        <div class="whitespace-pre-line break-words rounded-xl rounded-tl-none bg-brand-sky/10 p-3 text-sm text-brand-navy" x-text="sharePreview"></div>
+                    </div>
+
+                    <flux:button variant="primary" icon="paper-airplane" class="w-full" href="#" target="_blank" rel="noopener" x-bind:href="whatsappShareUrl" x-bind:class="hasLinkPlaceholder ? '' : 'pointer-events-none opacity-50'" x-on:click="rememberShareMessage($event)">
+                        Envoyer sur WhatsApp
+                    </flux:button>
+                </div>
+            </flux:modal>
         </div>
     </div>
 
@@ -132,19 +190,19 @@
         </flux:callout>
     @endunless
 
-    <div class="grid gap-4 sm:grid-cols-2">
+    <div class="grid grid-cols-2 gap-3 sm:gap-4">
         <div class="rounded-xl border border-brand-sky/30 p-4">
-            <flux:text class="text-sm">Statut</flux:text>
+            <flux:text class="text-sm">Statut de votre compte</flux:text>
             <div class="mt-1">
                 <flux:badge :color="$this->ambassador->status->badgeColor()">{{ $this->ambassador->status->label() }}</flux:badge>
             </div>
         </div>
 
         <div class="rounded-xl border border-brand-sky/30 p-4">
-            <flux:text class="text-sm">Contrat</flux:text>
-            <div class="mt-1 font-medium">
+            <flux:text class="text-sm">Fin de contrat</flux:text>
+            <div class="mt-1 text-sm font-medium sm:text-base">
                 @if ($this->ambassador->contract_ends_at)
-                    {{ $this->ambassador->contract_starts_at?->format('d/m/Y') ?? '…' }} → {{ $this->ambassador->contract_ends_at->format('d/m/Y') }}
+                    {{ $this->ambassador->contract_ends_at->locale('fr')->isoFormat('D MMM YYYY') }}
                 @else
                     —
                 @endif
@@ -152,7 +210,7 @@
             </div>
         </div>
 
-        <div class="rounded-xl border border-brand-sky/30 p-4 sm:col-span-2">
+        <div class="col-span-2 rounded-xl border border-brand-sky/30 p-4">
             <flux:text class="text-sm">Clients amenés</flux:text>
             <div class="mt-1 text-2xl font-semibold">{{ $this->acquiredCustomersCount }}</div>
         </div>

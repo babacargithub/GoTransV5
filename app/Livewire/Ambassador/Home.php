@@ -21,6 +21,11 @@ class Home extends Component
     use ResolvesLoggedInAmbassador;
     use WithPagination;
 
+    /** Stands for the ambassador's share link inside the message they send. */
+    public const SHARE_LINK_PLACEHOLDER = '{{lien}}';
+
+    public const DEFAULT_SHARE_MESSAGE = 'Réserve ton billet de bus Globe One Transport avec mon lien : '.self::SHARE_LINK_PLACEHOLDER;
+
     #[Computed]
     public function accountBalance(): AmbassadorBalanceDTO
     {
@@ -34,15 +39,6 @@ class Home extends Component
     public function shareUrl(): string
     {
         return route('website.home', ['ref' => strtolower($this->ambassador->code)]);
-    }
-
-    /**
-     * WhatsApp deep link pre-filled with a short invitation and the share link.
-     */
-    #[Computed]
-    public function whatsappShareUrl(): string
-    {
-        return 'https://wa.me/?text='.rawurlencode("Réserve ton billet de bus Globe One Transport avec mon lien : {$this->shareUrl}");
     }
 
     /**
