@@ -7,13 +7,13 @@
     @if ($shownContract === null)
         <flux:text>Aucun contrat n'est disponible pour le moment.</flux:text>
     @else
-        <div class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
+        <div class="rounded-xl border border-brand-sky/30 p-4">
             <div class="flex items-start justify-between gap-3">
                 <flux:heading size="lg" level="2">{{ $shownContract->title }}</flux:heading>
                 <flux:badge size="sm">Version {{ $shownContract->version }}</flux:badge>
             </div>
 
-            <article class="prose prose-sm mt-4 max-w-none dark:prose-invert">{!! $this->contractHtml !!}</article>
+            <article class="prose prose-sm mt-4 max-w-none">{!! $this->contractHtml !!}</article>
         </div>
 
         @if ($this->signature)
@@ -30,7 +30,7 @@
                 </flux:callout.text>
             </flux:callout>
 
-            <form wire:submit="signContract" class="space-y-4 rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
+            <form wire:submit="signContract" class="space-y-4 rounded-xl border border-brand-sky/30 p-4">
                 <flux:heading size="lg" level="2">Signer le contrat</flux:heading>
 
                 @if (! $signingCodeWasSent)

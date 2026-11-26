@@ -12,7 +12,7 @@
     </div>
 
     @if ($this->ambassador->status === \App\Enums\AmbassadorStatus::Active)
-        <form wire:submit="inviteAmbassador" class="space-y-4 rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
+        <form wire:submit="inviteAmbassador" class="space-y-4 rounded-xl border border-brand-sky/30 p-4">
             <flux:heading size="lg" level="2">Inviter un ambassadeur</flux:heading>
             <flux:text class="text-sm">La personne reçoit un SMS avec un lien pour accepter. Notre équipe valide ensuite son compte.</flux:text>
 
@@ -36,7 +36,7 @@
     <div class="space-y-3">
         @forelse ($this->sponsoredAmbassadors as $sponsoredAmbassador)
             @php($progressPercentage = min(100, (int) floor($sponsoredAmbassador->acquired_customers_count / max(1, $this->sponsorshipThreshold) * 100)))
-            <div wire:key="sponsored-ambassador-{{ $sponsoredAmbassador->id }}" class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
+            <div wire:key="sponsored-ambassador-{{ $sponsoredAmbassador->id }}" class="rounded-xl border border-brand-sky/30 p-4">
                 <div class="flex items-start justify-between gap-3">
                     <div class="font-semibold">{{ $sponsoredAmbassador->full_name }}</div>
                     <flux:badge :color="$sponsoredAmbassador->status->badgeColor()">{{ $sponsoredAmbassador->status->label() }}</flux:badge>
@@ -47,7 +47,7 @@
                         <flux:badge color="green">Prime obtenue</flux:badge>
                     @endif
                 </div>
-                <div class="mt-2 h-2 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700">
+                <div class="mt-2 h-2 overflow-hidden rounded-full bg-zinc-200">
                     <div class="h-full rounded-full bg-green-500" style="width: {{ $progressPercentage }}%"></div>
                 </div>
             </div>

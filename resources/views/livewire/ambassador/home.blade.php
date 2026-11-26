@@ -4,30 +4,30 @@
         <flux:text class="mt-1">Bienvenue dans votre espace ambassadeur.</flux:text>
     </div>
 
-    <div class="rounded-xl bg-zinc-900 p-5 text-center sm:p-6 text-white dark:bg-zinc-800">
-        <div class="text-sm text-zinc-300">Solde total</div>
+    <div class="rounded-xl bg-brand-navy p-5 text-center sm:p-6 text-white">
+        <div class="text-sm text-white/80">Solde total</div>
         <div class="mt-2 text-4xl font-bold sm:text-5xl">{{ number_format($this->accountBalance->totalBalance, 0, ',', ' ') }} <span class="text-2xl font-medium">FCFA</span></div>
-        <div class="mt-5 grid grid-cols-3 divide-x divide-zinc-700 border-t border-zinc-700 pt-4 text-sm">
+        <div class="mt-5 grid grid-cols-3 divide-x divide-white/20 border-t border-white/20 pt-4 text-sm">
             <div class="px-1">
-                <div class="text-xs text-zinc-400 sm:text-sm">Disponible</div>
+                <div class="text-xs text-white/70 sm:text-sm">Disponible</div>
                 <div class="mt-1 font-semibold">{{ number_format($this->accountBalance->availableBalance, 0, ',', ' ') }}</div>
-                <div class="text-xs text-zinc-400">FCFA</div>
+                <div class="text-xs text-white/70">FCFA</div>
             </div>
             <div class="px-1">
-                <div class="text-xs text-zinc-400 sm:text-sm">En attente</div>
+                <div class="text-xs text-white/70 sm:text-sm">En attente</div>
                 <div class="mt-1 font-semibold">{{ number_format($this->accountBalance->pendingBalance, 0, ',', ' ') }}</div>
-                <div class="text-xs text-zinc-400">FCFA</div>
+                <div class="text-xs text-white/70">FCFA</div>
             </div>
             <div class="px-1">
-                <div class="text-xs text-zinc-400 sm:text-sm">Déjà reçu</div>
+                <div class="text-xs text-white/70 sm:text-sm">Déjà reçu</div>
                 <div class="mt-1 font-semibold">{{ number_format($this->accountBalance->paidBalance, 0, ',', ' ') }}</div>
-                <div class="text-xs text-zinc-400">FCFA</div>
+                <div class="text-xs text-white/70">FCFA</div>
             </div>
         </div>
-        <div class="mt-3 text-xs text-zinc-400">Un gain devient disponible 24h après le départ du client.</div>
+        <div class="mt-3 text-xs text-white/70">Un gain devient disponible 24h après le départ du client.</div>
     </div>
 
-    <div class="rounded-xl border border-zinc-200 p-6 text-center dark:border-zinc-700">
+    <div class="rounded-xl border border-brand-sky/30 p-6 text-center">
         <flux:text>Votre code ambassadeur</flux:text>
         <div class="mt-2 break-all font-mono text-4xl font-bold tracking-widest sm:text-5xl">{{ $this->ambassador->code }}</div>
         <flux:text class="mt-3 text-sm">Partagez ce code : vous êtes rémunéré pour chaque nouveau client que vous amenez.</flux:text>
@@ -88,7 +88,7 @@
                     readonly
                     x-ref="shareUrlField"
                     value="{{ $this->shareUrl }}"
-                    class="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-center text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                    class="w-full rounded-lg border border-brand-sky/30 bg-white px-3 py-2 text-center text-sm"
                     x-on:focus="$el.select()"
                 >
             </div>
@@ -96,7 +96,7 @@
     </div>
 
     @if ($this->ambassador->status === \App\Enums\AmbassadorStatus::Active)
-        <div class="rounded-xl border border-zinc-200 p-6 text-center dark:border-zinc-700">
+        <div class="rounded-xl border border-brand-sky/30 p-6 text-center">
             <flux:heading size="lg" level="2">Parrainer un ambassadeur</flux:heading>
             <flux:text class="mt-1 text-sm">Invitez un proche à devenir ambassadeur. Vous recevez une prime quand il atteint son objectif de clients amenés.</flux:text>
             <flux:button class="mt-4" icon="user-plus" :href="route('ambassador.sponsored-ambassadors')" wire:navigate>
@@ -115,14 +115,14 @@
     @endunless
 
     <div class="grid gap-4 sm:grid-cols-2">
-        <div class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
+        <div class="rounded-xl border border-brand-sky/30 p-4">
             <flux:text class="text-sm">Statut</flux:text>
             <div class="mt-1">
                 <flux:badge :color="$this->ambassador->status->badgeColor()">{{ $this->ambassador->status->label() }}</flux:badge>
             </div>
         </div>
 
-        <div class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
+        <div class="rounded-xl border border-brand-sky/30 p-4">
             <flux:text class="text-sm">Contrat</flux:text>
             <div class="mt-1 font-medium">
                 @if ($this->ambassador->contract_ends_at)
@@ -134,7 +134,7 @@
             </div>
         </div>
 
-        <div class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700 sm:col-span-2">
+        <div class="rounded-xl border border-brand-sky/30 p-4 sm:col-span-2">
             <flux:text class="text-sm">Clients amenés</flux:text>
             <div class="mt-1 text-2xl font-semibold">{{ $this->acquiredCustomersCount }}</div>
         </div>
@@ -145,7 +145,7 @@
 
         @forelse ($this->referredBookings as $booking)
             @php($commission = $booking->ambassadorBookingEarning)
-            <div wire:key="referred-booking-{{ $booking->id }}" class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
+            <div wire:key="referred-booking-{{ $booking->id }}" class="rounded-xl border border-brand-sky/30 p-4">
                 <div class="flex items-start justify-between gap-3">
                     <div class="font-semibold">{{ $booking->customer->full_name }}</div>
                     @if ($commission)
@@ -154,7 +154,7 @@
                         <flux:badge color="zinc">Aucune commission</flux:badge>
                     @endif
                 </div>
-                <div class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{{ $booking->depart->identifier(with_trajet_prefix: true) }}</div>
+                <div class="mt-1 text-sm text-zinc-600">{{ $booking->depart->identifier(with_trajet_prefix: true) }}</div>
                 <div class="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
                     <div>
                         <div class="text-zinc-500">Bus</div>

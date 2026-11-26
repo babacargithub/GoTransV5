@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="fr" class="dark:scheme-dark">
+<html lang="fr" style="color-scheme: light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,21 +7,22 @@
     <title>{{ $title ?? 'Espace ambassadeur — Globe One Transport' }}</title>
     <x-favicons />
 
-    @fluxAppearance
+    <meta name="theme-color" content="#0EA5E9">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="min-h-screen bg-white dark:bg-zinc-800">
+{{-- Always light, like the public website: no dark appearance script, Flux accent switched to the sky blue. --}}
+<body class="min-h-screen bg-brand-white text-brand-navy antialiased" style="--color-accent: var(--color-brand-sky-deep); --color-accent-content: var(--color-brand-sky-deep); --color-accent-foreground: #ffffff;">
     {{-- Plain markup on purpose: flux:header / flux:main switch <body> to Flux's sidebar grid layout. --}}
-    <header class="sticky top-0 z-10 border-b border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900">
+    <header class="sticky top-0 z-10 bg-brand-sky text-brand-navy">
         <div class="mx-auto flex w-full max-w-2xl items-center justify-between gap-3 px-4 py-2 sm:px-6">
-            <a href="{{ route('ambassador.home') }}" wire:navigate class="flex min-w-0 items-center gap-2 font-semibold">
-                <flux:icon.truck variant="solid" class="size-5 shrink-0 text-accent" />
+            <a href="{{ route('ambassador.home') }}" wire:navigate class="flex min-w-0 items-center gap-2 font-bold">
+                <flux:icon.truck variant="solid" class="size-5 shrink-0 text-brand-navy" />
                 <span class="truncate">Globe One Transport</span>
             </a>
 
             <form method="POST" action="{{ route('logout') }}" class="shrink-0">
                 @csrf
-                <flux:button type="submit" variant="ghost" size="sm" icon="arrow-right-start-on-rectangle">
+                <flux:button type="submit" variant="ghost" size="sm" icon="arrow-right-start-on-rectangle" class="!text-brand-navy hover:!bg-white/30">
                     <span class="hidden sm:inline">Déconnexion</span>
                     <span class="sr-only sm:hidden">Déconnexion</span>
                 </flux:button>
@@ -29,15 +30,15 @@
         </div>
 
         <nav class="mx-auto flex w-full max-w-2xl gap-1 overflow-x-auto px-4 pb-2 sm:px-6">
-            <flux:button size="sm" variant="ghost" class="shrink-0" :href="route('ambassador.home')" wire:navigate :class="request()->routeIs('ambassador.home') ? 'bg-zinc-200/70 dark:bg-zinc-700' : ''">Accueil</flux:button>
-            <flux:button size="sm" variant="ghost" class="shrink-0" :href="route('ambassador.earnings')" wire:navigate :class="request()->routeIs('ambassador.earnings') ? 'bg-zinc-200/70 dark:bg-zinc-700' : ''">Mes gains</flux:button>
-            <flux:button size="sm" variant="ghost" class="shrink-0" :href="route('ambassador.sponsored-ambassadors')" wire:navigate :class="request()->routeIs('ambassador.sponsored-ambassadors') ? 'bg-zinc-200/70 dark:bg-zinc-700' : ''">Mon équipe</flux:button>
-            <flux:button size="sm" variant="ghost" class="shrink-0" :href="route('ambassador.payouts')" wire:navigate :class="request()->routeIs('ambassador.payouts') ? 'bg-zinc-200/70 dark:bg-zinc-700' : ''">Mes paiements</flux:button>
-            <flux:button size="sm" variant="ghost" class="shrink-0" :href="route('ambassador.contract')" wire:navigate :class="request()->routeIs('ambassador.contract') ? 'bg-zinc-200/70 dark:bg-zinc-700' : ''">Mon contrat</flux:button>
+            <flux:button size="sm" variant="ghost" class="shrink-0 !text-brand-navy hover:!bg-white/30" :href="route('ambassador.home')" wire:navigate :class="request()->routeIs('ambassador.home') ? '!bg-white/50 font-semibold' : ''">Accueil</flux:button>
+            <flux:button size="sm" variant="ghost" class="shrink-0 !text-brand-navy hover:!bg-white/30" :href="route('ambassador.earnings')" wire:navigate :class="request()->routeIs('ambassador.earnings') ? '!bg-white/50 font-semibold' : ''">Mes gains</flux:button>
+            <flux:button size="sm" variant="ghost" class="shrink-0 !text-brand-navy hover:!bg-white/30" :href="route('ambassador.sponsored-ambassadors')" wire:navigate :class="request()->routeIs('ambassador.sponsored-ambassadors') ? '!bg-white/50 font-semibold' : ''">Mon équipe</flux:button>
+            <flux:button size="sm" variant="ghost" class="shrink-0 !text-brand-navy hover:!bg-white/30" :href="route('ambassador.payouts')" wire:navigate :class="request()->routeIs('ambassador.payouts') ? '!bg-white/50 font-semibold' : ''">Mes paiements</flux:button>
+            <flux:button size="sm" variant="ghost" class="shrink-0 !text-brand-navy hover:!bg-white/30" :href="route('ambassador.contract')" wire:navigate :class="request()->routeIs('ambassador.contract') ? '!bg-white/50 font-semibold' : ''">Mon contrat</flux:button>
         </nav>
     </header>
 
-    <main class="mx-auto w-full max-w-2xl px-4 py-6 sm:px-6 sm:py-8">
+    <main class="mx-auto w-full max-w-2xl px-4 py-6 sm:px-6 sm:py-8 [&_[data-flux-heading]]:text-brand-navy">
         {{ $slot }}
     </main>
 

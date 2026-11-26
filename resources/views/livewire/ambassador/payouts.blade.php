@@ -3,7 +3,7 @@
 
     <div class="space-y-3">
         @forelse ($this->payouts as $payout)
-            <div wire:key="payout-{{ $payout->id }}" class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
+            <div wire:key="payout-{{ $payout->id }}" class="rounded-xl border border-brand-sky/30 p-4">
                 <div class="flex items-start justify-between gap-3">
                     <div class="text-lg font-semibold">{{ number_format($payout->amount, 0, ',', ' ') }} FCFA</div>
                     <flux:badge :color="$payout->status->badgeColor()">{{ $payout->status->label() }}</flux:badge>

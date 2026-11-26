@@ -16,12 +16,12 @@
 
     <div class="space-y-3">
         @forelse ($this->earnings as $earning)
-            <div wire:key="earning-{{ $earning->id }}" class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
+            <div wire:key="earning-{{ $earning->id }}" class="rounded-xl border border-brand-sky/30 p-4">
                 <div class="flex items-start justify-between gap-3">
                     <div>
                         <div class="font-semibold">{{ $earning->type->label() }}</div>
                         @if ($earning->label)
-                            <div class="text-sm text-zinc-600 dark:text-zinc-400">{{ $earning->label }}</div>
+                            <div class="text-sm text-zinc-600">{{ $earning->label }}</div>
                         @endif
                     </div>
                     <flux:badge :color="$earning->status->badgeColor()">{{ $earning->status->labelForAmbassador() }}</flux:badge>
