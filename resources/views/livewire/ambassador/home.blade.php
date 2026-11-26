@@ -27,6 +27,24 @@
         <div class="mt-3 text-xs text-white/70">Un gain devient disponible 24h après le départ du client.</div>
     </div>
 
+    <flux:modal.trigger name="payout-reminder">
+        <flux:button variant="primary" icon="banknotes" class="w-full !h-14 !bg-brand-cyan !text-base !font-semibold !text-white hover:!bg-brand-cyan/90">
+            Retirer mes gains
+        </flux:button>
+    </flux:modal.trigger>
+
+    <flux:modal name="payout-reminder" class="w-full max-w-md">
+        <div class="space-y-4">
+            <flux:heading size="lg" level="2">Paiement de vos gains</flux:heading>
+            <flux:text>Vos gains sont payés  le 15 et le dernier jour de chaque mois. Le retrait par vous même pourra être activé quand vous aurez atteint une certaine base clientèle !</flux:text>
+            <div class="flex justify-end">
+                <flux:modal.close>
+                    <flux:button variant="primary">J'ai compris</flux:button>
+                </flux:modal.close>
+            </div>
+        </div>
+    </flux:modal>
+
     <div class="rounded-xl border border-brand-sky/30 p-6 text-center">
         <flux:text>Votre code ambassadeur</flux:text>
         <div class="mt-2 break-all font-mono text-4xl font-bold tracking-widest sm:text-5xl">{{ $this->ambassador->code }}</div>
