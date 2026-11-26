@@ -5,7 +5,7 @@
     </div>
 
     <div class="rounded-xl bg-brand-navy p-5 text-center sm:p-6 text-white">
-        <div class="text-sm text-white/80">Solde total</div>
+        <div class="text-sm text-white/80">Solde total de vos gains</div>
         <div class="mt-2 text-4xl font-bold sm:text-5xl">{{ number_format($this->accountBalance->totalBalance, 0, ',', ' ') }} <span class="text-2xl font-medium">FCFA</span></div>
         <div class="mt-5 grid grid-cols-3 divide-x divide-white/20 border-t border-white/20 pt-4 text-sm">
             <div class="px-1">
