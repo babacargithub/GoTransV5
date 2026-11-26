@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AmbassadorAbilityName;
 use App\Enums\AmbassadorStatus;
 use Database\Factories\AmbassadorFactory;
 use DateTimeInterface;
@@ -10,6 +11,7 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
@@ -51,6 +53,16 @@ class Ambassador extends Model
     }
 
     /**
+     * A new ambassador starts with every ability; a manager revokes the ones they should not have.
+     */
+    protected static function booted(): void
+    {
+        static::created(function (self $createdAmbassador): void {
+            $createdAmbassador->abilities()->syncWithoutDetaching(AmbassadorAbility::query()->pluck('id'));
+        });
+    }
+
+    /**
      * Codes are compared case-insensitively by customers, so they are always stored upper-cased.
      */
     protected function code(): Attribute
@@ -71,6 +83,16 @@ class Ambassador extends Model
     public function getPayoutPhoneNumberAttribute(): int
     {
         return (int) ($this->wave_phone_number ?? $this->phone_number);
+    }
+
+    public function abilities(): BelongsToMany
+    {
+        return $this->belongsToMany(AmbassadorAbility::class, 'ambassador_ability_ambassador')->withTimestamps();
+    }
+
+    public function hasAbility(AmbassadorAbilityName $abilityName): bool
+    {
+        return $this->abilities()->where('code', $abilityName->value)->exists();
     }
 
     public function userAccount(): BelongsTo

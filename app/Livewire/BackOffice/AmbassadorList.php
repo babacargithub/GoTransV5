@@ -6,6 +6,7 @@ use App\Enums\AmbassadorEarningType;
 use App\Enums\AmbassadorStatus;
 use App\Enums\PermissionName;
 use App\Models\Ambassador;
+use App\Models\AmbassadorAbility;
 use App\Models\AmbassadorRewardRule;
 use App\Models\User;
 use App\Services\AmbassadorEarningService;
@@ -14,6 +15,7 @@ use App\Services\NotificationService;
 use DomainException;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
@@ -72,6 +74,13 @@ class AmbassadorList extends Component
     public bool $showEarningsModal = false;
 
     public ?int $earningsAmbassadorId = null;
+
+    public bool $showAbilitiesModal = false;
+
+    public ?int $abilitiesAmbassadorId = null;
+
+    /** @var array<int, bool> ability id => granted, bound to the switches of the abilities dialog */
+    public array $abilityGrants = [];
 
     public bool $showRewardRulesModal = false;
 
@@ -462,6 +471,61 @@ class AmbassadorList extends Component
     {
         $this->showEarningsModal = false;
         $this->earningsAmbassadorId = null;
+    }
+
+    /**
+     * @return Collection<int, AmbassadorAbility>
+     */
+    #[Computed]
+    public function allAbilities(): Collection
+    {
+        return AmbassadorAbility::query()->orderBy('id')->get();
+    }
+
+    public function abilitiesAmbassadorLabel(): ?string
+    {
+        return $this->abilitiesAmbassadorId === null
+            ? null
+            : Ambassador::findOrFail($this->abilitiesAmbassadorId)->full_name;
+    }
+
+    public function openAbilities(int $ambassadorId): void
+    {
+        if (! $this->allowed(PermissionName::EditAmbassador)) {
+            return;
+        }
+
+        $ambassador = Ambassador::findOrFail($ambassadorId);
+        $grantedAbilityIds = $ambassador->abilities()->pluck('ambassador_abilities.id');
+
+        $this->abilitiesAmbassadorId = $ambassador->id;
+        $this->abilityGrants = $this->allAbilities
+            ->mapWithKeys(fn (AmbassadorAbility $ability): array => [$ability->id => $grantedAbilityIds->contains($ability->id)])
+            ->all();
+        $this->showAbilitiesModal = true;
+    }
+
+    public function closeAbilitiesModal(): void
+    {
+        $this->showAbilitiesModal = false;
+        $this->abilitiesAmbassadorId = null;
+        $this->abilityGrants = [];
+    }
+
+    public function saveAbilities(): void
+    {
+        if (! $this->allowed(PermissionName::EditAmbassador) || $this->abilitiesAmbassadorId === null) {
+            return;
+        }
+
+        $ambassador = Ambassador::findOrFail($this->abilitiesAmbassadorId);
+        $knownAbilityIds = $this->allAbilities->pluck('id');
+        $grantedAbilityIds = $knownAbilityIds->filter(fn (int $abilityId): bool => (bool) ($this->abilityGrants[$abilityId] ?? false));
+
+        $ambassador->abilities()->sync($grantedAbilityIds);
+
+        $this->closeAbilitiesModal();
+        session()->flash('status', "Les capacités de « {$ambassador->full_name} » ont été mises à jour.");
     }
 
     public function openRewardRules(int $ambassadorId): void

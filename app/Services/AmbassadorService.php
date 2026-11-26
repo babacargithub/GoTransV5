@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\AmbassadorAbilityName;
 use App\Enums\AmbassadorStatus;
 use App\Models\Ambassador;
 use App\Models\User;
@@ -101,6 +102,10 @@ class AmbassadorService
 
             if ($lockedSponsor->status !== AmbassadorStatus::Active) {
                 throw new DomainException("Ce lien de parrainage n'est plus valide.");
+            }
+
+            if (! $lockedSponsor->hasAbility(AmbassadorAbilityName::Sponsor)) {
+                throw new DomainException("Vous n'êtes pas autorisé à parrainer d'autres ambassadeurs.");
             }
 
             $applicantPhoneNumber = (int) $applicantAttributes['phone_number'];

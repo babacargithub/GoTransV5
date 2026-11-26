@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Ambassador;
 
+use App\Enums\AmbassadorAbilityName;
 use App\Enums\AmbassadorEarningType;
 use App\Livewire\Ambassador\Concerns\ResolvesLoggedInAmbassador;
 use App\Models\AmbassadorRewardRule;
@@ -44,12 +45,26 @@ class SponsoredAmbassadors extends Component
 
     public ?string $invitedFirstName = null;
 
+    /** Open by default for an ambassador with nobody invited yet; otherwise shown on demand. */
+    public bool $showInvitationForm = false;
+
     public ?string $formError = null;
+
+    public function mount(): void
+    {
+        $this->showInvitationForm = ! $this->ambassador->sponsoredAmbassadors()->exists();
+    }
 
     #[Computed]
     public function sponsoredAmbassadors(): LengthAwarePaginator
     {
         return app(AmbassadorPerformanceService::class)->paginateSponsoredAmbassadorsWithProgress($this->ambassador);
+    }
+
+    #[Computed]
+    public function canSponsor(): bool
+    {
+        return $this->ambassador->hasAbility(AmbassadorAbilityName::Sponsor);
     }
 
     #[Computed]
@@ -117,6 +132,7 @@ class SponsoredAmbassadors extends Component
         }
 
         $this->invitedFirstName = $invitedAmbassador->first_name;
+        $this->showInvitationForm = false;
         $this->reset('firstName', 'lastName', 'phoneNumber', 'waveNumber');
     }
 

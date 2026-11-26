@@ -119,6 +119,12 @@
                                         <flux:button variant="filled" size="sm" icon="currency-dollar" aria-label="Gains de l'ambassadeur" wire:click="openEarnings({{ $ambassador->id }})" />
                                     </flux:tooltip>
 
+                                    @if ($this->abilities['edit'])
+                                        <flux:tooltip content="Capacités">
+                                            <flux:button variant="filled" size="sm" icon="key" aria-label="Capacités de l'ambassadeur" wire:click="openAbilities({{ $ambassador->id }})" />
+                                        </flux:tooltip>
+                                    @endif
+
                                     <flux:tooltip content="Règles de récompense">
                                         <flux:button variant="filled" size="sm" icon="adjustments-horizontal" aria-label="Règles de récompense de l'ambassadeur" wire:click="openRewardRules({{ $ambassador->id }})" />
                                     </flux:tooltip>
@@ -285,6 +291,29 @@
     <flux:modal wire:model.self="showEarningsModal" wire:key="ambassador-earnings-modal" class="w-full max-w-4xl">
         @if ($showEarningsModal && $earningsAmbassadorId)
             <livewire:back-office.ambassador-earnings-dialog :ambassador-id="$earningsAmbassadorId" :key="'earnings-'.$earningsAmbassadorId" />
+        @endif
+    </flux:modal>
+
+    {{-- Capacités d'un ambassadeur : ce qu'il a le droit de faire --}}
+    <flux:modal wire:model.self="showAbilitiesModal" wire:key="ambassador-abilities-modal" class="w-full max-w-md">
+        @if ($showAbilitiesModal)
+            <form wire:submit="saveAbilities" class="space-y-6">
+                <div>
+                    <flux:heading size="lg">Capacités</flux:heading>
+                    <flux:text class="mt-1">{{ $this->abilitiesAmbassadorLabel() }}</flux:text>
+                </div>
+
+                <div class="space-y-3">
+                    @foreach ($this->allAbilities as $ability)
+                        <flux:switch wire:model="abilityGrants.{{ $ability->id }}" wire:key="ability-{{ $ability->id }}" :label="$ability->label" />
+                    @endforeach
+                </div>
+
+                <div class="flex justify-end gap-2">
+                    <flux:button type="button" variant="ghost" wire:click="closeAbilitiesModal">Annuler</flux:button>
+                    <flux:button type="submit" variant="primary">Enregistrer</flux:button>
+                </div>
+            </form>
         @endif
     </flux:modal>
 

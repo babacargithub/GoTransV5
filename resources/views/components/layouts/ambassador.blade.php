@@ -32,7 +32,9 @@
         <nav class="mx-auto flex w-full max-w-2xl gap-1 overflow-x-auto px-4 pb-2 sm:px-6">
             <flux:button size="sm" variant="ghost" class="shrink-0 !text-brand-navy hover:!bg-white/30" :href="route('ambassador.home')" wire:navigate :class="request()->routeIs('ambassador.home') ? '!bg-white/50 font-semibold' : ''">Accueil</flux:button>
             <flux:button size="sm" variant="ghost" class="shrink-0 !text-brand-navy hover:!bg-white/30" :href="route('ambassador.earnings')" wire:navigate :class="request()->routeIs('ambassador.earnings') ? '!bg-white/50 font-semibold' : ''">Mes gains</flux:button>
-            <flux:button size="sm" variant="ghost" class="shrink-0 !text-brand-navy hover:!bg-white/30" :href="route('ambassador.sponsored-ambassadors')" wire:navigate :class="request()->routeIs('ambassador.sponsored-ambassadors') ? '!bg-white/50 font-semibold' : ''">Mon équipe</flux:button>
+            @if (\App\Models\Ambassador::query()->where('user_account_id', auth()->id())->first()?->hasAbility(\App\Enums\AmbassadorAbilityName::Sponsor))
+    <flux:button size="sm" variant="ghost" class="shrink-0 !text-brand-navy hover:!bg-white/30" :href="route('ambassador.sponsored-ambassadors')" wire:navigate :class="request()->routeIs('ambassador.sponsored-ambassadors') ? '!bg-white/50 font-semibold' : ''">Mon équipe</flux:button>
+            @endif
             <flux:button size="sm" variant="ghost" class="shrink-0 !text-brand-navy hover:!bg-white/30" :href="route('ambassador.payouts')" wire:navigate :class="request()->routeIs('ambassador.payouts') ? '!bg-white/50 font-semibold' : ''">Mes paiements</flux:button>
             <flux:button size="sm" variant="ghost" class="shrink-0 !text-brand-navy hover:!bg-white/30" :href="route('ambassador.contract')" wire:navigate :class="request()->routeIs('ambassador.contract') ? '!bg-white/50 font-semibold' : ''">Mon contrat</flux:button>
         </nav>

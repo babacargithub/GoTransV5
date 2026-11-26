@@ -95,7 +95,7 @@
         </div>
     </div>
 
-    @if ($this->ambassador->status === \App\Enums\AmbassadorStatus::Active)
+    @if ($this->ambassador->status === \App\Enums\AmbassadorStatus::Active && $this->ambassador->hasAbility(\App\Enums\AmbassadorAbilityName::Sponsor))
         <div class="rounded-xl border border-brand-sky/30 p-6 text-center">
             <flux:heading size="lg" level="2">Parrainer un ambassadeur</flux:heading>
             <flux:text class="mt-1 text-sm">Invitez un proche à devenir ambassadeur. Vous recevez une prime quand il atteint son objectif de clients amenés.</flux:text>
