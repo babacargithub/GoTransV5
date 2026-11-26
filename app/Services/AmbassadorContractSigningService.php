@@ -28,11 +28,23 @@ class AmbassadorContractSigningService
 
     private const SECONDS_BETWEEN_CODES = 60;
 
-    public function __construct(private readonly NotificationService $notificationService) {}
+    public function __construct(
+        private readonly NotificationService $notificationService,
+        private readonly AmbassadorContractTextRenderer $contractTextRenderer,
+    ) {}
 
     public function currentContract(): ?AmbassadorProgramDocument
     {
         return AmbassadorProgramDocument::current(AmbassadorProgramDocumentType::Contract);
+    }
+
+    /**
+     * The contract text for one ambassador: the template with their own values filled in. This is what they read and,
+     * once signed, what is stored as the signed text.
+     */
+    public function renderContractFor(AmbassadorProgramDocument $contract, Ambassador $ambassador): string
+    {
+        return $this->contractTextRenderer->render($contract->content, $ambassador);
     }
 
     /**
@@ -109,14 +121,16 @@ class AmbassadorContractSigningService
 
         $this->consumeSigningCode($ambassador, $enteredCode);
 
+        $signedContractText = $this->renderContractFor($currentContract, $ambassador);
+
         return DB::transaction(fn (): AmbassadorContractSignature => AmbassadorContractSignature::query()->firstOrCreate(
             [
                 'ambassador_id' => $ambassador->id,
                 'contract_document_id' => $currentContract->id,
             ],
             [
-                'content_snapshot' => $currentContract->content,
-                'content_sha256' => hash('sha256', $currentContract->content),
+                'content_snapshot' => $signedContractText,
+                'content_sha256' => hash('sha256', $signedContractText),
                 'typed_full_name' => trim($typedFullName),
                 'confirmed_phone_number' => $ambassador->phone_number,
                 'ip_address' => $ipAddress,

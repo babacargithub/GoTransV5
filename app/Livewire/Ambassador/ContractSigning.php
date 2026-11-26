@@ -87,12 +87,20 @@ class ContractSigning extends Component
     }
 
     /**
-     * The text shown: the signed snapshot for an ambassador who signed, the latest contract for one who did not.
+     * The text shown: the signed snapshot for an ambassador who signed, the latest contract filled with their values for one who did not.
      */
     #[Computed]
     public function shownContractText(): string
     {
-        return $this->signature?->content_snapshot ?? $this->currentContract?->content ?? '';
+        if ($this->signature !== null) {
+            return $this->signature->content_snapshot;
+        }
+
+        if ($this->currentContract === null) {
+            return '';
+        }
+
+        return app(AmbassadorContractSigningService::class)->renderContractFor($this->currentContract, $this->ambassador);
     }
 
     #[Computed]
