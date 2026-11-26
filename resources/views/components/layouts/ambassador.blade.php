@@ -45,5 +45,7 @@
     </main>
 
     @fluxScripts
+    {{-- Flux defaults to the visitor's system appearance and adds the `dark` class: pin it to light so Flux components match the page. --}}
+    <script>window.Flux.applyAppearance('light')</script>
 </body>
 </html>
