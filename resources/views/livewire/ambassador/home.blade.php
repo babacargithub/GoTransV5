@@ -125,12 +125,12 @@
             class="mt-4 space-y-3"
         >
             <div class="flex flex-wrap justify-center gap-2">
-                <flux:modal.trigger name="share-message">
+                <flux:modal.trigger :name="$this->hasSignedContract ? 'share-message' : 'contract-required'">
                     <flux:button type="button" variant="primary" icon="share">
                         Partager le lien
                     </flux:button>
                 </flux:modal.trigger>
-                <flux:button type="button" icon="clipboard-document" x-on:click="copyLink()">
+                <flux:button type="button" icon="clipboard-document" x-on:click="{{ $this->hasSignedContract ? 'copyLink()' : '$flux.modal(\'contract-required\').show()' }}">
                     <span x-show="! linkWasCopied">Copier le lien</span>
                     <span x-show="linkWasCopied" x-cloak>Lien copié ✓</span>
                 </flux:button>
@@ -188,6 +188,19 @@
                 <flux:button :href="route('ambassador.contract')" wire:navigate>Lire et signer</flux:button>
             </x-slot>
         </flux:callout>
+
+        <flux:modal name="contract-required" class="w-full max-w-md">
+            <div class="space-y-4">
+                <flux:heading size="lg" level="2">Contrat à signer</flux:heading>
+                <flux:text>Vous devez d'abord lire et signer votre contrat avant de partager votre lien : sans signature, votre code n'attribue aucun client et vos gains ne peuvent pas être payés.</flux:text>
+                <div class="flex justify-end gap-2">
+                    <flux:modal.close>
+                        <flux:button variant="ghost">Plus tard</flux:button>
+                    </flux:modal.close>
+                    <flux:button variant="primary" :href="route('ambassador.contract')" wire:navigate>Lire et signer mon contrat</flux:button>
+                </div>
+            </div>
+        </flux:modal>
     @endunless
 
     <div class="grid grid-cols-2 gap-3 sm:gap-4">

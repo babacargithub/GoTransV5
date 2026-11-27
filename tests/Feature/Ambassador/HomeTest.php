@@ -158,4 +158,26 @@ class HomeTest extends TestCase
             ->assertSee('Lien copié')
             ->assertSeeHtml('?ref=awa10');
     }
+
+    public function test_an_unsigned_ambassador_tapping_share_or_copy_is_sent_to_the_contract_dialog(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole(Ambassador::ACCOUNT_ROLE_NAME);
+        Ambassador::factory()->withoutSignedContract()->create(['user_account_id' => $user->id, 'code' => 'AWA10']);
+
+        Livewire::actingAs($user)->test(Home::class)
+            ->assertSee('Lire et signer mon contrat')
+            ->assertSeeHtml('contract-required')
+            ->assertSeeHtml(route('ambassador.contract'))
+            ->assertDontSee('x-on:click="copyLink()"', false);
+    }
+
+    public function test_a_signed_ambassador_does_not_get_the_contract_dialog(): void
+    {
+        ['user' => $user] = $this->createLoggedInCapableAmbassador(['code' => 'AWA10']);
+
+        Livewire::actingAs($user)->test(Home::class)
+            ->assertDontSee('Lire et signer mon contrat')
+            ->assertSeeHtml('x-on:click="copyLink()"');
+    }
 }
