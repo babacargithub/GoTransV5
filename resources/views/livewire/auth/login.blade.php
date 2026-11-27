@@ -2,6 +2,9 @@
     @if ($isAmbassadorDomain)
         <h2 class="text-xl font-semibold mb-2">Espace ambassadeur</h2>
         <p class="text-sm mb-6">Connectez-vous avec vos identifiants d'ambassadeur pour suivre vos gains et vos recrues.</p>
+    @elseif ($isAmicaleDomain)
+        <h2 class="text-xl font-semibold mb-2">Espace amicale</h2>
+        <p class="text-sm mb-6">Connectez-vous avec les identifiants de votre amicale pour suivre les réservations de vos membres et vos commissions.</p>
     @else
         <h2 class="text-xl font-semibold mb-6">Connexion</h2>
     @endif

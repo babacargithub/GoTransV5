@@ -68,6 +68,9 @@ return [
     'gp_domain' => env('DOMAIN_GP', 'globaltransports.app'),
     'public_website_domain' => env('DOMAIN_PUBLIC_WEBSITE', 'globeonetransport.app'),
     'ambassador_domain' => env('DOMAIN_AMBASSADOR', 'ambassadeurs.globeonetransport.app'),
+    // Back-office domain; the amicales' own admin space lives on its "amicales." subdomain.
+    'admin_domain' => env('DOMAIN_ADMIN', 'globeonetransport.app'),
+    'amicale_admin_domain' => 'amicales.'.env('DOMAIN_ADMIN', 'globeonetransport.app'),
 
     /*
      * Full-HTML response cache for the read-only public website pages (caravane list, home).

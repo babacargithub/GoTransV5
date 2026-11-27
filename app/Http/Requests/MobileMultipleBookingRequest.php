@@ -44,6 +44,12 @@ class MobileMultipleBookingRequest extends FormRequest
     private bool $referringAmbassadorWasResolved = false;
 
     /**
+     * The amicale whose website the bookings are made on. Set by the website's booking form, never read from
+     * the request input, so the mobile API cannot attribute a booking to an amicale.
+     */
+    public ?int $amicaleId = null;
+
+    /**
      * Determine if the user is authorized to make this request.
      */
     public function authorize(): bool
@@ -263,6 +269,7 @@ class MobileMultipleBookingRequest extends FormRequest
             $booking->bus_id = $this->validated()['bus_id'];
             $booking->paye = false;
             $booking->ambassador_id = $this->referringAmbassador()?->id;
+            $booking->amicale_id = $this->amicaleId;
             $booking->group_id = $group_id;
             $booking->booking_type = $isGroupOfPassengers ? BookingType::Group : BookingType::Single;
             $booking->is_main_booking = $isGroupOfPassengers && $passengerIndex === 0;

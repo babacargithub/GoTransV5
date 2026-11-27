@@ -104,6 +104,12 @@
         </div>
     </header>
 
+    @isset($currentAmicale)
+        <div class="bg-brand-navy px-4 py-2 text-center text-sm font-semibold text-brand-white" data-amicale-welcome>
+            {{ $currentAmicale->displayedWelcomeMessage }}
+        </div>
+    @endisset
+
     <main id="contenu-principal" class="flex-1">
         {{ $slot }}
     </main>

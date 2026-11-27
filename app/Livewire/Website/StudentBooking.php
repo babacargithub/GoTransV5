@@ -8,9 +8,11 @@ use App\Http\Requests\MobileMultipleBookingRequest;
 use App\Http\Resources\MobileTrajetDepartsResource;
 use App\Http\Resources\PaymentResponseResource;
 use App\Manager\BookingManager;
+use App\Models\Amicale;
 use App\Models\AppParams;
 use App\Models\Booking;
 use App\Models\Depart;
+use App\Services\AmicaleService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Routing\Route as RoutingRoute;
@@ -90,6 +92,9 @@ class StudentBooking extends Component
 
     public function mount(Depart $depart): void
     {
+        // An amicale's site only books the trajets that apply to it.
+        abort_if($this->amicaleOfCurrentSite()?->servesTrajet($depart->trajet) === false, 404);
+
         $this->depart = $depart;
         $this->busId = request()->integer('bus_id') ?: null;
         $this->ambassadorCode = $this->normalizedAmbassadorCode(request()->query('ref'));
@@ -570,6 +575,15 @@ class StudentBooking extends Component
     }
 
     /**
+     * The amicale whose subdomain the form is served on, resolved from the host on every call because Livewire
+     * actions run on a request that does not go through the website routes.
+     */
+    private function amicaleOfCurrentSite(): ?Amicale
+    {
+        return app(AmicaleService::class)->findActiveAmicaleByHost(request()->getHost());
+    }
+
+    /**
      * @return array<int, int> passenger indexes whose phone number is repeated elsewhere in the form
      */
     private function duplicatePhoneNumberIndexes(): array
@@ -598,6 +612,7 @@ class StudentBooking extends Component
         $mobileRequest = MobileMultipleBookingRequest::create('/', 'POST', $this->bookingPayload());
         $mobileRequest->setContainer(app());
         $mobileRequest->setRedirector(app('redirect'));
+        $mobileRequest->amicaleId = $this->amicaleOfCurrentSite()?->id;
 
         $boundRoute = (new RoutingRoute('POST', '/', []))->bind($mobileRequest);
         $boundRoute->setParameter('depart', $this->depart);
@@ -627,7 +642,8 @@ class StudentBooking extends Component
             })->all(),
             'payment_method' => $this->paymentMethod,
             'booked_with_platform' => 'website',
-            'ambassador_code' => $this->ambassadorCode,
+            // A booking has a single beneficiary: on an amicale's site the amicale earns it, never an ambassador.
+            'ambassador_code' => $this->amicaleOfCurrentSite() === null ? $this->ambassadorCode : null,
         ];
 
         // The backend request auto-picks a bus when none is given, but its normalizeBookings()

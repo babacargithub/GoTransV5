@@ -48,6 +48,7 @@ class Booking extends Model
         'is_main_booking',
         'uuid',
         'ambassador_id',
+        'amicale_id',
         'booked_for_customer',
         'round_trip_id',
         'trip_leg',
@@ -68,6 +69,11 @@ class Booking extends Model
     public function ambassador(): BelongsTo
     {
         return $this->belongsTo(Ambassador::class);
+    }
+
+    public function amicale(): BelongsTo
+    {
+        return $this->belongsTo(Amicale::class);
     }
 
     /**

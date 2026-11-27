@@ -74,6 +74,8 @@ class MobileAppController extends Controller
         if ($request->routeIs('website.*')) {
             // A disabled trajet is hidden from the public website entirely.
             abort_if($trajet->disabled, 404);
+            // An amicale's site only offers the trajets that apply to it.
+            abort_if($request->attributes->get('amicale')?->servesTrajet($trajet) === false, 404);
 
             return view('website.caravanes.show', [
                 'trajet' => $trajet,

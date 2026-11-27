@@ -3,12 +3,15 @@
 namespace App\Providers;
 
 use App\Http\Middleware\CachePublicHtmlResponse;
+use App\Http\Middleware\ResolveAmicaleFromSubdomain;
+use App\Models\Amicale;
 use App\Models\Bus;
 use App\Models\Depart;
 use App\Models\PromotionalMessage;
 use App\Models\Trajet;
 use App\Models\Vehicule;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -25,6 +28,7 @@ class AppServiceProvider extends ServiceProvider
         Trajet::class,
         PromotionalMessage::class,
         Vehicule::class,
+        Amicale::class,
     ];
 
     /**
@@ -40,6 +44,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // The website routes take their host as a parameter (public domain or amicale subdomain): outside of a
+        // website request, links to them point at the public domain.
+        URL::defaults([ResolveAmicaleFromSubdomain::HOST_ROUTE_PARAMETER => config('app.public_website_domain')]);
+
         $this->invalidatePublicPageCacheOnContentChange();
     }
 

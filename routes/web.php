@@ -13,19 +13,23 @@ use App\Http\Controllers\TicketController;
 use App\Http\Middleware\CachePublicHtmlResponse;
 use App\Http\Middleware\EncryptCookies;
 use App\Http\Middleware\EnsureUserIsAmbassador;
-use App\Http\Middleware\RejectAmbassadorAccounts;
+use App\Http\Middleware\EnsureUserIsAmicaleAdmin;
+use App\Http\Middleware\RejectExternalPartnerAccounts;
+use App\Http\Middleware\ResolveAmicaleFromSubdomain;
 use App\Http\Middleware\VerifyCsrfToken;
 use App\Livewire\Ambassador\ContractSigning as AmbassadorContractSigning;
 use App\Livewire\Ambassador\EarningsPage as AmbassadorEarnings;
 use App\Livewire\Ambassador\Home as AmbassadorHome;
 use App\Livewire\Ambassador\PayoutsPage as AmbassadorPayouts;
 use App\Livewire\Ambassador\SponsoredAmbassadors;
+use App\Livewire\Amicale\Home as AmicaleHome;
 use App\Livewire\BackOffice\AccountListPage;
 use App\Livewire\BackOffice\AddBusToDepart;
 use App\Livewire\BackOffice\AmbassadorDocumentList;
 use App\Livewire\BackOffice\AmbassadorList;
 use App\Livewire\BackOffice\AmbassadorPayoutList;
 use App\Livewire\BackOffice\AmbassadorRewardRuleList;
+use App\Livewire\BackOffice\AmicaleList;
 use App\Livewire\BackOffice\AppParamsPage;
 use App\Livewire\BackOffice\BusBookings;
 use App\Livewire\BackOffice\CaisseBalancesPage;
@@ -117,76 +121,98 @@ Route::domain(config('app.ambassador_domain'))
     ->name('ambassador-program-document');
 
 /*
- * Public website (customer-facing). Its files live under resources/views/website/
- * and app/Livewire/Website/, mirroring the back-office structure.
+ * Amicale space: the managers of a partner student association log in (shared /login) on their own domain
+ * and only see what their amicale earns from the bookings made on its website.
  */
-Route::domain(config('app.public_website_domain'))->name('website.')->group(function () {
-
-    /*
-     * Read-only, anonymous, SEO pages. They carry no session and set no cookies, so the whole
-     * session/cookie/CSRF part of the `web` group is stripped — that alone removes two `sessions`
-     * queries and the cookie-encryption pass from every hit. SubstituteBindings stays (the slug
-     * binding). The caravane list + home also get CachePublicHtmlResponse (full-HTML cache).
-     */
-    Route::withoutMiddleware([
-        EncryptCookies::class,
-        AddQueuedCookiesToResponse::class,
-        StartSession::class,
-        ShareErrorsFromSession::class,
-        VerifyCsrfToken::class,
-    ])->group(function () {
-
-        Route::middleware(CachePublicHtmlResponse::class)->group(function () {
-            Route::get('/', function () {
-                return view('website.home', [
-                    'trajets' => Trajet::query()->publiclyVisible()->get(),
-                ]);
-            })->name('home');
-
-            // Secondary sections linked from the header navigation. Placeholder content for now.
-            Route::view('yobante', 'website.yobante')->name('yobante');
-            Route::view('aide', 'website.aide')->name('aide');
-
-            // Per-trajet page: lists that trajet's upcoming départs. Resolved by SEO slug.
-            // Public URL segment is "caravanes" — the word customers (and SEO) use for a trajet;
-            // internally the concept stays "trajet". Reuses MobileAppController@listeDepartsTrajet
-            // (same logic as api/mobile/departs/trajet/{trajet}), which branches on the route.
-            Route::get('caravanes/{trajet:slug}', [MobileAppController::class, 'listeDepartsTrajet'])
-                ->name('caravanes.show');
-
-            Route::get('sitemap.xml', [SeoFilesController::class, 'publicWebsiteSitemap'])->name('sitemap');
-        });
-
-        Route::get('robots.txt', [SeoFilesController::class, 'publicWebsiteRobots'])->name('robots');
-
-        // Pickup schedule for one départ card, fetched on demand when a visitor expands
-        // "Heures de départ" (keeps the caravane page itself free of per-départ schedule queries).
-        // Not full-HTML cached: tiny JSON, and its data (heure_departs) is outside the cache
-        // invalidation set.
-        Route::get('caravanes/horaires/{depart}', [MobileAppController::class, 'caravaneDepartSchedule'])
-            ->name('caravanes.schedule');
+Route::domain(config('app.amicale_admin_domain'))
+    ->middleware(['auth', EnsureUserIsAmicaleAdmin::class])
+    ->name('amicale.')
+    ->group(function () {
+        Route::get('/', AmicaleHome::class)->name('home');
     });
 
-    // Student booking funnel — collects the passengers then hands the payload to the
-    // untouched mobile booking backend. Transactional page: noindex. Keeps the full `web`
-    // stack (Livewire needs session + CSRF).
-    Route::get('reserver/{depart}', StudentBooking::class)->name('bookings.create');
+/*
+ * Public website (customer-facing). Its files live under resources/views/website/
+ * and app/Livewire/Website/, mirroring the back-office structure.
+ *
+ * It answers on the public domain and on each amicale's subdomain: the host is a route parameter that
+ * ResolveAmicaleFromSubdomain consumes (see there), and AppServiceProvider gives it its default for URLs
+ * generated outside of a website request.
+ */
+Route::domain('{'.ResolveAmicaleFromSubdomain::HOST_ROUTE_PARAMETER.'}')
+    ->where([ResolveAmicaleFromSubdomain::HOST_ROUTE_PARAMETER => '(?:[a-z0-9-]+\.)?'.preg_quote(config('app.public_website_domain'))])
+    ->middleware(ResolveAmicaleFromSubdomain::class)
+    ->name('website.')
+    ->group(function () {
 
-    // Acceptance of the invitation a sponsoring ambassador sent to a new ambassador. Transactional page: noindex.
-    Route::get('devenir-ambassadeur/{invitationToken}', AmbassadorInvitation::class)->name('ambassador-invitation');
+        /*
+         * Read-only, anonymous, SEO pages. They carry no session and set no cookies, so the whole
+         * session/cookie/CSRF part of the `web` group is stripped — that alone removes two `sessions`
+         * queries and the cookie-encryption pass from every hit. SubstituteBindings stays (the slug
+         * binding). The caravane list + home also get CachePublicHtmlResponse (full-HTML cache).
+         */
+        Route::withoutMiddleware([
+            EncryptCookies::class,
+            AddQueuedCookiesToResponse::class,
+            StartSession::class,
+            ShareErrorsFromSession::class,
+            VerifyCsrfToken::class,
+        ])->group(function () {
 
-    // Public booking page, addressed by the group's shared UUID (not the numeric group_id).
-    Route::get('reservations/{uuid}', BookingGroupShow::class)->name('bookings.show');
+            Route::middleware(CachePublicHtmlResponse::class)->group(function () {
+                Route::get('/', function () {
+                    $trajetsQuery = Trajet::query()->publiclyVisible();
+                    $amicale = request()->attributes->get('amicale');
 
-    // Where Wave sends the customer back after the checkout (see MobileAppController@generatePaymentUrlForMultipleBooking).
-    // Same page as the booking, with a payment outcome banner on top.
-    Route::get('reservations/{uuid}/paiement/succes', BookingGroupShow::class)
-        ->defaults('paymentOutcome', BookingGroupShow::PAYMENT_OUTCOME_SUCCESS)
-        ->name('bookings.payment-success');
-    Route::get('reservations/{uuid}/paiement/echec', BookingGroupShow::class)
-        ->defaults('paymentOutcome', BookingGroupShow::PAYMENT_OUTCOME_ERROR)
-        ->name('bookings.payment-error');
-});
+                    return view('website.home', [
+                        'trajets' => ($amicale ? $amicale->limitToServedTrajets($trajetsQuery) : $trajetsQuery)->get(),
+                    ]);
+                })->name('home');
+
+                // Secondary sections linked from the header navigation. Placeholder content for now.
+                Route::view('yobante', 'website.yobante')->name('yobante');
+                Route::view('aide', 'website.aide')->name('aide');
+
+                // Per-trajet page: lists that trajet's upcoming départs. Resolved by SEO slug.
+                // Public URL segment is "caravanes" — the word customers (and SEO) use for a trajet;
+                // internally the concept stays "trajet". Reuses MobileAppController@listeDepartsTrajet
+                // (same logic as api/mobile/departs/trajet/{trajet}), which branches on the route.
+                Route::get('caravanes/{trajet:slug}', [MobileAppController::class, 'listeDepartsTrajet'])
+                    ->name('caravanes.show');
+
+                Route::get('sitemap.xml', [SeoFilesController::class, 'publicWebsiteSitemap'])->name('sitemap');
+            });
+
+            Route::get('robots.txt', [SeoFilesController::class, 'publicWebsiteRobots'])->name('robots');
+
+            // Pickup schedule for one départ card, fetched on demand when a visitor expands
+            // "Heures de départ" (keeps the caravane page itself free of per-départ schedule queries).
+            // Not full-HTML cached: tiny JSON, and its data (heure_departs) is outside the cache
+            // invalidation set.
+            Route::get('caravanes/horaires/{depart}', [MobileAppController::class, 'caravaneDepartSchedule'])
+                ->name('caravanes.schedule');
+        });
+
+        // Student booking funnel — collects the passengers then hands the payload to the
+        // untouched mobile booking backend. Transactional page: noindex. Keeps the full `web`
+        // stack (Livewire needs session + CSRF).
+        Route::get('reserver/{depart}', StudentBooking::class)->name('bookings.create');
+
+        // Acceptance of the invitation a sponsoring ambassador sent to a new ambassador. Transactional page: noindex.
+        Route::get('devenir-ambassadeur/{invitationToken}', AmbassadorInvitation::class)->name('ambassador-invitation');
+
+        // Public booking page, addressed by the group's shared UUID (not the numeric group_id).
+        Route::get('reservations/{uuid}', BookingGroupShow::class)->name('bookings.show');
+
+        // Where Wave sends the customer back after the checkout (see MobileAppController@generatePaymentUrlForMultipleBooking).
+        // Same page as the booking, with a payment outcome banner on top.
+        Route::get('reservations/{uuid}/paiement/succes', BookingGroupShow::class)
+            ->defaults('paymentOutcome', BookingGroupShow::PAYMENT_OUTCOME_SUCCESS)
+            ->name('bookings.payment-success');
+        Route::get('reservations/{uuid}/paiement/echec', BookingGroupShow::class)
+            ->defaults('paymentOutcome', BookingGroupShow::PAYMENT_OUTCOME_ERROR)
+            ->name('bookings.payment-error');
+    });
 
 // Any other host (back office, landing domains): the public website answered above on its own domain.
 Route::withoutMiddleware([
@@ -197,9 +223,9 @@ Route::withoutMiddleware([
     VerifyCsrfToken::class,
 ])->get('robots.txt', [SeoFilesController::class, 'fallbackRobots'])->name('robots.fallback');
 
-Route::get('/', DepartList::class)->middleware(['auth', RejectAmbassadorAccounts::class])->name('home');
+Route::get('/', DepartList::class)->middleware(['auth', RejectExternalPartnerAccounts::class])->name('home');
 
-Route::middleware(['auth:sanctum', 'verified', RejectAmbassadorAccounts::class])->group(function () {
+Route::middleware(['auth:sanctum', 'verified', RejectExternalPartnerAccounts::class])->group(function () {
     Route::get('/dashboard', function () {
         return view('dashboard');
     })->name('dashboard');
@@ -211,7 +237,7 @@ Route::middleware(['auth:sanctum', 'verified', RejectAmbassadorAccounts::class])
  * Back office (Livewire/Flux rewrite). Legacy Vue admin keeps hitting the JSON API;
  * these routes reuse the same controllers and render the data into Flux pages instead.
  */
-Route::middleware(['auth', RejectAmbassadorAccounts::class])->prefix('back-office')->name('back-office.')->group(function () {
+Route::middleware(['auth', RejectExternalPartnerAccounts::class])->prefix('back-office')->name('back-office.')->group(function () {
     Route::get('tableau-de-bord', [DashboardController::class, 'index'])->name('dashboard');
 
     Route::get('departs', DepartList::class)->name('departs.index');
@@ -237,6 +263,7 @@ Route::middleware(['auth', RejectAmbassadorAccounts::class])->prefix('back-offic
     Route::get('ambassadeurs/paiements', AmbassadorPayoutList::class)->name('ambassador-payouts.index');
     Route::get('ambassadeurs/regles-de-recompense', AmbassadorRewardRuleList::class)->name('ambassador-reward-rules.index');
     Route::get('ambassadeurs/documents', AmbassadorDocumentList::class)->name('ambassador-documents.index');
+    Route::get('amicales', AmicaleList::class)->name('amicales.index');
     Route::get('employes', EmployeList::class)->name('employes.index');
     Route::get('users', UserAccessManagement::class)->name('users.index');
     Route::get('vehicules', VehiculeList::class)->name('vehicules.index');

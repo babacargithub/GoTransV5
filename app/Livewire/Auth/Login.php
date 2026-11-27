@@ -3,6 +3,7 @@
 namespace App\Livewire\Auth;
 
 use App\Models\Ambassador;
+use App\Models\Amicale;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -44,10 +45,15 @@ class Login extends Component
             ]);
         }
 
-        // Ambassadors only sign in on their own domain, and staff never do: same error as a bad password.
-        $isAmbassadorDomain = request()->getHost() === config('app.ambassador_domain');
+        // Ambassadors and amicales only sign in on their own domain, and staff never do: same error as a bad password.
+        $requiredAccountRole = $this->accountRoleOfCurrentDomain();
+        $partnerAccountRoles = [Ambassador::ACCOUNT_ROLE_NAME, Amicale::ACCOUNT_ROLE_NAME];
 
-        if ($user->hasRole(Ambassador::ACCOUNT_ROLE_NAME) !== $isAmbassadorDomain) {
+        $isAccountOfThisDomain = $requiredAccountRole === null
+            ? ! $user->hasAnyRole($partnerAccountRoles)
+            : $user->hasRole($requiredAccountRole);
+
+        if (! $isAccountOfThisDomain) {
             RateLimiter::hit($throttleKey);
 
             throw ValidationException::withMessages([
@@ -56,11 +62,15 @@ class Login extends Component
         }
 
         // Only once the credentials are right, so a stranger never learns anything about an account.
-        $ambassadorRejectionMessage = $isAmbassadorDomain ? $user->ambassador?->accessRejectionMessage() : null;
+        $partnerRejectionMessage = match ($requiredAccountRole) {
+            Ambassador::ACCOUNT_ROLE_NAME => $user->ambassador?->accessRejectionMessage(),
+            Amicale::ACCOUNT_ROLE_NAME => $user->amicale?->accessRejectionMessage(),
+            default => null,
+        };
 
-        if ($ambassadorRejectionMessage !== null) {
+        if ($partnerRejectionMessage !== null) {
             throw ValidationException::withMessages([
-                'username' => $ambassadorRejectionMessage,
+                'username' => $partnerRejectionMessage,
             ]);
         }
 
@@ -81,7 +91,11 @@ class Login extends Component
         session()->regenerate();
 
         $this->redirectIntended(
-            default: $isAmbassadorDomain ? route('ambassador.home') : route('back-office.departs.index'),
+            default: match ($requiredAccountRole) {
+                Ambassador::ACCOUNT_ROLE_NAME => route('ambassador.home'),
+                Amicale::ACCOUNT_ROLE_NAME => route('amicale.home'),
+                default => route('back-office.departs.index'),
+            },
             navigate: true,
         );
     }
@@ -89,7 +103,20 @@ class Login extends Component
     public function render()
     {
         return view('livewire.auth.login', [
-            'isAmbassadorDomain' => request()->getHost() === config('app.ambassador_domain'),
+            'isAmbassadorDomain' => $this->accountRoleOfCurrentDomain() === Ambassador::ACCOUNT_ROLE_NAME,
+            'isAmicaleDomain' => $this->accountRoleOfCurrentDomain() === Amicale::ACCOUNT_ROLE_NAME,
         ]);
+    }
+
+    /**
+     * The role every account signing in on the current domain must carry: null on the back-office domains.
+     */
+    private function accountRoleOfCurrentDomain(): ?string
+    {
+        return match (request()->getHost()) {
+            config('app.ambassador_domain') => Ambassador::ACCOUNT_ROLE_NAME,
+            config('app.amicale_admin_domain') => Amicale::ACCOUNT_ROLE_NAME,
+            default => null,
+        };
     }
 }

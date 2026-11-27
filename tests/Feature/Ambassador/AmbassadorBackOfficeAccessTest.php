@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Ambassador;
 
-use App\Http\Middleware\RejectAmbassadorAccounts;
+use App\Http\Middleware\RejectExternalPartnerAccounts;
 use App\Models\Ambassador;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -23,8 +23,10 @@ class AmbassadorBackOfficeAccessTest extends TestCase
             ->filter(fn (Route $route): bool => collect($route->gatherMiddleware())
                 ->contains(fn ($middleware): bool => is_string($middleware) && str_starts_with($middleware, 'auth')))
             ->reject(fn (Route $route): bool => str_starts_with((string) $route->getName(), 'ambassador.'))
+            // Its own middleware only lets amicale accounts through, so ambassadors get a 403 there too.
+            ->reject(fn (Route $route): bool => str_starts_with((string) $route->getName(), 'amicale.'))
             ->reject(fn (Route $route): bool => $route->uri() === 'logout' || str_starts_with($route->uri(), 'user/'))
-            ->reject(fn (Route $route): bool => in_array(RejectAmbassadorAccounts::class, $route->gatherMiddleware(), true))
+            ->reject(fn (Route $route): bool => in_array(RejectExternalPartnerAccounts::class, $route->gatherMiddleware(), true))
             ->map(fn (Route $route): string => $route->uri())
             ->values()
             ->all();

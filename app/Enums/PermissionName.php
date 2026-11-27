@@ -54,6 +54,7 @@ enum PermissionName: string
     case ManageAmbassadorDocuments = 'manage-ambassador-documents';
     case RecordAmbassadorPromotionRewards = 'record-ambassador-promotion-rewards';
     case ApproveAmbassadorEarnings = 'approve-ambassador-earnings';
+    case ManageAmicales = 'manage-amicales';
     case ManageDepartCostReport = 'manage-depart-cost-report';
     case MarkDepartArrived = 'mark-depart-arrived';
     case ConductDepartFeedbackCalls = 'conduct-depart-feedback-calls';
@@ -104,6 +105,7 @@ enum PermissionName: string
             self::ManageAmbassadorDocuments => 'Modifier les documents du programme ambassadeurs',
             self::RecordAmbassadorPromotionRewards => 'Enregistrer les partages de publicité et vidéos des ambassadeurs',
             self::ApproveAmbassadorEarnings => 'Approuver les gains des ambassadeurs avant leur échéance',
+            self::ManageAmicales => 'Gérer les amicales partenaires et leurs comptes',
             self::ManageDepartCostReport => 'Enregistrer et modifier le bilan d\'un départ',
             self::MarkDepartArrived => 'Marquer un départ comme arrivé',
             self::ConductDepartFeedbackCalls => 'Passer les appels d\'avis clients',

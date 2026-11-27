@@ -70,6 +70,14 @@ class User extends Authenticatable
         return $this->hasOne(Ambassador::class, 'user_account_id');
     }
 
+    /**
+     * The amicale this user account logs in as, if any.
+     */
+    public function amicale(): HasOne
+    {
+        return $this->hasOne(Amicale::class, 'user_account_id');
+    }
+
     public static function requireMobileAppUser(): User
     {
         return User::where('username', 'appli_mobile')->firstOrFail();

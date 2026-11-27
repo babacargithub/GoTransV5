@@ -23,6 +23,10 @@
 
         {{-- Desktop: horizontal navigation to the main sections --}}
         <flux:navbar class="max-lg:hidden">
+            @if (\App\Enums\PermissionName::ManageAmicales->allowedForCurrentUser())
+                <flux:navbar.item icon="academic-cap" :href="route('back-office.amicales.index')" :current="request()->routeIs('back-office.amicales.*')">Amicales</flux:navbar.item>
+            @endif
+
             @if (\App\Enums\PermissionName::FullAccess->allowedForCurrentUser())
                 <flux:navbar.item icon="presentation-chart-line" :href="route('back-office.dashboard')" :current="request()->routeIs('back-office.dashboard')">Tableau de bord</flux:navbar.item>
                 <flux:dropdown>
@@ -159,6 +163,10 @@
                         <flux:menu.item icon="adjustments-horizontal" :href="route('back-office.ambassador-reward-rules.index')">Règles de récompense</flux:menu.item>
                         <flux:menu.item icon="document-text" :href="route('back-office.ambassador-documents.index')">Documents</flux:menu.item>
                     </flux:menu.group>
+                @endif
+
+                @if (\App\Enums\PermissionName::ManageAmicales->allowedForCurrentUser())
+                    <flux:menu.item icon="academic-cap" :href="route('back-office.amicales.index')">Amicales</flux:menu.item>
                 @endif
 
                 @if (\App\Enums\PermissionName::FullAccess->allowedForCurrentUser())
