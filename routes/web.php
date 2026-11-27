@@ -8,6 +8,7 @@ use App\Http\Controllers\DepartController;
 use App\Http\Controllers\DepartFeedbackRecordingController;
 use App\Http\Controllers\MobileAppController;
 use App\Http\Controllers\PaymentProofController;
+use App\Http\Controllers\ScreenshotBatchImageController;
 use App\Http\Controllers\SeoFilesController;
 use App\Http\Controllers\TicketController;
 use App\Http\Middleware\CachePublicHtmlResponse;
@@ -51,6 +52,8 @@ use App\Livewire\BackOffice\ItineraireList;
 use App\Livewire\BackOffice\OrangeMoneyPage;
 use App\Livewire\BackOffice\PointDepList;
 use App\Livewire\BackOffice\ProfitReportPage;
+use App\Livewire\BackOffice\ScreenshotBatchList;
+use App\Livewire\BackOffice\ScreenshotBatchShow;
 use App\Livewire\BackOffice\TrajetList;
 use App\Livewire\BackOffice\UserAccessManagement;
 use App\Livewire\BackOffice\VehiculeList;
@@ -249,6 +252,11 @@ Route::middleware(['auth', RejectExternalPartnerAccounts::class])->prefix('back-
         ->name('departs.schedule-notifications');
     Route::get('departs/{depart}/bookings-export', [DepartController::class, 'bookingsForExport'])
         ->name('departs.bookings-export');
+
+    Route::get('captures-ecran', ScreenshotBatchList::class)->name('screenshot-batches.index');
+    Route::get('captures-ecran/{screenshotBatch:uuid}', ScreenshotBatchShow::class)->name('screenshot-batches.show');
+    Route::get('captures-ecran/{screenshotBatch:uuid}/images/{fileName}', [ScreenshotBatchImageController::class, 'show'])
+        ->name('screenshot-batches.image');
 
     Route::get('avis-clients', DepartFeedbackReport::class)->name('depart-feedbacks.report');
     Route::get('avis-clients/appels', DepartFeedbackCallQueue::class)->name('depart-feedbacks.calls');
