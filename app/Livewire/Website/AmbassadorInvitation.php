@@ -2,20 +2,17 @@
 
 namespace App\Livewire\Website;
 
-use App\Enums\AmbassadorStatus;
-use App\Models\Ambassador;
 use App\Services\AmbassadorService;
 use App\Services\NotificationService;
 use DomainException;
 use Illuminate\Contracts\View\View;
-use Livewire\Attributes\Computed;
 use Livewire\Component;
 use Throwable;
 
 /**
- * Page reached through the link a sponsoring ambassador sent to the person they invite. Accepting only moves
- * the ambassador to "pending approval": the sponsor and the administrators are told, then the back office
- * approves (or rejects) them.
+ * Page reached through the link a sponsoring ambassador sent to the person they invite. Opening the link accepts
+ * the invitation, which only moves the ambassador to "pending approval": the sponsor and the administrators are
+ * told, then the back office approves (or rejects) them.
  */
 class AmbassadorInvitation extends Component
 {
@@ -23,33 +20,18 @@ class AmbassadorInvitation extends Component
 
     public bool $invitationWasAccepted = false;
 
-    public ?string $formError = null;
-
-    public function mount(string $invitationToken): void
+    public function mount(string $invitationToken, AmbassadorService $ambassadorService, NotificationService $notificationService): void
     {
         $this->invitationToken = $invitationToken;
+
+        $this->acceptInvitation($ambassadorService, $notificationService);
     }
 
-    /**
-     * The invited ambassador, only while the invitation is pending and its sponsor is still active.
-     */
-    #[Computed]
-    public function invitedAmbassador(): ?Ambassador
+    private function acceptInvitation(AmbassadorService $ambassadorService, NotificationService $notificationService): void
     {
-        $invitedAmbassador = app(AmbassadorService::class)->findInvitedAmbassadorByToken($this->invitationToken);
-
-        return $invitedAmbassador?->sponsor?->status === AmbassadorStatus::Active ? $invitedAmbassador : null;
-    }
-
-    public function acceptInvitation(AmbassadorService $ambassadorService, NotificationService $notificationService): void
-    {
-        $this->formError = null;
-
         try {
             $acceptedAmbassador = $ambassadorService->acceptInvitation($this->invitationToken);
-        } catch (DomainException $domainException) {
-            $this->formError = $domainException->getMessage();
-
+        } catch (DomainException) {
             return;
         }
 

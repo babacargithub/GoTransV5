@@ -174,8 +174,6 @@ class AmbassadorSponsoredInvitationTest extends TestCase
         });
 
         Livewire::test(AmbassadorInvitation::class, ['invitationToken' => $invitedAmbassador->invitation_token])
-            ->assertSee($invitedAmbassador->first_name)
-            ->call('acceptInvitation')
             ->assertSet('invitationWasAccepted', true);
 
         $this->assertSame(AmbassadorStatus::PendingApproval, $invitedAmbassador->fresh()->status);
@@ -191,7 +189,6 @@ class AmbassadorSponsoredInvitationTest extends TestCase
         });
 
         Livewire::test(AmbassadorInvitation::class, ['invitationToken' => $invitedAmbassador->invitation_token])
-            ->call('acceptInvitation')
             ->assertSet('invitationWasAccepted', true);
     }
 
@@ -201,7 +198,6 @@ class AmbassadorSponsoredInvitationTest extends TestCase
 
         Livewire::test(AmbassadorInvitation::class, ['invitationToken' => 'unknown-token'])
             ->assertSee("Ce lien d'invitation n'est plus valide.", false)
-            ->call('acceptInvitation')
             ->assertSet('invitationWasAccepted', false);
 
         $this->assertSame(AmbassadorStatus::PendingApproval, $acceptedAmbassador->fresh()->status);
