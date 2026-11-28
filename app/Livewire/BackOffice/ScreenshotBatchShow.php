@@ -9,7 +9,7 @@ use Livewire\Attributes\Layout;
 use Livewire\Component;
 
 /**
- * One batch of screenshots with all its images. Only the agent who submitted it can open it.
+ * One batch of screenshots with all its images. Only the agent who submitted it, or a full-access user, can open it.
  */
 #[Layout('components.layouts.back-office')]
 class ScreenshotBatchShow extends Component
@@ -18,7 +18,7 @@ class ScreenshotBatchShow extends Component
 
     public function mount(ScreenshotBatch $screenshotBatch): void
     {
-        abort_unless($screenshotBatch->isOwnedBy(auth()->user()), 404);
+        abort_unless($screenshotBatch->isViewableBy(auth()->user()), 404);
 
         $this->screenshotBatch = $screenshotBatch;
     }

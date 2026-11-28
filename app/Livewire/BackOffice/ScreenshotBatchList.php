@@ -6,6 +6,7 @@ use App\Models\ScreenshotBatch;
 use App\Services\ScreenshotBatchService;
 use DomainException;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -15,7 +16,7 @@ use Livewire\WithPagination;
 
 /**
  * "Captures d'écran": where a field agent submits the screenshots of their groups' members and sees the batches
- * they already sent. An agent only ever sees their own batches.
+ * they already sent. An agent only sees their own batches; a full-access user sees everyone's.
  *
  * Up to 200 images cannot travel in one request (PHP caps files per request), so the browser creates the batch
  * first, then sends the images in small chunks, each chunk being attached to the batch as soon as it arrives.
@@ -109,8 +110,10 @@ class ScreenshotBatchList extends Component
     public function render(): View
     {
         return view('livewire.back-office.screenshot-batch-list', [
+            'userSeesAllBatches' => auth()->user()->hasFullAccess(),
             'batches' => ScreenshotBatch::query()
-                ->where('user_id', auth()->id())
+                ->with('user')
+                ->unless(auth()->user()->hasFullAccess(), fn (Builder $batchQuery) => $batchQuery->where('user_id', auth()->id()))
                 ->latest()
                 ->paginate(15),
             'maximumImagesPerBatch' => ScreenshotBatchService::MAXIMUM_IMAGES_PER_BATCH,

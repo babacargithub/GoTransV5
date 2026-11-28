@@ -255,6 +255,8 @@ Route::middleware(['auth', RejectExternalPartnerAccounts::class])->prefix('back-
 
     Route::get('captures-ecran', ScreenshotBatchList::class)->name('screenshot-batches.index');
     Route::get('captures-ecran/{screenshotBatch:uuid}', ScreenshotBatchShow::class)->name('screenshot-batches.show');
+    Route::get('captures-ecran/{screenshotBatch:uuid}/telecharger', [ScreenshotBatchImageController::class, 'download'])
+        ->name('screenshot-batches.download');
     Route::get('captures-ecran/{screenshotBatch:uuid}/images/{fileName}', [ScreenshotBatchImageController::class, 'show'])
         ->name('screenshot-batches.image');
 

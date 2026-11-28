@@ -149,7 +149,7 @@
         </flux:button>
     </div>
 
-    <flux:heading size="lg" level="2" class="mt-8">Mes envois</flux:heading>
+    <flux:heading size="lg" level="2" class="mt-8">{{ $userSeesAllBatches ? 'Tous les envois' : 'Mes envois' }}</flux:heading>
 
     <div class="mt-3 space-y-3">
         @forelse ($batches as $batch)
@@ -161,7 +161,7 @@
             >
                 <div class="min-w-0">
                     <div class="truncate font-medium">{{ $batch->note ?? 'Sans nom' }}</div>
-                    <flux:text class="truncate text-sm">{{ $batch->created_at->locale('fr')->translatedFormat('d F Y à H:i') }} · {{ $batch->file_count }} image(s)</flux:text>
+                    <flux:text class="truncate text-sm">{{ $batch->created_at->locale('fr')->translatedFormat('d F Y à H:i') }} · {{ $batch->file_count }} image(s){{ $userSeesAllBatches ? ' · '.($batch->user?->name ?? 'Inconnu') : '' }}</flux:text>
                 </div>
                 <flux:badge size="sm" :color="$batch->status->badgeColor()">{{ $batch->status->label() }}</flux:badge>
             </a>

@@ -36,6 +36,14 @@ class ScreenshotBatch extends Model
     }
 
     /**
+     * Whether the user may open the batch and its images: the agent who submitted it, or a full-access user.
+     */
+    public function isViewableBy(User $user): bool
+    {
+        return $this->isOwnedBy($user) || $user->hasFullAccess();
+    }
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array

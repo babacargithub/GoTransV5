@@ -6,7 +6,12 @@
             <flux:heading size="xl" level="1">{{ $screenshotBatch->note ?? 'Sans nom' }}</flux:heading>
             <flux:text class="mt-1">Envoi du {{ $screenshotBatch->created_at->locale('fr')->translatedFormat('d F Y à H:i') }} · {{ $screenshotBatch->file_count }} image(s)</flux:text>
         </div>
-        <flux:badge :color="$screenshotBatch->status->badgeColor()">{{ $screenshotBatch->status->label() }}</flux:badge>
+        <div class="flex items-center gap-3">
+            <flux:badge :color="$screenshotBatch->status->badgeColor()">{{ $screenshotBatch->status->label() }}</flux:badge>
+            @if ($imageFileNames !== [])
+                <flux:button variant="primary" icon="arrow-down-tray" :href="route('back-office.screenshot-batches.download', $screenshotBatch->uuid)">Télécharger (zip)</flux:button>
+            @endif
+        </div>
     </div>
 
     <flux:separator class="my-6" variant="subtle" />

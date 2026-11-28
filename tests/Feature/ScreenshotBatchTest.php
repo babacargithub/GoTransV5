@@ -14,6 +14,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Tests\TestCase;
+use ZipArchive;
 
 class ScreenshotBatchTest extends TestCase
 {
@@ -115,6 +116,26 @@ class ScreenshotBatchTest extends TestCase
             ->assertDontSee('Lot d\'un collègue');
     }
 
+    public function test_a_full_access_user_sees_opens_and_downloads_the_batches_of_every_agent(): void
+    {
+        $fullAccessUser = $this->createUserWithFullAccess();
+        $batch = ScreenshotBatch::factory()->create(['note' => 'Lot d\'un collègue']);
+        app(ScreenshotBatchService::class)->addImagesToBatch($batch, [UploadedFile::fake()->image('a.png')]);
+        $storedFileName = app(ScreenshotBatchService::class)->imageFileNames($batch)[0];
+
+        Livewire::actingAs($fullAccessUser)->test(ScreenshotBatchList::class)
+            ->assertSee('Lot d\'un collègue')
+            ->assertSee($batch->user->name);
+        Livewire::actingAs($fullAccessUser)->test(ScreenshotBatchShow::class, ['screenshotBatch' => $batch])
+            ->assertOk();
+        $this->actingAs($fullAccessUser)
+            ->get(route('back-office.screenshot-batches.image', [$batch->uuid, $storedFileName]))
+            ->assertOk();
+        $this->actingAs($fullAccessUser)
+            ->get(route('back-office.screenshot-batches.download', $batch->uuid))
+            ->assertOk();
+    }
+
     public function test_an_agent_opens_their_batch_and_sees_its_images(): void
     {
         $fieldAgent = User::factory()->create();
@@ -128,6 +149,34 @@ class ScreenshotBatchTest extends TestCase
         $this->actingAs($fieldAgent)
             ->get(route('back-office.screenshot-batches.image', [$batch->uuid, $storedFileName]))
             ->assertOk();
+    }
+
+    public function test_an_agent_downloads_all_the_images_of_their_batch_as_a_zip(): void
+    {
+        $fieldAgent = User::factory()->create();
+        $batch = ScreenshotBatch::factory()->create(['user_id' => $fieldAgent->id, 'note' => 'Groupe L1 Droit']);
+        app(ScreenshotBatchService::class)->addImagesToBatch($batch, [UploadedFile::fake()->image('a.png'), UploadedFile::fake()->image('b.jpg')]);
+
+        $response = $this->actingAs($fieldAgent)
+            ->get(route('back-office.screenshot-batches.download', $batch->uuid))
+            ->assertOk()
+            ->assertDownload('groupe-l1-droit.zip');
+
+        $zipArchive = new ZipArchive;
+        $this->assertTrue($zipArchive->open($response->baseResponse->getFile()->getPathname()));
+        $this->assertSame(2, $zipArchive->numFiles);
+        $this->assertSame(['capture-001.png', 'capture-002.jpg'], [$zipArchive->getNameIndex(0), $zipArchive->getNameIndex(1)]);
+        $zipArchive->close();
+    }
+
+    public function test_another_agent_cannot_download_the_zip_of_a_batch(): void
+    {
+        $batch = ScreenshotBatch::factory()->create();
+        app(ScreenshotBatchService::class)->addImagesToBatch($batch, [UploadedFile::fake()->image('a.png')]);
+
+        $this->actingAs(User::factory()->create())
+            ->get(route('back-office.screenshot-batches.download', $batch->uuid))
+            ->assertNotFound();
     }
 
     public function test_another_agent_can_neither_open_a_batch_nor_download_its_images(): void
